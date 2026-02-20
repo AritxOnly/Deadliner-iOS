@@ -21,16 +21,21 @@ struct UserPanelSheet: View {
                     }
                 }
             }
-            
+
             Section("设置") {
-                Label("设置", systemImage: "gearshape")
+                NavigationLink {
+                    SettingsView()
+                } label: {
+                    Label("设置", systemImage: "gearshape")
+                }
             }
 
             Section("账户") {
                 Label("用户信息", systemImage: "person.text.rectangle")
-                
                 Label("退出登录", systemImage: "rectangle.portrait.and.arrow.right")
             }
         }
+        .navigationTitle("个人面板")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

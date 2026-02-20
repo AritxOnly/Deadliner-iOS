@@ -1,5 +1,5 @@
 //
-//  TimelineView.swift
+//  DeadlinerTimelineView.swift
 //  Deadliner
 //
 //  Created by Aritx 音唯 on 2026/2/16.
@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct TimelineView: View {
+struct DeadlinerTimelineView: View {
     @Binding var query: String
 
     private let items = [

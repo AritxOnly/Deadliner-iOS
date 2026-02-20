@@ -11,7 +11,12 @@ struct SettingsView: View {
     var body: some View {
         List {
             Section("通用") {
-                Label("账号与同步", systemImage: "person.crop.circle")
+                NavigationLink {
+                    AccountAndSyncView()
+                } label: {
+                    Label("账号与同步", systemImage: "person.crop.circle")
+                }
+
                 Label("通知设置", systemImage: "bell")
                 Label("默认主页", systemImage: "house")
             }
@@ -25,5 +30,7 @@ struct SettingsView: View {
                 Label("版本信息", systemImage: "info.circle")
             }
         }
+        .navigationTitle("设置")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

@@ -4,7 +4,7 @@
     {
       "value" : {
         "linear-gradient" : [
-          "display-p3:0.62775,0.74327,0.92659,1.00000",
+          "display-p3:0.78704,0.84390,0.92659,1.00000",
           "display-p3:0.76321,0.86381,1.00000,1.00000"
         ],
         "orientation" : {
@@ -30,11 +30,18 @@
         {
           "blend-mode" : "normal",
           "fill" : "none",
-          "glass" : true,
+          "glass" : false,
           "hidden" : false,
           "image-name" : "foreground_1024.png",
           "name" : "foreground_1024",
-          "opacity" : 1
+          "opacity" : 1,
+          "position" : {
+            "scale" : 1.05,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
         }
       ],
       "shadow" : {

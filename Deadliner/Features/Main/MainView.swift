@@ -14,7 +14,8 @@ struct MainView: View {
 
     @State private var showAISheet = false
     @State private var showAddSheet = false
-    @State private var showUserSheet = false
+    @State private var showSettingsSheet = false
+    @State private var navGradientProgress: CGFloat = 0
 
     var body: some View {
         NavigationStack {
@@ -27,9 +28,16 @@ struct MainView: View {
                     topTrailingToolbar
                     bottomToolbar
                 }
-                .background(alignment: .top) {
-                                TopBarGradientBackground()
-                            }
+                .background {
+                    ZStack(alignment: .top) {
+                        Color(uiColor: .systemGroupedBackground)
+                                            .ignoresSafeArea()
+                                        
+                        
+                        TopBarGradientOverlay(progress: navGradientProgress, isAIConfigured: true)
+                    }
+                }
+                .toolbarBackground(.hidden, for: .navigationBar)
                 .sheet(isPresented: $showAISheet) {
                     NavigationStack {
                         Text("Ask AI to smartly add tasks or habits")
@@ -41,21 +49,24 @@ struct MainView: View {
                 }
                 .sheet(isPresented: $showAddSheet) {
                     NavigationStack {
-                        AddEntrySheet()
-                            .navigationTitle("Add")
+                        AddEntrySheet(
+                            repository: TaskRepository.shared,
+                                onTaskCreated: {
+                                    NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
+                                }
+                        )
+                            .navigationTitle("添加任务")
                             .navigationBarTitleDisplayMode(.inline)
                     }
-                    .presentationDetents([.medium, .large])
+                    .presentationDetents([.medium])
                 }
-                .sheet(isPresented: $showUserSheet) {
+                .sheet(isPresented: $showSettingsSheet) {
                     NavigationStack {
-                        UserPanelSheet(
-                            selectedModule: $module
-                        )
+                        SettingsView()
                         .navigationTitle("用户与设置")
-                        .navigationBarTitleDisplayMode(.inline)
+                        .navigationBarTitleDisplayMode(.large)
                     }
-                    .presentationDetents([.medium, .large])
+                    .presentationDetents([.large])
                 }
         }
     }
@@ -66,9 +77,12 @@ struct MainView: View {
     private var contentView: some View {
         switch module {
         case .taskManagement:
-            HomeView(query: $query, taskSegment: $taskSegment)
+            HomeView(query: $query, taskSegment: $taskSegment,
+                     onScrollProgressChange: { p in
+                         navGradientProgress = p
+                     })
         case .timeline:
-            TimelineView(query: $query)
+            DeadlinerTimelineView(query: $query)
         case .insights:
             OverviewView()
         case .archive:
@@ -106,10 +120,9 @@ struct MainView: View {
     private var topTrailingToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Button {
-                showUserSheet = true
+                showSettingsSheet = true
             } label: {
-                Image(systemName: "person.crop.circle")
-                    .font(.title3)
+                Image(systemName: "gear")
             }
             .accessibilityLabel("用户面板")
         }
@@ -195,33 +208,13 @@ struct MainView: View {
     private var searchPrompt: String {
         switch module {
         case .taskManagement:
-            return taskSegment == .tasks ? "Search tasks" : "Search habits"
+            return taskSegment == .tasks ? "搜索任务..." : "搜索习惯..."
         case .timeline:
-            return "Search timeline"
+            return "搜索待办..."
         case .insights:
-            return "Search insights"
+            return "搜索模块..."
         case .archive:
-            return "Search archive"
+            return "搜索归档..."
         }
     }
-}
-
-private struct TopBarGradientBackground: View {
-    var body: some View {
-        LinearGradient(
-            colors: [
-                Color.accentColor.opacity(0.30),
-                Color.accentColor.opacity(0.15),
-                Color.clear
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .frame(height: 240) // 先给大一点，确认效果；后面再收
-        .ignoresSafeArea(edges: .top)
-    }
-}
-
-#Preview {
-    MainView()
 }
