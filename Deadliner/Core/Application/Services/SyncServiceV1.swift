@@ -58,7 +58,7 @@ actor SyncServiceV1: SyncService {
         }
 
         let dev = try await db.getDeviceId()
-        let now = ISO8601DateFormatter().string(from: Date())
+        let now = Date().toLocalISOString()
         return SnapshotRoot(version: .init(ts: now, dev: dev), items: snapItems)
     }
 

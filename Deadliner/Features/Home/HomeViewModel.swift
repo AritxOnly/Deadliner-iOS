@@ -80,7 +80,7 @@ final class HomeViewModel: ObservableObject {
         var updated = item
         updated.isCompleted.toggle()
         updated.completeTime = updated.isCompleted
-            ? ISO8601DateFormatter().string(from: Date())
+            ? Date().toLocalISOString()
             : ""
 
         do {

@@ -1,0 +1,49 @@
+//
+//  BehaviorAndDisplayView.swift
+//  Deadliner
+//
+//  Created by Aritx 音唯 on 2026/2/21.
+//
+
+import SwiftUI
+
+struct BehaviorAndDisplayView: View {
+    @State private var autoArchiveDays = 7
+    // 未来可以加的占位变量：
+    // @State private var defaultHomePage = 0
+    // @State private var showCompletedTasks = true
+
+    var body: some View {
+        Form {
+            Section("任务归档与清理") {
+                Stepper(value: $autoArchiveDays, in: 0...365) {
+                    HStack {
+                        Text("完成任务归档天数")
+                        Spacer()
+                        Text(autoArchiveDays == 0 ? "已关闭" : "\(autoArchiveDays) 天")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                Text(autoArchiveDays == 0
+                     ? "任务完成后将一直留在主列表中。"
+                     : "任务完成后 \(autoArchiveDays) 天，将自动移入归档区。")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+            
+            Section("界面显示 (开发中)") {
+                Label("默认主页设置", systemImage: "house")
+                Label("列表排序规则", systemImage: "arrow.up.arrow.down")
+            }
+        }
+        .navigationTitle("行为与交互")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            autoArchiveDays = await LocalValues.shared.getAutoArchiveDays()
+        }
+        .onChange(of: autoArchiveDays) { newValue in
+            Task { await LocalValues.shared.setAutoArchiveDays(newValue) }
+        }
+    }
+}

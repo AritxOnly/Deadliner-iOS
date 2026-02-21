@@ -8,7 +8,6 @@
 import Foundation
 
 enum DeadlineDateParser {
-    // 你可以按需改成你项目里的“空时间”
     static let timeNull: Date = .distantPast
 
     // MARK: - Public API

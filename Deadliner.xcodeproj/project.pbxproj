@@ -195,11 +195,11 @@
 				};
 			};
 			buildConfigurationList = E52762DD2F3F6189002162DF /* Build configuration list for PBXProject "Deadliner" */;
-			developmentRegion = en;
+			developmentRegion = "zh-Hans";
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				en,
 				Base,
+				"zh-Hans",
 			);
 			mainGroup = E52762D92F3F6189002162DF;
 			minimizedProjectReferenceProxies = 1;

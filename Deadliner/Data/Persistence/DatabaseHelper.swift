@@ -112,7 +112,7 @@ actor DatabaseHelper {
         let fd = FetchDescriptor<SyncStateEntity>(predicate: #Predicate { $0.singletonId == 1 })
         guard let s = try context.fetch(fd).first else { throw DBError.syncStateMissing }
 
-        let now = ISO8601DateFormatter().string(from: Date())
+        let now = Date().toLocalISOString()
         let newer: Ver
         if now > s.lastLocalTs {
             newer = Ver(ts: now, ctr: 0, dev: s.deviceId)
@@ -221,7 +221,7 @@ actor DatabaseHelper {
         e.isTombstoned = true
         e.isArchived = true
         if e.completeTime.isEmpty {
-            e.completeTime = ISO8601DateFormatter().string(from: Date())
+            e.completeTime = Date().toLocalISOString()
         }
 
         let v = try nextVersionUTC()
@@ -346,7 +346,7 @@ actor DatabaseHelper {
         guard days >= 0 else { return 0 }
 
         let threshold = Date().addingTimeInterval(TimeInterval(-days * 24 * 3600))
-        let thresholdStr = ISO8601DateFormatter().string(from: threshold)
+        let thresholdStr = threshold.toLocalISOString()
 
         let fd = FetchDescriptor<DDLItemEntity>(
             predicate: #Predicate {

@@ -13,9 +13,13 @@ struct MainView: View {
     @State private var query: String = ""
 
     @State private var showAISheet = false
-    @State private var showAddSheet = false
     @State private var showSettingsSheet = false
     @State private var navGradientProgress: CGFloat = 0
+    
+    let repo: TaskRepository = TaskRepository.shared
+
+    @State private var showAddTaskForm = false
+    @State private var showAddOptions = false
 
     var body: some View {
         NavigationStack {
@@ -39,26 +43,19 @@ struct MainView: View {
                 }
                 .toolbarBackground(.hidden, for: .navigationBar)
                 .sheet(isPresented: $showAISheet) {
-                    NavigationStack {
-                        Text("Ask AI to smartly add tasks or habits")
-                            .padding()
-                            .navigationTitle("Deadliner AI")
-                            .navigationBarTitleDisplayMode(.inline)
-                    }
-                    .presentationDetents([.medium, .large])
+                    DeadlinerAIPanel()
+                        .presentationDetents([.medium, .large])
                 }
-                .sheet(isPresented: $showAddSheet) {
+                .sheet(isPresented: $showAddTaskForm) {
                     NavigationStack {
-                        AddEntrySheet(
-                            repository: TaskRepository.shared,
-                                onTaskCreated: {
-                                    NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
-                                }
+                        AddTaskSheetView(
+                            repository: repo,
+                            onDone: {
+                                NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
+                            }
                         )
-                            .navigationTitle("添加任务")
-                            .navigationBarTitleDisplayMode(.inline)
                     }
-                    .presentationDetents([.medium])
+                    .presentationDetents([.large])
                 }
                 .sheet(isPresented: $showSettingsSheet) {
                     NavigationStack {
@@ -136,7 +133,7 @@ struct MainView: View {
         case .taskManagement:
             ToolbarItem(placement: .bottomBar) {
                 Button { showAISheet = true } label: {
-                    Image(systemName: "apple.intelligence")
+                    Image(systemName: "sparkles")
                 }
                 .accessibilityLabel("Deadliner AI")
             }
@@ -146,11 +143,20 @@ struct MainView: View {
             ToolbarSpacer(.flexible, placement: .bottomBar)
 
             ToolbarItem(placement: .bottomBar) {
-                Button { showAddSheet = true } label: {
+                Button {
+                    showAddOptions = true
+                } label: {
                     Image(systemName: "plus")
                 }
-                .buttonStyle(.borderedProminent)
-                .accessibilityLabel("Add")
+                .buttonStyle(.glassProminent)
+                .tint(Color(hex: "#FFFF6D6D"))
+                .accessibilityLabel("添加选项")
+                
+                .confirmationDialog("选择添加类型", isPresented: $showAddOptions, titleVisibility: .hidden) {
+                    Button("新建任务") { showAddTaskForm = true }
+                    Button("新建习惯") { /* 你的习惯逻辑 */ }
+                    Button("取消", role: .cancel) { }
+                }
             }
 
         case .timeline:
@@ -167,10 +173,20 @@ struct MainView: View {
             ToolbarSpacer(.flexible, placement: .bottomBar)
 
             ToolbarItem(placement: .bottomBar) {
-                Button { showAddSheet = true } label: {
+                Button {
+                    showAddOptions = true
+                } label: {
                     Image(systemName: "plus")
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
+                .tint(Color(hex: "#FFFF6D6D"))
+                .accessibilityLabel("添加选项")
+                
+                .confirmationDialog("选择添加类型", isPresented: $showAddOptions, titleVisibility: .hidden) {
+                    Button("新建任务") { showAddTaskForm = true }
+                    Button("新建习惯") { /* 你的习惯逻辑 */ }
+                    Button("取消", role: .cancel) { }
+                }
             }
 
         case .insights:

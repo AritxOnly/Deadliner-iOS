@@ -18,8 +18,6 @@ struct AddTaskSheetView: View {
     @State private var startTime: Date = Date()
     @State private var endTime: Date = Date().addingTimeInterval(3600)
 
-    // 新增：与 AddTaskFormView 对齐
-    @State private var hasDeadline: Bool = true
     @State private var isStarred: Bool = false
 
     @State private var aiInputText: String = ""
@@ -57,11 +55,7 @@ struct AddTaskSheetView: View {
                     Section("时间") {
                         DatePicker("开始时间", selection: $startTime, displayedComponents: [.date, .hourAndMinute])
 
-                        Toggle("设置截止时间", isOn: $hasDeadline)
-
-                        if hasDeadline {
-                            DatePicker("截止时间", selection: $endTime, displayedComponents: [.date, .hourAndMinute])
-                        }
+                        DatePicker("截止时间", selection: $endTime, displayedComponents: [.date, .hourAndMinute])
                     }
                 }
                 .disabled(isAILoading || isSaving)
@@ -90,7 +84,8 @@ struct AddTaskSheetView: View {
                     } label: {
                         Image(systemName: "checkmark")
                     }
-                    .disabled(isSaving || isAILoading)
+                    .disabled(isSaving || isAILoading || name.isEmpty)
+                    .buttonStyle(.glassProminent)
                 }
             }
             .alert("提示", isPresented: $showAlert, actions: {
@@ -113,16 +108,59 @@ struct AddTaskSheetView: View {
         defer { isAILoading = false }
 
         do {
-            // TODO: 接 iOS 端 AIService
-            // let results = try await AIService.shared.extractTasks(...)
-            // if let task = results.first { ... }
-
-            // 基础占位
+            // 1. 调用提取服务
+            let tasks = try await AIService.shared.extractTasks(text: text)
+            
+            // 2. 拿到第一个提取结果（极简日程通常一段话对应一个任务）
+            guard let firstTask = tasks.first else {
+                showToast("未能从文本中识别出任务内容哦")
+                return
+            }
+            
+            // 3. 映射到表单 UI
+            self.name = firstTask.name
+            
+            if let noteStr = firstTask.note, !noteStr.isEmpty {
+                self.note = noteStr
+            }
+            
+            // 4. 处理时间日期
+            if let dueString = firstTask.dueTime, !dueString.isEmpty {
+                print("💡 [AI 调试] 准备解析 AI 返回的时间: \(dueString)")
+                            
+                let formatter = DateFormatter()
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                formatter.timeZone = .current
+                            
+                if dueString.count > 16 {
+                    formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+                } else {
+                    formatter.dateFormat = "yyyy-MM-dd HH:mm"
+                }
+                            
+                if let parsedDate = formatter.date(from: dueString) {
+                                self.endTime = parsedDate
+                    print("✅ [AI 调试] 时间解析成功: \(parsedDate)")
+                                
+                    if self.startTime >= parsedDate {
+                        self.startTime = parsedDate.addingTimeInterval(-3600) // 提前一小时
+                    }
+                } else {
+                    print("❌ [AI 调试] 时间解析失败！AI 给的字符串是：'\(dueString)'")
+                }
+            }
+            
+            showToast("✨ AI 解析完成")
+            
+            self.aiInputText = ""
+            
+        } catch {
+            showToast("抱歉，AI 解析失败：\(error.localizedDescription)")
+            
+            // 基础占位(降级处理)：如果解析出错，直接把用户说的话当作标题填进去
             if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 name = text
             }
-        } catch {
-            showToast("抱歉，AI 解析失败：\(error.localizedDescription)")
         }
     }
 
@@ -135,7 +173,7 @@ struct AddTaskSheetView: View {
         }
 
         // 只有在 hasDeadline == true 时才校验结束时间
-        if hasDeadline && endTime < startTime {
+        if endTime < startTime {
             showToast("截止时间不能早于开始时间")
             return
         }
@@ -146,8 +184,8 @@ struct AddTaskSheetView: View {
         do {
             let params = DDLInsertParams(
                 name: trimmed,
-                startTime: ISO8601DateFormatter().string(from: startTime),
-                endTime: hasDeadline ? ISO8601DateFormatter().string(from: endTime) : "",
+                startTime: startTime.toLocalISOString(),
+                endTime: endTime.toLocalISOString(),
                 isCompleted: false,
                 completeTime: "",
                 note: note,
@@ -159,7 +197,6 @@ struct AddTaskSheetView: View {
 
             _ = try await repository.insertDDL(params)
 
-            // 如果 repo 内部已统一发通知，这行可删；保留也不会有功能性问题
             NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
 
             showToast("创建成功")

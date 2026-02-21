@@ -29,9 +29,9 @@ actor LocalValues {
         static let webdavUser = "settings.webdav.user"
         static let webdavPass = "settings.webdav.pass"
 
-        // 你后面还可以继续加：
-        // static let themeMode = "settings.theme_mode"
-        // static let language = "settings.language"
+        static let aiApiKey = "settings.ai.api_key"
+        static let aiBaseUrl = "settings.ai.base_url"
+        static let aiModel = "settings.ai.model"
     }
 
     // MARK: - DTO
@@ -52,7 +52,9 @@ actor LocalValues {
         defaults.register(defaults: [
             Key.cloudSyncEnabled: true,
             Key.basicMode: false,
-            Key.autoArchiveDays: 7
+            Key.autoArchiveDays: 7,
+            Key.aiBaseUrl: "https://api.deepseek.com",
+            Key.aiModel: "deepseek-chat"
         ])
     }
 
@@ -134,6 +136,30 @@ actor LocalValues {
         let auth = getWebDAVAuth()
         return .init(url: url, auth: auth)
     }
+    
+    func getAIApiKey() -> String {
+        defaults.string(forKey: Key.aiApiKey) ?? ""
+    }
+
+    func setAIApiKey(_ key: String) {
+        defaults.set(key.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Key.aiApiKey)
+    }
+
+    func getAIBaseUrl() -> String {
+        defaults.string(forKey: Key.aiBaseUrl) ?? "https://api.deepseek.com"
+    }
+
+    func setAIBaseUrl(_ url: String) {
+        defaults.set(url.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Key.aiBaseUrl)
+    }
+
+    func getAIModel() -> String {
+        defaults.string(forKey: Key.aiModel) ?? "deepseek-chat"
+    }
+
+    func setAIModel(_ model: String) {
+        defaults.set(model.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Key.aiModel)
+    }
 
     // MARK: - Debug / Maintenance
 
@@ -144,7 +170,10 @@ actor LocalValues {
             Key.autoArchiveDays,
             Key.webdavURL,
             Key.webdavUser,
-            Key.webdavPass
+            Key.webdavPass,
+            Key.aiApiKey,
+            Key.aiBaseUrl,
+            Key.aiModel
         ]
         keys.forEach { defaults.removeObject(forKey: $0) }
         registerDefaults()
