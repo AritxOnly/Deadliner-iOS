@@ -10,6 +10,8 @@
 		E52763CF2F42F09F002162DF /* DeadlinerDefault.icon in Resources */ = {isa = PBXBuildFile; fileRef = E52763CE2F42F09F002162DF /* DeadlinerDefault.icon */; };
 		E5B68B692F4B493500E603F3 /* DeadlinerBlackGold.icon in Resources */ = {isa = PBXBuildFile; fileRef = E5B68B672F4B493500E603F3 /* DeadlinerBlackGold.icon */; };
 		E5B68B6A2F4B493500E603F3 /* DeadlinerPixel.icon in Resources */ = {isa = PBXBuildFile; fileRef = E5B68B682F4B493500E603F3 /* DeadlinerPixel.icon */; };
+		E5B68B6F2F4C821E00E603F3 /* DeadlinerPurple.icon in Resources */ = {isa = PBXBuildFile; fileRef = E5B68B6E2F4C821E00E603F3 /* DeadlinerPurple.icon */; };
+		E5B68B712F4C825700E603F3 /* DeadlinerOragne.icon in Resources */ = {isa = PBXBuildFile; fileRef = E5B68B702F4C825700E603F3 /* DeadlinerOragne.icon */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -37,6 +39,8 @@
 		E52763D02F42F124002162DF /* DeadlinerDefault.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = DeadlinerDefault.icon; sourceTree = "<group>"; };
 		E5B68B672F4B493500E603F3 /* DeadlinerBlackGold.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = DeadlinerBlackGold.icon; sourceTree = "<group>"; };
 		E5B68B682F4B493500E603F3 /* DeadlinerPixel.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = DeadlinerPixel.icon; sourceTree = "<group>"; };
+		E5B68B6E2F4C821E00E603F3 /* DeadlinerPurple.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = DeadlinerPurple.icon; sourceTree = "<group>"; };
+		E5B68B702F4C825700E603F3 /* DeadlinerOragne.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = DeadlinerOragne.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -90,6 +94,8 @@
 				E52762FE2F3F618B002162DF /* DeadlinerUITests */,
 				E52762E32F3F6189002162DF /* Products */,
 				E52763CE2F42F09F002162DF /* DeadlinerDefault.icon */,
+				E5B68B6E2F4C821E00E603F3 /* DeadlinerPurple.icon */,
+				E5B68B702F4C825700E603F3 /* DeadlinerOragne.icon */,
 				E5B68B672F4B493500E603F3 /* DeadlinerBlackGold.icon */,
 				E5B68B682F4B493500E603F3 /* DeadlinerPixel.icon */,
 			);
@@ -230,6 +236,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				E5B68B692F4B493500E603F3 /* DeadlinerBlackGold.icon in Resources */,
+				E5B68B6F2F4C821E00E603F3 /* DeadlinerPurple.icon in Resources */,
+				E5B68B712F4C825700E603F3 /* DeadlinerOragne.icon in Resources */,
 				E5B68B6A2F4B493500E603F3 /* DeadlinerPixel.icon in Resources */,
 				E52763CF2F42F09F002162DF /* DeadlinerDefault.icon in Resources */,
 			);
