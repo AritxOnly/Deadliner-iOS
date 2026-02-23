@@ -203,6 +203,8 @@ struct HomeView: View {
         if now >= end { return 1 }
 
         let p = now.timeIntervalSince(start) / end.timeIntervalSince(start)
-        return CGFloat(min(max(p, 0), 1))
+        let actualProgress = CGFloat(min(max(p, 0), 1))
+        let progress = vm.progressDir ? actualProgress : 1.0 - actualProgress
+        return progress
     }
 }

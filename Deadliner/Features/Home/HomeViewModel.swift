@@ -14,6 +14,8 @@ final class HomeViewModel: ObservableObject {
     @Published var tasks: [DDLItem] = []
     @Published var isLoading = false
     @Published var errorText: String?
+    
+    @Published var progressDir: Bool = false
 
     private let repo: TaskRepository
     private var cancellables = Set<AnyCancellable>()
@@ -46,6 +48,8 @@ final class HomeViewModel: ObservableObject {
 
     /// 页面进入：先同步，再刷新；仅执行一次
     func initialLoad() async {
+        self.progressDir = await LocalValues.shared.getProgressDir()
+        
         guard !didInitialLoad else {
             await reload()
             return

@@ -113,7 +113,7 @@ struct SettingsView: View {
                         if userTier == .free { PlusBadge() }
                     }
                 }
-                NavigationLink(destination: Text("图标设置开发中...")) {
+                NavigationLink(destination: IconSettingsView()) {
                     HStack {
                         Label("自定义图标", systemImage: "app.dashed")
                         Spacer()

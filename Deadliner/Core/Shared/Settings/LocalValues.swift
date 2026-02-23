@@ -32,6 +32,8 @@ actor LocalValues {
         static let aiApiKey = "settings.ai.api_key"
         static let aiBaseUrl = "settings.ai.base_url"
         static let aiModel = "settings.ai.model"
+        
+        static let progressDir = "settings.progress.dir"
     }
 
     // MARK: - DTO
@@ -54,7 +56,8 @@ actor LocalValues {
             Key.basicMode: false,
             Key.autoArchiveDays: 7,
             Key.aiBaseUrl: "https://api.deepseek.com",
-            Key.aiModel: "deepseek-chat"
+            Key.aiModel: "deepseek-chat",
+            Key.progressDir: false
         ])
     }
 
@@ -160,6 +163,14 @@ actor LocalValues {
     func setAIModel(_ model: String) {
         defaults.set(model.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Key.aiModel)
     }
+    
+    func getProgressDir() -> Bool {
+        defaults.bool(forKey: Key.progressDir)
+    }
+    
+    func setProgressDir(_ enable: Bool) {
+        defaults.set(enable, forKey: Key.progressDir)
+    }
 
     // MARK: - Debug / Maintenance
 
@@ -173,7 +184,8 @@ actor LocalValues {
             Key.webdavPass,
             Key.aiApiKey,
             Key.aiBaseUrl,
-            Key.aiModel
+            Key.aiModel,
+            Key.progressDir
         ]
         keys.forEach { defaults.removeObject(forKey: $0) }
         registerDefaults()

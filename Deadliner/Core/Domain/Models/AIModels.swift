@@ -8,14 +8,14 @@
 import Foundation
 
 // MARK: - AI 提取结果模型
-struct AITask: Codable {
+public struct AITask: Codable {
     let name: String
     let dueTime: String?
     let note: String?
 }
 
 // TODO: Habit的完整内部数据结构待实现，这里仅作为从AI解析的DTO (Data Transfer Object)
-struct AIHabit: Codable {
+public struct AIHabit: Codable {
     let name: String
     let period: String
     let timesPerPeriod: Int
@@ -23,10 +23,14 @@ struct AIHabit: Codable {
     let totalTarget: Int?
 }
 
-struct MixedResult: Codable {
+public struct MixedResult: Codable {
     let primaryIntent: String?
     let tasks: [AITask]?
     let habits: [AIHabit]?
+    let newMemories: [String]? // 记忆提取
+    let chatResponse: String?  // AI 的暖心回复
+    let sessionSummary: String? // 会话摘要（短期）
+    let userProfile: String? // 长期画像（可选更新）
 }
 
 // MARK: - API 请求/响应模型 (DeepSeek/OpenAI 兼容格式)

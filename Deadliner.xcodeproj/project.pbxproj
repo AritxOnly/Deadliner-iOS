@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		E52763CF2F42F09F002162DF /* DeadlinerDefault.icon in Resources */ = {isa = PBXBuildFile; fileRef = E52763CE2F42F09F002162DF /* DeadlinerDefault.icon */; };
+		E5B68B692F4B493500E603F3 /* DeadlinerBlackGold.icon in Resources */ = {isa = PBXBuildFile; fileRef = E5B68B672F4B493500E603F3 /* DeadlinerBlackGold.icon */; };
+		E5B68B6A2F4B493500E603F3 /* DeadlinerPixel.icon in Resources */ = {isa = PBXBuildFile; fileRef = E5B68B682F4B493500E603F3 /* DeadlinerPixel.icon */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -33,6 +35,8 @@
 		E52762FB2F3F618B002162DF /* DeadlinerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DeadlinerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E52763CE2F42F09F002162DF /* DeadlinerDefault.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = DeadlinerDefault.icon; sourceTree = "<group>"; };
 		E52763D02F42F124002162DF /* DeadlinerDefault.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = DeadlinerDefault.icon; sourceTree = "<group>"; };
+		E5B68B672F4B493500E603F3 /* DeadlinerBlackGold.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = DeadlinerBlackGold.icon; sourceTree = "<group>"; };
+		E5B68B682F4B493500E603F3 /* DeadlinerPixel.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = DeadlinerPixel.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -86,6 +90,8 @@
 				E52762FE2F3F618B002162DF /* DeadlinerUITests */,
 				E52762E32F3F6189002162DF /* Products */,
 				E52763CE2F42F09F002162DF /* DeadlinerDefault.icon */,
+				E5B68B672F4B493500E603F3 /* DeadlinerBlackGold.icon */,
+				E5B68B682F4B493500E603F3 /* DeadlinerPixel.icon */,
 			);
 			sourceTree = "<group>";
 		};
@@ -223,6 +229,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E5B68B692F4B493500E603F3 /* DeadlinerBlackGold.icon in Resources */,
+				E5B68B6A2F4B493500E603F3 /* DeadlinerPixel.icon in Resources */,
 				E52763CF2F42F09F002162DF /* DeadlinerDefault.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -403,9 +411,10 @@
 		E52763062F3F618B002162DF /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "DeadlinerBlackGold DeadlinerPixel";
 				ASSETCATALOG_COMPILER_APPICON_NAME = DeadlinerDefault;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = RB3FG27FYG;
@@ -438,9 +447,10 @@
 		E52763072F3F618B002162DF /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "DeadlinerBlackGold DeadlinerPixel";
 				ASSETCATALOG_COMPILER_APPICON_NAME = DeadlinerDefault;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = RB3FG27FYG;
