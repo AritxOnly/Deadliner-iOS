@@ -100,4 +100,45 @@ final class MemoryBank: ObservableObject {
         UserDefaults.standard.removeObject(forKey: storageKey)
         UserDefaults.standard.removeObject(forKey: storageProfileKey)
     }
+    
+    // MARK: - Editing / Deleting
+
+    func setUserProfileAllowEmpty(_ profile: String) {
+        let trimmed = profile.trimmingCharacters(in: .whitespacesAndNewlines)
+        DispatchQueue.main.async {
+            self.userProfile = trimmed
+            self.saveProfileToDisk()
+        }
+    }
+
+    func deleteFragment(id: UUID) {
+        DispatchQueue.main.async {
+            self.fragments.removeAll { $0.id == id }
+            self.saveToDisk()
+        }
+    }
+
+    func updateFragment(id: UUID, newContent: String, newCategory: String? = nil, newImportance: Int? = nil) {
+        let trimmed = newContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        DispatchQueue.main.async {
+            guard let idx = self.fragments.firstIndex(where: { $0.id == id }) else { return }
+            let old = self.fragments[idx]
+            let updated = MemoryFragment(
+                id: old.id,
+                content: trimmed.isEmpty ? old.content : trimmed,
+                category: newCategory ?? old.category,
+                timestamp: old.timestamp,
+                importance: newImportance ?? old.importance
+            )
+            self.fragments[idx] = updated
+            self.saveToDisk()
+        }
+    }
+
+    func replaceAllFragments(_ newList: [MemoryFragment]) {
+        DispatchQueue.main.async {
+            self.fragments = newList
+            self.saveToDisk()
+        }
+    }
 }

@@ -128,4 +128,68 @@ enum DeadlineDateParser {
             second: 0
         )) ?? date
     }
+    
+    /// 复刻旧逻辑：用字符串长度选择 yyyy-MM-dd HH:mm 或 yyyy-MM-dd HH:mm:ss
+    private static func parseAIGeneratedDateStrict(_ s: String) -> Date? {
+        if s.count > 16 {
+            return aiDateTimeSecondsFormatter.date(from: s)
+        } else {
+            return aiDateTimeMinutesFormatter.date(from: s)
+        }
+    }
+
+    /// 缓存 formatter，避免反复创建
+    private static let aiDateTimeSecondsFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = .current
+        f.calendar = Calendar(identifier: .gregorian)
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        f.isLenient = false
+        return f
+    }()
+
+    private static let aiDateTimeMinutesFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = .current
+        f.calendar = Calendar(identifier: .gregorian)
+        f.dateFormat = "yyyy-MM-dd HH:mm"
+        f.isLenient = false
+        return f
+    }()
+    
+    /// 专门解析 AI 生成的截止时间字符串
+    /// - 期望：yyyy-MM-dd HH:mm 或 yyyy-MM-dd HH:mm:ss
+    /// - 同时也会 fallback 到 parseDateTime（支持 ISO8601 / date-only 等）
+    /// - 返回 nil 表示解析失败或空/null
+    static func parseAIGeneratedDate(_ raw: String, debugLog: Bool = false) -> Date? {
+        let s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.isEmpty || s.lowercased() == "null" {
+            if debugLog { print("❌ [AI 调试] 时间字符串为空或为 null") }
+            return nil
+        }
+
+        if debugLog { print("💡 [AI 调试] 准备解析 AI 返回的时间: \(s)") }
+
+        // 1) 先走你原来那套“长度判断”严格解析（最符合你当前 AI 输出）
+        if let d = parseAIGeneratedDateStrict(s) {
+            if debugLog { print("✅ [AI 调试] 严格格式解析成功: \(d)") }
+            return d
+        }
+
+        // 2) fallback：走你统一的强解析（ISO8601 / 其他 pattern / date-only）
+        do {
+            if let d = try parseDateTime(s) {
+                if debugLog { print("✅ [AI 调试] fallback parseDateTime 成功: \(d)") }
+                return d
+            } else {
+                if debugLog { print("❌ [AI 调试] fallback parseDateTime 返回 nil: '\(s)'") }
+                return nil
+            }
+        } catch {
+            if debugLog { print("❌ [AI 调试] 时间解析失败！AI 给的字符串是：'\(s)'") }
+            return nil
+        }
+    }
 }

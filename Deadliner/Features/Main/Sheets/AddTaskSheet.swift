@@ -125,29 +125,16 @@ struct AddTaskSheetView: View {
             }
             
             // 4. 处理时间日期
-            if let dueString = firstTask.dueTime, !dueString.isEmpty {
-                print("💡 [AI 调试] 准备解析 AI 返回的时间: \(dueString)")
-                            
-                let formatter = DateFormatter()
-                formatter.locale = Locale(identifier: "en_US_POSIX")
-                formatter.timeZone = .current
-                            
-                if dueString.count > 16 {
-                    formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-                } else {
-                    formatter.dateFormat = "yyyy-MM-dd HH:mm"
+            if let dueString = firstTask.dueTime,
+               let parsedDate = DeadlineDateParser.parseAIGeneratedDate(dueString, debugLog: true) {
+
+                self.endTime = parsedDate
+
+                if self.startTime >= parsedDate {
+                    self.startTime = parsedDate.addingTimeInterval(-3600)
                 }
-                            
-                if let parsedDate = formatter.date(from: dueString) {
-                                self.endTime = parsedDate
-                    print("✅ [AI 调试] 时间解析成功: \(parsedDate)")
-                                
-                    if self.startTime >= parsedDate {
-                        self.startTime = parsedDate.addingTimeInterval(-3600) // 提前一小时
-                    }
-                } else {
-                    print("❌ [AI 调试] 时间解析失败！AI 给的字符串是：'\(dueString)'")
-                }
+            } else {
+                print("❌ [AI 调试] dueTime 为空或解析失败：'\(firstTask.dueTime ?? "nil")'")
             }
             
             showToast("✨ AI 解析完成")

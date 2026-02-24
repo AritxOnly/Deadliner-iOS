@@ -36,6 +36,19 @@ struct AIFunctionView: View {
     
     @State private var sessionSummary: String = ""
     @StateObject private var memoryBank = MemoryBank.shared
+    
+    @State private var pendingTaskToCreate: AITask?
+    @State private var showCreateTaskDialog: Bool = false
+
+    @State private var pendingHabitToCreate: AIHabit?
+    @State private var showCreateHabitDialog: Bool = false
+
+    @State private var addedTaskKeys: Set<String> = []      // 用于把卡片变“已添加”
+    @State private var addedHabitKeys: Set<String> = []
+
+    @State private var repoBusy: Bool = false               // 防连点
+    
+    @State private var showMemoryManageSheet: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -87,17 +100,8 @@ struct AIFunctionView: View {
 
                 inputSection
             }
-            .navigationTitle(isExpanded ? "Deadliner Agent" : "")
+            .navigationTitle(isExpanded ? "Deadliner AI" : "")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                if isExpanded {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button("收起") {
-                            withAnimation(.spring()) { isExpanded = false }
-                        }
-                    }
-                }
-            }
         }
         // 根据是否展开自动调整 Sheet 高度
         .presentationDetents(isExpanded ? [.large] : [.medium, .large])
@@ -105,6 +109,39 @@ struct AIFunctionView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "未知错误")
+        }
+        .confirmationDialog(
+            "确认创建任务？",
+            isPresented: $showCreateTaskDialog,
+            titleVisibility: .visible
+        ) {
+            Button("创建任务", role: .none) {
+                guard let t = pendingTaskToCreate else { return }
+                Task { await createTaskFromProposal(t) }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            if let t = pendingTaskToCreate {
+                Text(makeTaskConfirmMessage(t))
+            }
+        }
+        .confirmationDialog(
+            "确认开启习惯？",
+            isPresented: $showCreateHabitDialog,
+            titleVisibility: .visible
+        ) {
+            Button("开启习惯", role: .none) {
+                guard let h = pendingHabitToCreate else { return }
+                Task { await createHabitFromProposal(h) }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            if let h = pendingHabitToCreate {
+                Text("习惯：\(h.name)\n频率：\(h.period) / \(h.timesPerPeriod) 次")
+            }
+        }
+        .sheet(isPresented: $showMemoryManageSheet) {
+            MemoryManageSheet()
         }
     }
 }
@@ -177,15 +214,22 @@ extension AIFunctionView {
             if let due = task.dueTime, !due.isEmpty {
                 Text(due).font(.subheadline).foregroundColor(.blue)
             }
-            Button(action: { confirmTask(task) }) {
-                Text("确认添加")
+            
+            let taskKey = makeTaskKey(task)
+
+            Button(action: {
+                pendingTaskToCreate = task
+                showCreateTaskDialog = true
+            }) {
+                Text(addedTaskKeys.contains(taskKey) ? "已添加" : "确认添加")
                     .font(.subheadline.bold())
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
-                    .background(Color.blue)
+                    .background(addedTaskKeys.contains(taskKey) ? Color.gray.opacity(0.4) : Color.blue)
                     .foregroundColor(.white)
                     .cornerRadius(8)
             }
+            .disabled(addedTaskKeys.contains(taskKey) || repoBusy)
         }
         .padding()
         .background(Color(uiColor: .secondarySystemBackground))
@@ -203,22 +247,21 @@ extension AIFunctionView {
                 .font(.subheadline)
                 .foregroundColor(.purple)
 
+            let habitKey = makeHabitKey(habit)
+
             Button(action: {
-                withAnimation {
-                    displayItems.removeAll {
-                        if case .aiHabit(let h) = $0.kind { return h.name == habit.name }
-                        return false
-                    }
-                }
+                pendingHabitToCreate = habit
+                showCreateHabitDialog = true
             }) {
-                Text("开启习惯")
+                Text(addedHabitKeys.contains(habitKey) ? "已开启" : "开启习惯")
                     .font(.subheadline.bold())
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
-                    .background(Color.purple)
+                    .background(addedHabitKeys.contains(habitKey) ? Color.gray.opacity(0.4) : Color.purple)
                     .foregroundColor(.white)
                     .cornerRadius(8)
             }
+            .disabled(addedHabitKeys.contains(habitKey) || repoBusy)
         }
         .padding()
         .background(Color(uiColor: .secondarySystemBackground))
@@ -251,32 +294,152 @@ extension AIFunctionView {
     }
 
     private var memoryHintView: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "brain.head.profile")
-            Text("画像: \(memoryBank.userProfile.isEmpty ? "未建立" : "已建立") · 记忆 \(memoryBank.fragments.count) 条")
-            Spacer()
+        Button {
+            showMemoryManageSheet = true
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "brain.head.profile")
+                Text("画像: \(memoryBank.userProfile.isEmpty ? "未建立" : "已建立") · 记忆 \(memoryBank.fragments.count) 条")
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .font(.caption2)
+            .foregroundColor(.secondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.secondary.opacity(0.1))
+            .cornerRadius(8)
         }
-        .font(.caption2)
-        .foregroundColor(.secondary)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.secondary.opacity(0.1))
-        .cornerRadius(8)
+        .buttonStyle(.plain)
     }
 
     private var initialGuideView: some View {
-        VStack(spacing: 16) {
-            Spacer()
-            Image(systemName: "sparkles")
-                .font(.system(size: 40))
-                .foregroundStyle(
-                    LinearGradient(colors: [.blue, .purple], startPoint: .top, endPoint: .bottom)
-                )
+        ViewThatFits(in: .vertical) {
+            initialGuideViewRegular
+            initialGuideViewCompact
+        }
+    }
+    
+    private var initialGuideViewRegular: some View {
+        VStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .frame(width: 78, height: 78)
+
+                Image(systemName: "sparkles")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(
+                        LinearGradient(colors: [.blue, .purple], startPoint: .top, endPoint: .bottom)
+                    )
+            }
+
+            Text("Deadliner Agent")
+                .font(.title3.weight(.semibold))
+
+            Text("一句话生成任务 / 习惯 / 记忆")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            VStack(spacing: 10) {
+                quickRow("创建任务", "明天 19:00 交系统论作业", icon: "checklist") {
+                    applyQuickPrompt("明天 19:00 交系统论作业")
+                }
+                quickRow("创建习惯", "每周 3 次 跑步 30 分钟", icon: "arrow.triangle.2.circlepath") {
+                    applyQuickPrompt("每周 3 次 跑步 30 分钟")
+                }
+                quickRow("记住偏好", "以后任务时间用 24 小时制", icon: "brain.head.profile") {
+                    applyQuickPrompt("记住：以后任务时间用 24 小时制输出")
+                }
+            }
+            .padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 24)
+    }
+    
+    private var initialGuideViewCompact: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .frame(width: 78, height: 78)
+
+                Image(systemName: "sparkles")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(
+                        LinearGradient(colors: [.blue, .purple], startPoint: .top, endPoint: .bottom)
+                    )
+            }
+
             Text("有什么我可以帮你的？")
                 .font(.headline)
                 .foregroundColor(.secondary)
-            Spacer()
+            
+            HStack(spacing: 10) {
+                quickChip("创建任务", icon: "checklist") {
+                    applyQuickPrompt("明天 19:00 交系统论作业")
+                }
+                quickChip("创建习惯", icon: "arrow.triangle.2.circlepath") {
+                    applyQuickPrompt("每周 3 次 跑步 30 分钟")
+                }
+            }
         }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 24)
+    }
+    
+    @MainActor
+    private func applyQuickPrompt(_ text: String) {
+        // 保持 medium：不要强制 isExpanded=true
+        inputText = text
+    }
+
+    private func quickChip(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(title)
+                    .font(.caption.weight(.semibold))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Color.secondary.opacity(0.12), in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func quickRow(_ title: String, _ subtitle: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(width: 26)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.secondary)
+            }
+            .padding(12)
+            .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -328,16 +491,6 @@ extension AIFunctionView {
 
         isParsing = false
     }
-
-    private func confirmTask(_ task: AITask) {
-        // TODO: 数据库写入
-        withAnimation {
-            displayItems.removeAll {
-                if case .aiTask(let t) = $0.kind { return t.name == task.name }
-                return false
-            }
-        }
-    }
     
     private func buildSessionContextString(maxChars: Int = 1200) -> String {
         // 只取最近窗口（从后往前）
@@ -367,6 +520,95 @@ extension AIFunctionView {
         }
 
         return lines.reversed().joined(separator: "\n")
+    }
+    
+    @MainActor
+    private func createTaskFromProposal(_ task: AITask) async {
+        if repoBusy { return }
+        repoBusy = true
+        defer { repoBusy = false }
+
+        do {
+            let params = try makeDDLInsertParams(from: task)
+
+            _ = try await TaskRepository.shared.insertDDL(params)
+
+            let key = makeTaskKey(task)
+            addedTaskKeys.insert(key)
+
+            withAnimation(.spring()) {
+                displayItems.append(DisplayItem(kind: .aiChat("已添加任务：\(task.name)")))
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+            showErrorMessage = true
+        }
+    }
+
+    @MainActor
+    private func createHabitFromProposal(_ habit: AIHabit) async {
+        if repoBusy { return }
+        repoBusy = true
+        defer { repoBusy = false }
+
+        do {
+            // TODO: HabitRepository / HabitInsertParams 还没实现的话，在这里接上
+            // _ = try await HabitRepository.shared.insertHabit(...)
+
+            let key = makeHabitKey(habit)
+            addedHabitKeys.insert(key)
+
+            withAnimation(.spring()) {
+                displayItems.append(DisplayItem(kind: .aiChat("已开启习惯：\(habit.name)")))
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+            showErrorMessage = true
+        }
+    }
+    
+    private func makeTaskKey(_ task: AITask) -> String {
+        // 你也可以换成 task.id（如果 AITask 有）
+        let due = (task.dueTime?.isEmpty == false) ? task.dueTime! : "none"
+        return "\(task.name)#\(due)"
+    }
+
+    private func makeHabitKey(_ habit: AIHabit) -> String {
+        return "\(habit.name)#\(habit.period)#\(habit.timesPerPeriod)"
+    }
+
+    private func makeTaskConfirmMessage(_ task: AITask) -> String {
+        let due = (task.dueTime?.isEmpty == false) ? task.dueTime! : "无"
+        return "任务：\(task.name)\n截止：\(due)"
+    }
+    
+    private func makeDDLInsertParams(from task: AITask) throws -> DDLInsertParams {
+        let startDate = Date()
+        let startISO = startDate.toLocalISOString()
+
+        // endTime：优先用 AI 给的；否则 = 当前时间 + 1h
+        let endDate: Date = {
+            if let rawDue = task.dueTime,
+               let parsed = DeadlineDateParser.parseAIGeneratedDate(rawDue) {
+                return parsed
+            }
+            return startDate.addingTimeInterval(3600)
+        }()
+        
+        let finalEndDate = max(endDate, startDate.addingTimeInterval(60))
+
+        return DDLInsertParams(
+            name: task.name,
+            startTime: startISO,
+            endTime: endDate.toLocalISOString(),
+            isCompleted: false,
+            completeTime: "",
+            note: task.note ?? "",
+            isArchived: false,
+            isStared: false,
+            type: .task,
+            calendarEventId: nil
+        )
     }
 }
 
