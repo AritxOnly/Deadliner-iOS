@@ -12,9 +12,13 @@ import UIKit
 enum DeadlinerIcon: String, CaseIterable, Identifiable {
     case deadlinerDefault = "DeadlinerDefault"
     case deadlinerPurple  = "DeadlinerPurple"
-    case deadlinerOrange  = "DeadlinerOragne"
     case blackGold        = "DeadlinerBlackGold"
     case pixel            = "DeadlinerPixel"
+    case spring           = "DeadlinerSpring"
+    case summer           = "DeadlinerSummer"
+    case autumn           = "DeadlinerAutumn"
+    case winter           = "DeadlinerWinter"
+    case autoSeason       = "AutoSeason" // UI strategy, not a system icon name
 
     var id: String { rawValue }
 
@@ -22,33 +26,58 @@ enum DeadlinerIcon: String, CaseIterable, Identifiable {
         switch self {
         case .deadlinerDefault: return "默认"
         case .deadlinerPurple:  return "紫色"
-        case .deadlinerOrange:  return "橙色"
         case .blackGold:        return "黑金"
         case .pixel:            return "像素"
+        case .spring:           return "春"
+        case .summer:           return "夏"
+        case .autumn:           return "秋"
+        case .winter:           return "冬"
+        case .autoSeason:       return "四季"
         }
     }
 
-    /// setAlternateIconName 需要传的 name：
-    /// - nil 表示恢复主图标（Primary Icon）
+    var previewAssetName: String { "IconPreview-\(rawValue)" }
+
+    /// Resolve the actual icon to apply.
+    /// autoSeason -> seasonal icon by solar terms.
+    func resolvedIcon(for date: Date = Date(),
+                      calendar: Calendar = .current,
+                      timeZone: TimeZone = .current) -> DeadlinerIcon {
+        switch self {
+        case .autoSeason:
+            let s = SeasonUtils.season(for: date, calendar: calendar, timeZone: timeZone)
+            return iconForSeason(s)
+        default:
+            return self
+        }
+    }
+
+    /// Map Season -> DeadlinerIcon (must be in this file to avoid circular dependency)
+    private func iconForSeason(_ s: Season) -> DeadlinerIcon {
+        switch s {
+        case .spring: return .spring
+        case .summer: return .summer
+        case .autumn: return .autumn
+        case .winter: return .winter
+        }
+    }
+
+    /// setAlternateIconName needs this value:
+    /// - nil means primary icon
     var alternateIconName: String? {
         switch self {
-        case .deadlinerDefault:
+        case .deadlinerDefault: return nil
+        case .deadlinerPurple:  return "DeadlinerPurple"
+        case .blackGold:        return "DeadlinerBlackGold"
+        case .pixel:            return "DeadlinerPixel"
+        case .spring:           return "DeadlinerSpring"
+        case .summer:           return "DeadlinerSummer"
+        case .autumn:           return "DeadlinerAutumn"
+        case .winter:           return "DeadlinerWinter"
+        case .autoSeason:
+            // Strategy only. Apply resolvedIcon().alternateIconName instead.
             return nil
-        case .deadlinerPurple:
-            return "DeadlinerPurple"
-        case .deadlinerOrange:
-            return "DeadlinerOragne"
-        case .blackGold:
-            return "DeadlinerBlackGold"
-        case .pixel:
-            return "DeadlinerPixel"
         }
-    }
-
-    /// Settings 里展示用的预览图（建议你在 Assets 里放 3 张 128/256 的预览 PNG）
-    /// 比如：IconPreview-DeadlinerDefault / -DeadlinerBlackGold / -DeadlinerPixel
-    var previewAssetName: String {
-        "IconPreview-\(rawValue)"
     }
 }
 
@@ -81,6 +110,12 @@ struct IconSettingsView: View {
                         Text(errorMessage)
                             .font(.footnote)
                             .foregroundStyle(.red)
+                    }
+
+                    if selectedIcon == .autoSeason {
+                        Text("已启用四季图标（节气）：在进入 App 或回到前台时会自动更新为当前季节。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .padding(.vertical, 4)
@@ -121,8 +156,8 @@ struct IconSettingsView: View {
         .navigationTitle("自定义图标")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            // 进入页面时，尽量和系统当前 icon 对齐（防止用户在系统层面改过/或你后续扩展）
             syncFromSystemIconIfPossible()
+            applyAutoSeasonIfNeeded()
         }
     }
 
@@ -132,21 +167,20 @@ struct IconSettingsView: View {
             return
         }
 
-        // 已是当前选中则不重复调用
         if icon == selectedIcon { return }
 
         isApplying = true
         errorMessage = nil
 
-        UIApplication.shared.setAlternateIconName(icon.alternateIconName) { error in
+        let target = icon.resolvedIcon()
+        let targetAlternateName = target.alternateIconName
+
+        UIApplication.shared.setAlternateIconName(targetAlternateName) { error in
             DispatchQueue.main.async {
                 self.isApplying = false
                 if let error {
-                    // 回滚 UI 选择（避免“存了但没改成功”）
                     self.errorMessage = "更换失败：\(error.localizedDescription)"
-                    // 不改 selectedAppIconRaw，让它保持旧值更安全
                 } else {
-                    // 成功后再落盘
                     self.selectedAppIconRaw = icon.rawValue
                 }
             }
@@ -156,18 +190,33 @@ struct IconSettingsView: View {
     private func syncFromSystemIconIfPossible() {
         guard UIApplication.shared.supportsAlternateIcons else { return }
 
+        // Respect stored strategy if it's autoSeason
+        if selectedIcon == .autoSeason { return }
+
         let current = UIApplication.shared.alternateIconName
-        // current == nil 代表 primary
         if current == nil {
             selectedAppIconRaw = DeadlinerIcon.deadlinerDefault.rawValue
-        } else if current == "DeadlinerBlackGold" {
-            selectedAppIconRaw = DeadlinerIcon.blackGold.rawValue
-        } else if current == "DeadlinerPixel" {
-            selectedAppIconRaw = DeadlinerIcon.pixel.rawValue
-        } else if current == "DeadlinerPurple" {
-            selectedAppIconRaw = DeadlinerIcon.deadlinerPurple.rawValue
-        } else if current == "DeadlinerOragne" {
-            selectedAppIconRaw = DeadlinerIcon.deadlinerOrange.rawValue
+        } else if let mapped = DeadlinerIcon(rawValue: current!) {
+            selectedAppIconRaw = mapped.rawValue
+        } else {
+            selectedAppIconRaw = DeadlinerIcon.deadlinerDefault.rawValue
         }
+    }
+
+    private func applyAutoSeasonIfNeeded() {
+        guard UIApplication.shared.supportsAlternateIcons else { return }
+        guard selectedIcon == .autoSeason else { return }
+
+        let target = DeadlinerIcon.autoSeason.resolvedIcon()
+        let currentName = UIApplication.shared.alternateIconName
+
+        let currentIcon: DeadlinerIcon = {
+            if currentName == nil { return .deadlinerDefault }
+            return DeadlinerIcon(rawValue: currentName!) ?? .deadlinerDefault
+        }()
+
+        guard currentIcon != target else { return }
+
+        UIApplication.shared.setAlternateIconName(target.alternateIconName, completionHandler: nil)
     }
 }

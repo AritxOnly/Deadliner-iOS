@@ -41,7 +41,61 @@ public final class AIService {
         let result = try makeDecoder().decode(MixedResult.self, from: jsonData)
 
         if let newMemories = result.newMemories, !newMemories.isEmpty {
-            for mem in newMemories {
+            let filtered = filterMemories(newMemories, result: result, userText: text)
+            for mem in filtered {
+                MemoryBank.shared.saveMemory(content: mem, category: "Auto-Extracted")
+            }
+        }
+
+        if let profile = result.userProfile, !profile.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            MemoryBank.shared.saveUserProfile(profile)
+        }
+
+        return result
+    }
+    
+    // MARK: - Agent Continue (after tool result)
+    public func continueAfterTool(
+        originalUserText: String,
+        toolResult: AIToolResult,
+        preferredLang: String = "zh-CN",
+        sessionContext: String = "",
+        sessionSummary: String = ""
+    ) async throws -> MixedResult {
+
+        let longTerm = MemoryBank.shared.getLongTermContext()
+
+        let systemPrompt = buildAgentSystemPrompt(
+            preferredLang: preferredLang,
+            longTermContext: longTerm,
+            sessionSummary: sessionSummary,
+            sessionContext: sessionContext,
+            toolHint: """
+            你正在进行二段对话（工具结果已提供）。
+            - 不要再次请求 readTasks（除非用户明确要求刷新/再查）。
+            - 你可以基于工具结果输出新的 tasks/habits proposal（用于新增/补全/纠错），但必须避免重复已存在任务。
+            """
+        )
+
+        // 把 toolResult 编码成稳定 JSON 字符串
+        let toolJson = try encodeToolResult(toolResult)
+
+        let messages = [
+            ChatMessage(role: "system", content: systemPrompt),
+            ChatMessage(role: "user", content: originalUserText),
+            ChatMessage(role: "user", content: "TOOL_RESULT_JSON:\n\(toolJson)")
+        ]
+
+        let content = try await fetchFromProvider(messages: messages)
+        print("[AIService] Raw Response (after tool): \(content)")
+
+        let jsonData = try extractJsonData(from: content)
+        let result = try makeDecoder().decode(MixedResult.self, from: jsonData)
+
+        // 二段也允许更新记忆/画像（但一般会少很多）
+        if let newMemories = result.newMemories, !newMemories.isEmpty {
+            let filtered = filterMemories(newMemories, result: result, userText: content)
+            for mem in filtered {
                 MemoryBank.shared.saveMemory(content: mem, category: "Auto-Extracted")
             }
         }
@@ -197,18 +251,21 @@ public final class AIService {
         preferredLang: String,
         longTermContext: String,
         sessionSummary: String,
-        sessionContext: String
+        sessionContext: String,
+        toolHint: String? = nil
     ) -> String {
         let now = isoNowString()
         let tz = TimeZone.current.identifier
 
-        // ✅ 硬限制，避免炸
         let summary = String(sessionSummary.prefix(600))
         let ctx = String(sessionContext.prefix(1200))
         let ltm = String(longTermContext.prefix(900))
 
         return """
     你是 Deadliner AI，一个“日程/习惯/闲聊”全能解析器（Agent Core）。
+    
+    \(toolHint.map { "【工具阶段提示】\n\($0)\n" } ?? "")
+    
     【当前时间】\(now)
     【当前时区】\(tz)
     【用户语言】\(preferredLang)
@@ -234,6 +291,35 @@ public final class AIService {
     5) chatResponse：仅当 primaryIntent="Chat" 时给一句简短回复（否则可省略或空）
     6) sessionSummary：必须输出。用 5-10 条要点总结“当前会话状态/未完成事项/确认流程”，总长度 <= 600 字符
     7) userProfile：仅当你认为需要更新画像时输出（1段话，<= 420 字符）；否则可以省略或输出空字符串
+    8) toolCalls：当你需要读取用户真实任务列表才能回答时，输出 toolCalls（数组）。否则省略或输出空数组。
+
+    toolCalls 规则：
+    - tool 目前只能是 "readTasks"
+    - args 必须是：
+        - timeRangeDays: Int（默认 7）
+        - status: "OPEN" | "DONE" | "ALL"（默认 "OPEN"）
+        - keywords: string[]（最多 3 个；每个最多 12 字；可为空）
+        - limit: Int（默认 20，最大 50）
+        - sort: "DUE_ASC" | "UPDATED_DESC"（默认 "DUE_ASC"）
+    - reason: 用 1 句话解释为什么要读任务（给用户授权卡展示）
+    
+    【关键词强规则（必须遵守）】：
+    - toolCalls.args.keywords 只能来自“用户本轮输入 text”中明确出现的词或短语。
+    - 禁止从长期记忆、会话摘要、短期窗口中推断/补充 keywords。
+    - 若用户输入是泛查询（如“这周/最近/有哪些任务/列出任务”）且未指定主题词，则 keywords 必须是空数组或省略。
+
+    【二段工具回灌规则】：
+    - 如果你在用户消息中看到以 "TOOL_RESULT_JSON:" 开头的工具结果，表示任务数据已提供。
+      你必须基于工具结果直接给出最终 JSON 输出。
+    - 你可以输出新的 tasks/habits proposal（用于新增、补全或纠错），但必须遵循：
+      1) 除非用户明确要求“刷新/再查”，否则不要再次输出 toolCalls。
+      2) 若工具结果中已存在高度相似的任务（同名或同义，且截止时间接近），不要重复输出同一任务；可以在 chatResponse 里提示“已存在，是否需要调整/合并”。
+      3) 若用户的请求是“列出/查看/总结”，优先给 chatResponse；proposal 仅在确实需要用户确认新增/变更时输出。
+    
+    【记忆抽取强规则】：
+    - newMemories 只能包含“长期稳定偏好/事实/约束”（例如：时间格式偏好、语言偏好、工作流偏好、长期项目背景）。
+    - 禁止把任何“待办/任务/提醒/本次要做的事”写入 newMemories（包括用户说的任务、你解析出的 tasks、你从 repo 读到的 tasks）。
+    - 如果用户输入是“提取任务/列出任务/这周有什么任务/添加任务”等任务相关请求，则 newMemories 必须为空数组或省略。
 
     【时间推算强规则】：
     - dueTime 必须严格是 "yyyy-MM-dd HH:mm" 或 ""。
@@ -248,6 +334,11 @@ public final class AIService {
     【任务字段规则】：
     - name：2-8字最佳，不超过15字；去冗词。
     - note：细节补充；无则 ""。
+    
+    【去重规则（强制）】：
+    - 若 readTasks 返回的 tasks 列表中存在 name 与新任务 name 相同或非常相似（编辑距离很近/同义），且 dueTime 相差 <= 6 小时：
+      - 不要输出新的 tasks proposal
+      - 在 chatResponse 中询问是否要“修改原任务的截止时间/备注”或“合并”
 
     【习惯字段规则】：
     - period：只能 "DAILY"/"WEEKLY"/"MONTHLY"，未提及默认 "DAILY"
@@ -263,7 +354,8 @@ public final class AIService {
       "newMemories": ["..."],
       "chatResponse": "...",
       "sessionSummary": "...",
-      "userProfile": "..."
+      "userProfile": "...",
+      "toolCalls": [{"tool":"readTasks","args":{"timeRangeDays":7,"status":"OPEN","keywords":["..."],"limit":20,"sort":"DUE_ASC"},"reason":"..."}]
     }
     """
     }
@@ -318,5 +410,68 @@ public final class AIService {
         let fmt = ISO8601DateFormatter()
         fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return fmt.string(from: Date())
+    }
+    
+    // MARK: - Tool Result Encode
+    private func encodeToolResult(_ toolResult: AIToolResult) throws -> String {
+        let enc = JSONEncoder()
+        // 统一 ISO8601（否则 Date 默认是 seconds-since-1970，AI 不好读）
+        enc.dateEncodingStrategy = .iso8601
+        enc.outputFormatting = [.sortedKeys] // 让 diff 更稳定（可选）
+        let data = try enc.encode(toolResult)
+        guard let s = String(data: data, encoding: .utf8) else {
+            throw AIError.parsingFailed
+        }
+        return s
+    }
+    
+    private func filterMemories(_ mems: [String], result: MixedResult, userText: String) -> [String] {
+        let q = userText.lowercased()
+
+        // 1) 任务/待办场景：直接不存记忆（最硬）
+        if (result.primaryIntent ?? "").contains("ExtractTasks") ||
+           (result.primaryIntent ?? "").contains("ExtractHabits") ||
+           looksLikeTaskQuery(q) {
+            return []
+        }
+
+        // 2) 如果 mem 与 tasks/habits 高度相关，也过滤
+        let taskNames = Set((result.tasks ?? []).map { $0.name.lowercased() })
+        let habitNames = Set((result.habits ?? []).map { $0.name.lowercased() })
+
+        return mems
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter { m in
+                let s = m.lowercased()
+
+                // 2.1 过滤“像任务”的句子（含时间、deadline、明天、本周、提交、完成 等）
+                if looksLikeTaskMemory(s) { return false }
+
+                // 2.2 过滤与任务名/习惯名重合的
+                if taskNames.contains(s) || habitNames.contains(s) { return false }
+
+                // 2.3 过滤包含任何任务名的（防止“记住：交系统论作业”）
+                if taskNames.contains(where: { !($0.isEmpty) && s.contains($0) }) { return false }
+
+                return true
+            }
+    }
+
+    private func looksLikeTaskQuery(_ q: String) -> Bool {
+        let patterns = ["有什么任务", "有哪些任务", "任务列表", "这周", "本周", "明天", "今天", "待办", "deadline", "ddl", "to do", "todo", "提醒我"]
+        return patterns.contains { q.contains($0) }
+    }
+
+    private func looksLikeTaskMemory(_ s: String) -> Bool {
+        // 时间/日期痕迹 + 动词痕迹
+        let timeHints = ["-", ":", "点", "号", "周", "明天", "今天", "截止", "due", "deadline"]
+        let actionHints = ["交", "提交", "完成", "做", "开会", "复习", "写", "买", "打电话", "发送"]
+
+        let hasTime = timeHints.contains { s.contains($0) }
+        let hasAction = actionHints.contains { s.contains($0) }
+
+        // 很粗暴但有效：像“任务”的就别存
+        return hasTime && hasAction
     }
 }

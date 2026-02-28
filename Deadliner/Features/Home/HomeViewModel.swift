@@ -23,6 +23,8 @@ final class HomeViewModel: ObservableObject {
     private var reloadTask: Task<Void, Never>?
     private var isReloading = false
     private var pendingReload = false
+    
+    private var suppressReloadUntil: Date? = nil
 
     // 防止进入页面时重复触发首刷（例如 View 重建）
     private var didInitialLoad = false
@@ -35,7 +37,14 @@ final class HomeViewModel: ObservableObject {
         NotificationCenter.default.publisher(for: .ddlDataChanged)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.scheduleReload()
+                guard let self else { return }
+
+                if let until = self.suppressReloadUntil, Date() < until {
+                    // 忽略自己刚触发的变更通知，避免覆盖 UI 动画
+                    return
+                }
+                
+                self.scheduleReload()
             }
             .store(in: &cancellables)
     }
@@ -78,22 +87,74 @@ final class HomeViewModel: ObservableObject {
     func loadTasks() async { await initialLoad() }
     func refresh() async { await pullToRefresh() }
 
-    // MARK: - User Actions
-
-    func toggleComplete(_ item: DDLItem) async {
+    // MARK: - Local UI Patch (sync)
+    /// 只做 UI 内存更新 + 立即排序，返回“更新后是否 completed”
+    func toggleCompleteLocal(_ item: DDLItem) -> Bool {
+        beginSuppressReload()
+        
         var updated = item
         updated.isCompleted.toggle()
-        updated.completeTime = updated.isCompleted
-            ? Date().toLocalISOString()
-            : ""
+        updated.completeTime = updated.isCompleted ? Date().toLocalISOString() : ""
+
+        if let idx = tasks.firstIndex(where: { $0.id == item.id }) {
+            tasks[idx] = updated
+        } else {
+            // 理论上不会发生，但防御性处理
+            tasks.append(updated)
+        }
+
+        sortTasksInPlace()
+        return updated.isCompleted
+    }
+
+    // MARK: - Persist (async)
+    /// 写库/同步；失败则回滚到 original
+    func persistToggleComplete(original: DDLItem) async {
+        var updated = original
+        updated.isCompleted.toggle()
+        updated.completeTime = updated.isCompleted ? Date().toLocalISOString() : ""
 
         do {
             try await repo.updateDDL(updated)
-            // 不手动 reload，等 ddlDataChanged 通知触发 scheduleReload
+            // 依然可以保留 ddlDataChanged -> scheduleReload 做最终一致性校正
         } catch {
             errorText = "更新失败：\(error.localizedDescription)"
+            rollbackTo(original)
         }
     }
+
+    @MainActor
+    func stageRebuildFromCurrentSnapshot(
+        snapshot: [DDLItem],
+        blankDelayMs: UInt64 = 90
+    ) async {
+        tasks = []
+
+        try? await Task.sleep(nanoseconds: blankDelayMs * 1_000_000)
+
+        tasks = snapshot
+    }
+    
+    // MARK: - Helpers
+    private func sortTasksInPlace() {
+        tasks.sort { lhs, rhs in
+            if lhs.isCompleted != rhs.isCompleted {
+                return !lhs.isCompleted && rhs.isCompleted
+            }
+            return lhs.endTime < rhs.endTime
+        }
+    }
+
+    private func rollbackTo(_ original: DDLItem) {
+        if let idx = tasks.firstIndex(where: { $0.id == original.id }) {
+            tasks[idx] = original
+        } else {
+            tasks.append(original)
+        }
+        sortTasksInPlace()
+    }
+
+    // MARK: - User Actions
 
     func delete(_ item: DDLItem) async {
         do {
@@ -105,7 +166,7 @@ final class HomeViewModel: ObservableObject {
 
     // MARK: - Reload Pipeline
 
-    private func scheduleReload(delay: UInt64 = 120_000_000) {
+    private func scheduleReload(delay: UInt64 = 0) {
         reloadTask?.cancel()
         reloadTask = Task { [weak self] in
             guard let self else { return }
@@ -148,5 +209,9 @@ final class HomeViewModel: ObservableObject {
             pendingReload = false
             await reload()
         }
+    }
+    
+    private func beginSuppressReload(window: TimeInterval = 0.6) {
+        suppressReloadUntil = Date().addingTimeInterval(window)
     }
 }

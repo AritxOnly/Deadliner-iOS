@@ -67,7 +67,7 @@ actor SyncServiceV1: SyncService {
     private func isVerNewer(_ a: SnapshotVer, _ b: SnapshotVer) -> Bool {
         if a.ts != b.ts { return a.ts > b.ts }
         if a.ctr != b.ctr { return a.ctr > b.ctr }
-        return a.dev >= b.dev
+        return false
     }
 
     private func newer(_ a: SnapshotItem, _ b: SnapshotItem) -> Bool {
@@ -124,8 +124,8 @@ actor SyncServiceV1: SyncService {
                 }
             } else if let doc = item.doc {
                 if let local {
-                    try await db.overwriteDDLFromSnapshot(
-                        legacyId: local.legacyId,
+                    try await db.overwriteDDLFromSnapshotEntity(
+                        entity: local,
                         doc: doc,
                         verTs: mergedVer.ts,
                         verCtr: mergedVer.ctr,
@@ -183,7 +183,13 @@ actor SyncServiceV1: SyncService {
                 ifNoneMatchStar: false
             )
         } catch is PreconditionFailedError {
-            return .init(success: true, hasLocalChanges: false)
+            let remoteResp2 = try await web.getBytes(path: snapshotPath)
+            let remoteSnap2 = try decoder.decode(SnapshotRoot.self, from: remoteResp2.bytes)
+
+            let merged2 = merge(local: localSnap, remote: remoteSnap2)
+            _ = try await applySnapshotToLocal(merged2)
+
+            return .init(success: true, hasLocalChanges: true)
         }
 
         let hasChanges = try await applySnapshotToLocal(merged)

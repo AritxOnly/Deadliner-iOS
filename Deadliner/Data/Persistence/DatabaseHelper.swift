@@ -490,22 +490,14 @@ actor DatabaseHelper {
         try context.save()
     }
 
-    func overwriteDDLFromSnapshot(
-        legacyId: Int64,
+    func overwriteDDLFromSnapshotEntity(
+        entity e: DDLItemEntity,
         doc: SnapshotDoc,
         verTs: String,
         verCtr: Int,
         verDev: String
     ) throws {
-        guard let context else { throw DBError.notInitialized }
-
-        let targetId = legacyId
-        let fd = FetchDescriptor<DDLItemEntity>(
-            predicate: #Predicate { $0.legacyId == targetId }
-        )
-        guard let e = try context.fetch(fd).first else {
-            throw DBError.notFound("DDL \(legacyId)")
-        }
+        guard context != nil else { throw DBError.notInitialized }
 
         e.isTombstoned = false
         e.name = doc.name
@@ -526,7 +518,7 @@ actor DatabaseHelper {
         e.verCtr = verCtr
         e.verDev = verDev
 
-        try context.save()
+        try context!.save()
     }
 
     func insertDDLFromSnapshot(
@@ -538,10 +530,10 @@ actor DatabaseHelper {
     ) throws {
         guard let context else { throw DBError.notInitialized }
 
-        // 幂等保护：uid 已有 -> 走覆盖逻辑
+        // 幂等保护：如果本地已经有这个 uid，直接用实体覆盖更新
         if let existing = try findDDLByUID(uid) {
-            try overwriteDDLFromSnapshot(
-                legacyId: existing.legacyId,
+            try overwriteDDLFromSnapshotEntity(
+                entity: existing,
                 doc: doc,
                 verTs: verTs,
                 verCtr: verCtr,
@@ -550,11 +542,10 @@ actor DatabaseHelper {
             return
         }
 
-        // 关键：保持 legacyId 与 snapshot 的 id 一致（跨端稳定）
-        bumpDDLSeqIfNeeded(doc.id)
+        let newLocalId = nextId(.ddl)
 
         let entity = DDLItemEntity(
-            legacyId: doc.id,
+            legacyId: newLocalId,
             name: doc.name,
             startTime: doc.start_time,
             endTime: doc.end_time,
@@ -581,6 +572,52 @@ actor DatabaseHelper {
     
     private func bumpDDLSeqIfNeeded(_ id: Int64) {
         if id > ddlSeq { ddlSeq = id }
+    }
+    
+    // MARK: - Repair Corrupted Data
+    func repairDuplicateData() throws -> Int {
+        guard let context else { throw DBError.notInitialized }
+            
+        // 1. 获取所有数据（包含已删除/被墓碑化的）
+        let fd = FetchDescriptor<DDLItemEntity>()
+        let allItems = try context.fetch(fd)
+            
+        var uidMap: [String: DDLItemEntity] = [:]
+        var deletedDuplicatesCount = 0
+            
+        // 2. 按 uid 去重，只保留最新的那条，物理删除其余分身
+        for item in allItems {
+            let uid = item.uid ?? ""
+            if let existing = uidMap[uid] {
+                // 判断哪个版本更新
+                let isItemNewer: Bool
+                if item.verTs != existing.verTs {
+                    isItemNewer = item.verTs > existing.verTs
+                } else if item.verCtr != existing.verCtr {
+                    isItemNewer = item.verCtr > existing.verCtr
+                } else {
+                    isItemNewer = item.verDev >= existing.verDev
+                }
+                    
+                if isItemNewer {
+                    context.delete(existing) // 删掉旧的
+                    uidMap[uid] = item
+                    deletedDuplicatesCount += 1
+                } else {
+                    context.delete(item)     // 删掉这一个
+                    deletedDuplicatesCount += 1
+                }
+            } else {
+                uidMap[uid] = item
+            }
+        }
+            
+        // 3. 重新校准序列号，防止后续新增又撞车
+        ddlSeq = try maxLegacyId(context: context, for: DDLItemEntity.self)
+        
+        try context.save()
+        logger.info("Repaired database. Deleted \(deletedDuplicatesCount) duplicate records.")
+        return deletedDuplicatesCount
     }
 }
 

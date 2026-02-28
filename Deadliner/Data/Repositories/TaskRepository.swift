@@ -150,6 +150,7 @@ actor TaskRepository {
         try await db.updateDDL(legacyId: item.id) { e in
             e.apply(domain: item)
         }
+        await scheduleSync()
         NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
     }
 
@@ -227,6 +228,15 @@ actor TaskRepository {
             }
         } catch {
             // 可按需加日志
+        }
+    }
+    
+    func runDatabaseRepair() async {
+        do {
+            let deleted = try await db.repairDuplicateData()
+            logger.info("DB Repair finished, removed \(deleted) duplicates.")
+        } catch {
+            logger.error("DB Repair failed: \(error.localizedDescription)")
         }
     }
 }

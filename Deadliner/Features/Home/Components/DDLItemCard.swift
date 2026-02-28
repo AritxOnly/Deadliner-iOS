@@ -101,6 +101,9 @@ struct DDLItemCardSwipeable: View {
 
     var onComplete: () -> Void
     var onDelete: () -> Void
+    
+    var onArchive: (() -> Void)? = nil
+    var onEdit: (() -> Void)? = nil
 
     private let corner: CGFloat = 28
 
@@ -126,26 +129,43 @@ struct DDLItemCardSwipeable: View {
                     onLongPressSelect?()
                 }
             )
-            .swipeActions(edge: HorizontalEdge.trailing, allowsFullSwipe: !selectionMode) {
+            .swipeActions(edge: .trailing, allowsFullSwipe: !selectionMode) {
                 if !selectionMode {
-                    Button {
+                    Button(role: .destructive) {
                         onDelete()
                     } label: {
                         Label("删除", systemImage: "trash")
                     }
                     .tint(.red)
+
+                    Button {
+                        onEdit?()
+                    } label: {
+                        Label("编辑", systemImage: "pencil")
+                    }
+                    .tint(.blue)
                 }
             }
-            .swipeActions(edge: HorizontalEdge.leading, allowsFullSwipe: !selectionMode) {
+            .swipeActions(edge: .leading, allowsFullSwipe: !selectionMode) {
                 if !selectionMode {
                     Button {
                         onComplete()
                     } label: {
-                        Label("完成", systemImage: "checkmark")
+                        Label(status == .completed ? "撤销完成" : "完成",
+                              systemImage: status == .completed ? "arrow.uturn.backward" : "checkmark")
                     }
                     .tint(.green)
+
+                    Button {
+                        onArchive?()
+                    } label: {
+                        Label("归档", systemImage: "archivebox")
+                    }
+                    .tint(.gray)
+                    .disabled(status != .completed)
                 }
             }
+
 
             if selectionMode && selected {
                 SelectionOverlay(cornerRadius: corner)

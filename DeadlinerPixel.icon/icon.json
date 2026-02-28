@@ -11,10 +11,10 @@
           "image-name" : "pixelized.png",
           "name" : "pixelized",
           "position" : {
-            "scale" : 1.2,
+            "scale" : 1.3,
             "translation-in-points" : [
               20,
-              18
+              41
             ]
           }
         }

@@ -4,8 +4,8 @@
     {
       "value" : {
         "linear-gradient" : [
-          "display-p3:0.78704,0.84390,0.92659,1.00000",
-          "display-p3:0.76321,0.86381,1.00000,1.00000"
+          "display-p3:0.88537,0.84115,0.99902,1.00000",
+          "display-p3:0.97168,0.83953,0.84940,1.00000"
         ],
         "orientation" : {
           "start" : {
@@ -28,17 +28,13 @@
     {
       "layers" : [
         {
-          "blend-mode" : "normal",
-          "fill" : "none",
           "glass" : false,
-          "hidden" : false,
-          "image-name" : "foreground_1024.png",
-          "name" : "foreground_1024",
-          "opacity" : 1,
+          "image-name" : "spring 2.png",
+          "name" : "spring 2",
           "position" : {
-            "scale" : 1.2,
+            "scale" : 0.52,
             "translation-in-points" : [
-              0,
+              -5,
               0
             ]
           }

@@ -68,7 +68,7 @@ struct AccountAndSyncView: View {
                 }
                 .disabled(userTier != .pro)
             }
-
+            
             Section {
                 Button {
                     Task { await save() }

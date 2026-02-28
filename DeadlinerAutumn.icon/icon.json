@@ -4,8 +4,8 @@
     {
       "value" : {
         "linear-gradient" : [
-          "display-p3:0.78704,0.84390,0.92659,1.00000",
-          "display-p3:0.76321,0.86381,1.00000,1.00000"
+          "display-p3:0.99902,0.77439,0.67813,1.00000",
+          "display-p3:0.97168,0.89593,0.58821,1.00000"
         ],
         "orientation" : {
           "start" : {
@@ -28,15 +28,11 @@
     {
       "layers" : [
         {
-          "blend-mode" : "normal",
-          "fill" : "none",
           "glass" : false,
-          "hidden" : false,
-          "image-name" : "foreground_1024.png",
-          "name" : "foreground_1024",
-          "opacity" : 1,
+          "image-name" : "autumn.png",
+          "name" : "autumn",
           "position" : {
-            "scale" : 1.2,
+            "scale" : 1.15,
             "translation-in-points" : [
               0,
               0

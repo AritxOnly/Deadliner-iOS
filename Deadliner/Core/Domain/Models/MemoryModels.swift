@@ -25,6 +25,9 @@ final class MemoryBank: ObservableObject {
 
     private let storageKey = "deadliner_local_memories"
     private let storageProfileKey = "deadliner_user_profile"
+    
+    private let maxFragments = 60
+    private let maxAgeDays = 120
 
     private init() {
         loadFromDisk()
@@ -37,6 +40,7 @@ final class MemoryBank: ObservableObject {
 
         DispatchQueue.main.async {
             self.fragments.append(newFrag)
+            self.pruneMemories()
             self.saveToDisk()
         }
     }
@@ -139,6 +143,22 @@ final class MemoryBank: ObservableObject {
         DispatchQueue.main.async {
             self.fragments = newList
             self.saveToDisk()
+        }
+    }
+    
+    private func pruneMemories() {
+        // 1) 先按时间过期淘汰
+        let now = Date()
+        let cutoff = now.addingTimeInterval(TimeInterval(-maxAgeDays) * 86400)
+        fragments = fragments.filter { $0.timestamp >= cutoff }
+
+        // 2) 超容量：优先删“低重要度 + 更旧”的
+        if fragments.count > maxFragments {
+            fragments.sort {
+                if $0.importance != $1.importance { return $0.importance > $1.importance }
+                return $0.timestamp > $1.timestamp
+            }
+            fragments = Array(fragments.prefix(maxFragments))
         }
     }
 }

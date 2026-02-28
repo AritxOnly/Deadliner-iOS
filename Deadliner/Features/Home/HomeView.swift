@@ -18,6 +18,10 @@ struct HomeView: View {
     @State private var showDeleteConfirm: Bool = false
     
     @StateObject private var confetti = ConfettiController()
+    
+    @State private var listAnimToken: Int = 0
+    @State private var enterAnimToken: Int = 0
+    @State private var isStagingRebuild: Bool = false
 
     // Habit 暂不接入，先留占位
     private let habitItems = [
@@ -48,46 +52,67 @@ struct HomeView: View {
             Section {
                 if taskSegment == .tasks {
                     if vm.isLoading && vm.tasks.isEmpty {
-                        ProgressView("Loading...")
+                        ProgressView("加载中...")
                             .frame(maxWidth: .infinity, alignment: .center)
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
                     } else if filteredTasks.isEmpty {
-                        Text("暂无任务")
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
+                        if isStagingRebuild {
+                            ProgressView()
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                        } else {
+                            Text("暂无任务")
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                        }
                     } else {
-                        ForEach(filteredTasks, id: \.id) { item in
-                            DDLItemCardSwipeable(
-                                title: item.name,
-                                remainingTimeAlt: remainingTimeText(for: item),
-                                note: item.note,
-                                progress: progress(for: item),
-                                isStarred: item.isStared,
-                                status: status(for: item),
-                                onTap: {
-                                    // TODO: push detail page
-                                },
-                                onComplete: {
-                                    Task {
-                                        await vm.toggleComplete(item)
-                                        
-                                        let isNowCompleted = vm.tasks.first(where: { $0.id == item.id })?.isCompleted == false
-                                        if isNowCompleted {
-                                            confetti.fire()
+                        ForEach(Array(filteredTasks.enumerated()), id: \.element.id) { idx, item in
+                            FloatUpRow(index: idx, maxLoad: 15, enable: true, animateToken: enterAnimToken) {
+                                DDLItemCardSwipeable(
+                                    title: item.name,
+                                    remainingTimeAlt: remainingTimeText(for: item),
+                                    note: item.note,
+                                    progress: progress(for: item),
+                                    isStarred: item.isStared,
+                                    status: status(for: item),
+                                    onTap: {
+                                        // TODO: push detail page
+                                    },
+                                    onComplete: {
+                                        let wasCompleted = item.isCompleted
+
+                                        let isNowCompleted = withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                            listAnimToken += 1
+                                            return vm.toggleCompleteLocal(item)
                                         }
+
+                                        if isNowCompleted { confetti.fire() }
+
+                                        if wasCompleted && !isNowCompleted {
+                                            Task { @MainActor in
+                                                isStagingRebuild = true
+                                                let snapshot = vm.tasks   // local toggle 后的“新排序”结果
+                                                await vm.stageRebuildFromCurrentSnapshot(snapshot: snapshot, blankDelayMs: 90)
+                                                withAnimation(.none) { enterAnimToken += 1 }
+                                                isStagingRebuild = false
+                                            }
+                                        }
+
+                                        Task { await vm.persistToggleComplete(original: item) }
+                                    },
+                                    onDelete: {
+                                        pendingDeleteItem = item
+                                        showDeleteConfirm = true
                                     }
-                                },
-                                onDelete: {
-                                    pendingDeleteItem = item
-                                    showDeleteConfirm = true
-                                }
-                            )
-                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
+                                )
+                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                            }
                         }
                     }
                 } else {
@@ -110,6 +135,7 @@ struct HomeView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(.clear)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: listAnimToken)
         .onScrollGeometryChange(for: CGFloat.self) { geo in
             max(0, geo.contentOffset.y + geo.contentInsets.top)
         } action: { _, newValue in

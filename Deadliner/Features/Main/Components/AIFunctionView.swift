@@ -10,15 +10,26 @@ import SwiftUI
 // MARK: - 对话流模型（稳定 id）
 struct DisplayItem: Identifiable {
     enum Kind {
-        case userQuery(String)      // 用户说的话
-        case aiChat(String)         // AI 的暖心回复
-        case aiTask(AITask)         // 识别出的任务卡片
-        case aiHabit(AIHabit)       // 识别出的习惯卡片
-        case aiMemory(String)       // 识别出的记忆卡片
+        case userQuery(String)
+        case aiChat(String)
+        case aiTask(AITask)
+        case aiHabit(AIHabit)
+        case aiMemory(String)
+        case aiToolRequest(AIToolRequest)
+        case aiToolResult(AIToolResult)
     }
 
-    let id: UUID = UUID()
+    let id: UUID
     let kind: Kind
+
+    init(kind: Kind) {
+        self.kind = kind
+        switch kind {
+        case .aiToolRequest(let r): self.id = r.id
+        case .aiToolResult(let r): self.id = r.id
+        default: self.id = UUID()
+        }
+    }
 }
 
 struct AIFunctionView: View {
@@ -42,6 +53,9 @@ struct AIFunctionView: View {
 
     @State private var pendingHabitToCreate: AIHabit?
     @State private var showCreateHabitDialog: Bool = false
+    
+    @State private var pendingToolRequest: AIToolRequest?
+    @State private var toolOriginalUserText: String = ""
 
     @State private var addedTaskKeys: Set<String> = []      // 用于把卡片变“已添加”
     @State private var addedHabitKeys: Set<String> = []
@@ -162,6 +176,10 @@ extension AIFunctionView {
             habitCard(habit: habit)
         case .aiMemory(let content):
             memoryCapturedBubble(content: content)
+        case .aiToolRequest(let req):
+            toolRequestCard(req)
+        case .aiToolResult(let res):
+            toolResultBubble(res)
         }
     }
 
@@ -266,6 +284,78 @@ extension AIFunctionView {
         .padding()
         .background(Color(uiColor: .secondarySystemBackground))
         .cornerRadius(16)
+    }
+    
+    private func toolRequestCard(_ req: AIToolRequest) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "tray.full.fill").foregroundColor(.orange)
+                Text("需要读取任务列表").font(.caption.bold()).foregroundColor(.secondary)
+                Spacer()
+            }
+
+            if let r = req.reason, !r.isEmpty {
+                Text(r)
+                    .font(.callout)
+                    .foregroundColor(.primary)
+            } else {
+                Text("为了回答你的问题，我需要查看你近期的任务。")
+                    .font(.callout)
+                    .foregroundColor(.primary)
+            }
+
+            // 查询范围摘要（先只展示，不做编辑 UI；编辑后面再加）
+            let days = req.args.timeRangeDays ?? 7
+            let status = req.args.status ?? "OPEN"
+            let kws = (req.args.keywords ?? []).joined(separator: "、")
+            Text("范围：未来 \(days) 天 · 状态：\(status)\(kws.isEmpty ? "" : " · 关键词：\(kws)")")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            HStack(spacing: 10) {
+                Button(role: .cancel) {
+                    withAnimation(.spring()) {
+                        displayItems.append(DisplayItem(kind: .aiChat("好的，我不读取任务列表。你可以告诉我更具体的任务信息，我也能继续帮你。")))
+                    }
+                } label: {
+                    Text("拒绝")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    pendingToolRequest = req
+                    Task { await approveAndRunTool(req) }
+                } label: {
+                    Text("允许一次")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(repoBusy)
+            }
+        }
+        .padding()
+        .background(Color(uiColor: .secondarySystemBackground))
+        .cornerRadius(16)
+    }
+
+    private func toolResultBubble(_ res: AIToolResult) -> some View {
+        let s = res.payload.summary
+        return HStack {
+            Image(systemName: "checklist")
+                .foregroundColor(.orange)
+                .font(.caption)
+
+            Text("已读取任务：\(s.count) 条（逾期 \(s.overdue)，24h 内 \(s.dueSoon24h)）")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.06))
+        .cornerRadius(10)
     }
 
     private var inputSection: some View {
@@ -469,6 +559,32 @@ extension AIFunctionView {
             if let s = result.sessionSummary, !s.isEmpty {
                 sessionSummary = String(s.prefix(600))
             }
+            
+            if let calls = result.toolCalls, !calls.isEmpty {
+                isParsing = false
+
+                // 目前只支持 readTasks：取第一个有效 call
+                if let first = calls.first(where: { $0.tool == "readTasks" }) {
+                    toolOriginalUserText = query
+
+                    let req = AIToolRequest(
+                        tool: "readTasks",
+                        args: sanitizeReadTasksArgs(first.args, userQuery: query),
+                        reason: first.reason
+                    )
+
+                    withAnimation(.spring()) {
+                        displayItems.append(DisplayItem(kind: .aiToolRequest(req)))
+                    }
+                } else {
+                    // 不认识的 tool：直接提示
+                    withAnimation(.spring()) {
+                        displayItems.append(DisplayItem(kind: .aiChat("我需要调用一个暂不支持的本地工具。请更新版本或换个问法。")))
+                    }
+                }
+
+                return
+            }
 
             withAnimation(.spring()) {
                 if let memories = result.newMemories {
@@ -509,6 +625,10 @@ extension AIFunctionView {
                 lines.append("PendingHabit: \(habit.name) | \(habit.period) x\(habit.timesPerPeriod)")
             case .aiMemory(let m):
                 lines.append("MemoryCaptured: \(m)")
+            case .aiToolRequest(let req):
+                lines.append("ToolRequest: \(req.tool)")
+            case .aiToolResult(let res):
+                lines.append("ToolResult: \(res.tool) count=\(res.payload.summary.count)")
             }
 
             // 字符预算（从后往前构建更稳：先 append 再判断）
@@ -600,7 +720,7 @@ extension AIFunctionView {
         return DDLInsertParams(
             name: task.name,
             startTime: startISO,
-            endTime: endDate.toLocalISOString(),
+            endTime: finalEndDate.toLocalISOString(),
             isCompleted: false,
             completeTime: "",
             note: task.note ?? "",
@@ -608,6 +728,199 @@ extension AIFunctionView {
             isStared: false,
             type: .task,
             calendarEventId: nil
+        )
+    }
+    
+    @MainActor
+    private func approveAndRunTool(_ req: AIToolRequest) async {
+        if repoBusy { return }
+        repoBusy = true
+        isParsing = true
+        defer {
+            repoBusy = false
+            isParsing = false
+        }
+
+        do {
+            guard req.tool == "readTasks" else {
+                displayItems.append(DisplayItem(kind: .aiChat("暂不支持的工具：\(req.tool)")))
+                return
+            }
+
+            // 1) 本地查询（A 方案：拉全部 task 再过滤）
+            let ddlTasks = try await TaskRepository.shared.getDDLsByType(.task)
+            let payload = makeReadTasksPayload(from: ddlTasks, args: req.args)
+
+            let toolResult = AIToolResult(
+                tool: "readTasks",
+                appliedArgs: req.args,
+                payload: payload
+            )
+
+            withAnimation(.spring()) {
+                displayItems.append(DisplayItem(kind: .aiToolResult(toolResult)))
+            }
+
+            // 2) 二段回灌给 AI，让它输出最终 chat + proposal
+            let sessionCtx = buildSessionContextString()
+            let result2 = try await AIService.shared.continueAfterTool(
+                originalUserText: toolOriginalUserText.isEmpty ? "（用户未提供原始问题）" : toolOriginalUserText,
+                toolResult: toolResult,
+                sessionContext: sessionCtx,
+                sessionSummary: sessionSummary
+            )
+
+            if let s = result2.sessionSummary, !s.isEmpty {
+                sessionSummary = String(s.prefix(600))
+            }
+
+            withAnimation(.spring()) {
+                if let memories = result2.newMemories {
+                    for mem in memories { displayItems.append(DisplayItem(kind: .aiMemory(mem))) }
+                }
+                if let tasks = result2.tasks {
+                    for task in tasks { displayItems.append(DisplayItem(kind: .aiTask(task))) }
+                }
+                if let habits = result2.habits {
+                    for habit in habits { displayItems.append(DisplayItem(kind: .aiHabit(habit))) }
+                }
+                if let chat = result2.chatResponse, !chat.isEmpty {
+                    displayItems.append(DisplayItem(kind: .aiChat(chat)))
+                }
+            }
+
+        } catch {
+            errorMessage = error.localizedDescription
+            showErrorMessage = true
+        }
+    }
+    
+    private func sanitizeReadTasksArgs(_ args: ReadTasksArgs, userQuery: String) -> ReadTasksArgs {
+        let days = max(1, min(args.timeRangeDays ?? 7, 30))
+        let limit = max(1, min(args.limit ?? 20, 50))
+
+        let status = (args.status ?? "OPEN").uppercased()
+        let sort = (args.sort ?? "DUE_ASC").uppercased()
+
+        // 1) 先把 AI 的 keywords 清洗
+        var kws = (args.keywords ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if kws.count > 3 { kws = Array(kws.prefix(3)) }
+        kws = kws.map { String($0.prefix(12)) }
+
+        let q = userQuery.lowercased()
+        kws = kws.filter { k in
+            let kk = k.lowercased()
+            // 简单包含判断足够用（后续你要更强可以做分词）
+            return q.contains(kk)
+        }
+
+        if isGenericTaskListQuery(userQuery) && !userExplicitlyProvidedTopic(userQuery) {
+            kws = []
+        }
+
+        return ReadTasksArgs(
+            timeRangeDays: days,
+            status: status,
+            keywords: kws,
+            limit: limit,
+            sort: sort
+        )
+    }
+
+    private func isGenericTaskListQuery(_ q: String) -> Bool {
+        let s = q.lowercased()
+        // 典型泛查询词
+        let patterns = ["这周", "本周", "最近", "有哪些任务", "有什么任务", "任务列表", "to do", "todo", "待办", "待办事项", "deadline", "ddl"]
+        return patterns.contains { s.contains($0.lowercased()) }
+    }
+
+    /// 用户是否显式给了主题：例如“系统论的任务”“关于 BOE 的任务”“BOE 相关任务”
+    /// 这里先做最小启发式：包含“关于/相关/的任务/的ddl/的待办/项目”等信号
+    private func userExplicitlyProvidedTopic(_ q: String) -> Bool {
+        let s = q.lowercased()
+        let signals = ["关于", "相关", "的任务", "的ddl", "的待办", "项目", "course", "project"]
+        return signals.contains { s.contains($0.lowercased()) }
+    }
+
+    private func makeReadTasksPayload(from items: [DDLItem], args: ReadTasksArgs) -> ReadTasksResultPayload {
+        // 过滤：未完成 + 未归档（按你之前的设定）
+        let now = Date()
+        let days = args.timeRangeDays ?? 7
+        let end = now.addingTimeInterval(TimeInterval(days) * 86400)
+
+        let keywords = (args.keywords ?? []).map { $0.lowercased() }
+        let wantStatus = (args.status ?? "OPEN").uppercased()
+
+        var filtered: [(ddl: DDLItem, due: Date)] = []
+
+        for t in items {
+            // 保险：如果 repo 里已经做了过滤，这里也不伤
+            if t.isArchived { continue }
+            if wantStatus == "OPEN", t.isCompleted { continue }
+            if wantStatus == "DONE", !t.isCompleted { continue }
+
+            // due 解析：endTime 为空则不纳入“未来N天”列表（避免无截止混入）
+            let dueDate: Date? = {
+                let s = t.endTime.trimmingCharacters(in: .whitespacesAndNewlines)
+                if s.isEmpty { return nil }
+                return DeadlineDateParser.safeParseOptional(s)
+            }()
+
+            // 时间窗过滤：只有有 due 的才参与
+            guard let due = dueDate else { continue }
+            if due < now.addingTimeInterval(-365*86400) { continue } // 极端脏数据保护
+            if due > end { continue }
+
+            // 关键词过滤（OR）
+            if !keywords.isEmpty {
+                let hay = "\(t.name) \(t.note)".lowercased()
+                let hit = keywords.contains { hay.contains($0) }
+                if !hit { continue }
+            }
+
+            filtered.append((t, due))
+        }
+
+        // 排序
+        let sort = (args.sort ?? "DUE_ASC").uppercased()
+        if sort == "UPDATED_DESC" {
+            // 暂时没有 updated 字段就退化为 due desc
+            filtered.sort { ($0.due ?? .distantPast) > ($1.due ?? .distantPast) }
+        } else {
+            filtered.sort { ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }
+        }
+
+        // limit
+        let limit = args.limit ?? 20
+        if filtered.count > limit {
+            filtered = Array(filtered.prefix(limit))
+        }
+
+        // summary
+        var overdue = 0
+        var dueSoon24h = 0
+        for (_, due) in filtered {
+            if due < now { overdue += 1 }
+            if due >= now && due <= now.addingTimeInterval(86400) { dueSoon24h += 1 }
+        }
+
+        let digest: [TaskDigestItem] = filtered.map { (ddl, due) in
+            let dueStr: String = due.toLocalISOString() // 如果你希望 "yyyy-MM-dd HH:mm"，用你自己的 formatter
+            let notePreview = String(ddl.note.prefix(40))
+            return TaskDigestItem(
+                id: ddl.id,
+                name: ddl.name,
+                due: dueStr,
+                status: ddl.isCompleted ? "DONE" : "OPEN",
+                notePreview: notePreview
+            )
+        }
+
+        return ReadTasksResultPayload(
+            tasks: digest,
+            summary: TaskSummary(count: digest.count, overdue: overdue, dueSoon24h: dueSoon24h)
         )
     }
 }
