@@ -127,9 +127,7 @@ struct IconSettingsView: View {
                         apply(icon)
                     } label: {
                         HStack(spacing: 12) {
-                            Image(icon.previewAssetName)
-                                .resizable()
-                                .scaledToFill()
+                            iconPreviewView(for: icon)
                                 .frame(width: 44, height: 44)
                                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
@@ -158,6 +156,17 @@ struct IconSettingsView: View {
         .onAppear {
             syncFromSystemIconIfPossible()
             applyAutoSeasonIfNeeded()
+        }
+    }
+    
+    @ViewBuilder
+    private func iconPreviewView(for icon: DeadlinerIcon) -> some View {
+        if icon == .autoSeason {
+            SeasonIconCarouselPreview()
+        } else {
+            Image(icon.previewAssetName)
+                .resizable()
+                .scaledToFill()
         }
     }
 
