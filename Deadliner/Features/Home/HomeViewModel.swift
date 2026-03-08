@@ -11,13 +11,22 @@ import os
 
 @MainActor
 final class HomeViewModel: ObservableObject {
+    // MARK: - Task State
     @Published var tasks: [DDLItem] = []
     @Published var isLoading = false
     @Published var errorText: String?
-    
     @Published var progressDir: Bool = false
+    
+    // MARK: - Habit State (v2.0)
+    @Published var selectedDate: Date = Date()
+    @Published var searchQuery: String = ""
+    @Published var weekOverview: [DayOverview] = []
+    @Published var displayHabits: [HabitWithDailyStatus] = []
+    
+    private var allHabitsCache: [HabitWithDailyStatus] = []
 
     private let repo: TaskRepository
+    private let habitRepo: HabitRepository = .shared
     private var cancellables = Set<AnyCancellable>()
 
     private var reloadTask: Task<Void, Never>?
@@ -25,8 +34,6 @@ final class HomeViewModel: ObservableObject {
     private var pendingReload = false
     
     private var suppressReloadUntil: Date? = nil
-
-    // 防止进入页面时重复触发首刷（例如 View 重建）
     private var didInitialLoad = false
 
     private let logger = Logger(subsystem: "Deadliner", category: "HomeViewModel")
@@ -38,95 +45,332 @@ final class HomeViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
-
-                if let until = self.suppressReloadUntil {
-                    let now = Date()
-                    if now < until {
-                        // 延后刷新：确保在抑制期结束后，最终能同步来自同步或其他来源的数据
-                        let delayMs = Int(until.timeIntervalSince(now) * 1000) + 100
-                        self.scheduleReload(delay: UInt64(delayMs * 1_000_000))
-                        return
-                    }
-                }
-                
-                self.scheduleReload()
+                self.handleDataChangedNotification()
+            }
+            .store(in: &cancellables)
+            
+        // 监听搜索词变化
+        $searchQuery
+            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.applyHabitFilter()
             }
             .store(in: &cancellables)
     }
 
-    deinit {
-        reloadTask?.cancel()
+    private func handleDataChangedNotification() {
+        if let until = self.suppressReloadUntil {
+            let now = Date()
+            if now < until {
+                let delayMs = Int(until.timeIntervalSince(now) * 1000) + 100
+                self.scheduleReload(delay: UInt64(delayMs * 1_000_000))
+                return
+            }
+        }
+        self.scheduleReload()
     }
 
-    // MARK: - Page Lifecycle
+    // MARK: - Lifecycle
 
-    /// 页面进入：先刷新本地，再后台同步；仅执行一次初始流程
     func initialLoad() async {
         self.progressDir = await LocalValues.shared.getProgressDir()
         
-        // 1. 无论是否已初始化，都先刷一次本地，确保 UI 立即显示
+        // 刷新 Task 和 Habit
         await reload()
+        await refreshAllHabits(date: selectedDate)
         
         guard !didInitialLoad else { return }
         didInitialLoad = true
 
-        // 2. 后台静默同步，避免阻塞主线程显示
         Task {
             let syncOK = await repo.syncNow()
             logger.info("initial background sync result=\(syncOK, privacy: .public)")
-            // 注意：syncNow 内部成功后会发通知，触发 scheduleReload，所以这里不需要手动 reload
         }
     }
 
-    /// 下拉刷新：先展示本地，同时触发同步
     func pullToRefresh() async {
         isLoading = true
-        // 1. 先确保本地是最新的（以防万一）
         await reload()
+        await refreshAllHabits(date: selectedDate)
         
-        // 2. 执行同步
         let syncOK = await repo.syncNow()
         logger.info("pull-to-refresh sync result=\(syncOK, privacy: .public)")
         
-        // 3. 同步完成后再次刷新
         await reload()
+        await refreshAllHabits(date: selectedDate)
         isLoading = false
     }
 
-    // 保留兼容入口（如果别处还在调这两个）
+    // MARK: - Habit Logic (對標鸿蒙)
+
+    func refreshAllHabits(date: Date) async {
+        do {
+            let allRaw = try await habitRepo.getAllHabits()
+            let activeHabits = allRaw.filter { $0.status != .archived }
+            
+            var statusList: [HabitWithDailyStatus] = []
+            for h in activeHabits {
+                if let status = await buildStatusForDate(habit: h, date: date) {
+                    statusList.append(status)
+                }
+            }
+            
+            self.allHabitsCache = statusList
+            applyHabitFilter()
+            
+            await calculateWeekOverview(centerDate: date, allHabits: activeHabits)
+        } catch {
+            logger.error("refreshAllHabits failed: \(error.localizedDescription)")
+        }
+    }
+    
+    private func buildStatusForDate(habit: Habit, date: Date) async -> HabitWithDailyStatus? {
+        let bounds = habitRepo.periodBounds(period: habit.period, date: date)
+        let start = bounds.0
+        let end = bounds.1
+        
+        // 如果是累计总数模式，从 1970 开始计算
+        let queryStart = habit.goalType == .total ? Date(timeIntervalSince1970: 0) : start
+        let queryEnd = habit.goalType == .total ? date : end
+        
+        do {
+            let records = try await habitRepo.getRecordsForHabitInRange(habitId: habit.id, startDate: queryStart, endDateInclusive: queryEnd)
+            let done = records.filter { $0.status == .completed }.reduce(0) { $0 + $1.count }
+            
+            var target = max(1, habit.timesPerPeriod)
+            if habit.goalType == .total {
+                target = habit.totalTarget.map { max(1, $0) } ?? max(1, done)
+            }
+            
+            return HabitWithDailyStatus(
+                habit: habit,
+                doneCount: done,
+                targetCount: target,
+                isCompleted: habit.totalTarget != nil ? done >= (habit.totalTarget ?? 0) : done >= target
+            )
+        } catch {
+            return nil
+        }
+    }
+    
+    private func applyHabitFilter() {
+        if searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            displayHabits = allHabitsCache
+        } else {
+            let lowerQ = searchQuery.lowercased()
+            displayHabits = allHabitsCache.filter { $0.habit.name.lowercased().contains(lowerQ) }
+        }
+    }
+    
+    func getEbbinghausState(habit: Habit, targetDate: Date) -> EbbinghausState {
+        if habit.period != .ebbinghaus {
+            return EbbinghausState(isDue: true, text: "")
+        }
+        
+        let calendar = Calendar.current
+        let tDate = calendar.startOfDay(for: targetDate)
+        
+        // 使用 DeadlineDateParser 解析 createdAt
+        guard let createdAtDate = DeadlineDateParser.safeParseOptional(habit.createdAt) else {
+            return EbbinghausState(isDue: true, text: "")
+        }
+        let sDate = calendar.startOfDay(for: createdAtDate)
+        
+        let diffDays = calendar.dateComponents([.day], from: sDate, to: tDate).day ?? 0
+        let curve = [0, 1, 2, 4, 7, 15, 30, 60]
+        
+        if diffDays < 0 {
+            return EbbinghausState(isDue: false, text: "\(-diffDays) 天后开始")
+        }
+        
+        if curve.contains(diffDays) {
+            return EbbinghausState(isDue: true, text: "")
+        }
+        
+        if let nextDay = curve.first(where: { $0 > diffDays }) {
+            return EbbinghausState(isDue: false, text: "\(nextDay - diffDays) 天后复习")
+        } else {
+            return EbbinghausState(isDue: false, text: "已完成记忆周期")
+        }
+    }
+    
+    private func calculateWeekOverview(centerDate: Date, allHabits: [Habit]) async {
+        let calendar = Calendar.current
+        let day = calendar.component(.weekday, from: centerDate)
+        // 调整周一为一周起始 (Sunday=1, Monday=2...)
+        let diff = (day == 1 ? -6 : (2 - day))
+        guard let monday = calendar.date(byAdding: .day, value: diff, to: calendar.startOfDay(for: centerDate)) else { return }
+        
+        // 1. 一次性获取本周范围的所有打卡记录，极大减少 DB 往返
+        guard let sunday = calendar.date(byAdding: .day, value: 6, to: monday) else { return }
+        
+        var weekRecords: [HabitRecord] = []
+        do {
+            weekRecords = try await habitRepo.getRecordsForDateRange(startDate: monday, endDate: sunday)
+        } catch {
+            logger.error("Failed to fetch records for week overview: \(error.localizedDescription)")
+        }
+        
+        // 2. 预分组记录以便快速查询
+        let recordsByDate = Dictionary(grouping: weekRecords, by: { $0.date })
+        
+        var week: [DayOverview] = []
+        for i in 0..<7 {
+            guard let current = calendar.date(byAdding: .day, value: i, to: monday) else { continue }
+            let dateStr = current.toDateString()
+            
+            // 计算当日可见习惯数及完成数
+            var completedCount = 0
+            var visibleCount = 0
+            
+            for h in allHabits {
+                // 艾宾浩斯：只有当 isDue 为 true 时，才计入当天的完成率统计
+                if h.period == .ebbinghaus {
+                    if !getEbbinghausState(habit: h, targetDate: current).isDue { continue }
+                }
+                
+                // 其他类型（Daily, Weekly, Monthly, Once）始终计入分母
+                visibleCount += 1
+                let dailyRecords = recordsByDate[dateStr] ?? []
+                let isDone = dailyRecords.contains { $0.habitId == h.id && $0.status == .completed }
+                if isDone { completedCount += 1 }
+            }
+            
+            week.append(DayOverview(
+                date: current,
+                completedCount: completedCount,
+                totalCount: visibleCount,
+                completionRatio: visibleCount > 0 ? Double(completedCount) / Double(visibleCount) : 0
+            ))
+        }
+        self.weekOverview = week
+    }
+    
+    func onDateSelected(_ date: Date) async {
+        self.selectedDate = date
+        await refreshAllHabits(date: date)
+    }
+    
+    // MARK: - Habit Actions
+    
+    func archiveHabit(_ habit: Habit) async {
+        do {
+            var updated = habit
+            updated.status = .archived
+            try await habitRepo.updateHabit(updated)
+            await refreshAllHabits(date: selectedDate)
+            NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
+        } catch {
+            logger.error("Archive habit failed: \(error.localizedDescription)")
+        }
+    }
+    
+    func deleteHabit(_ habit: Habit) async {
+        do {
+            try await habitRepo.deleteHabitByDdlId(ddlId: habit.ddlId)
+            await refreshAllHabits(date: selectedDate)
+            NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
+        } catch {
+            logger.error("Delete habit failed: \(error.localizedDescription)")
+        }
+    }
+    
+    func getTodayCompletionRatio() -> Double {
+        let calendar = Calendar.current
+        if let todayOverview = weekOverview.first(where: { calendar.isDate($0.date, inSameDayAs: selectedDate) }) {
+            return todayOverview.completionRatio
+        }
+        return 0
+    }
+    
+    func changeWeek(offset: Int) async {
+        let calendar = Calendar.current
+        if let newDate = calendar.date(byAdding: .day, value: offset * 7, to: selectedDate) {
+            self.selectedDate = newDate
+            
+            // 乐观更新日期，确保切换动画时日期立即改变
+            updateWeekDatesOptimistically(centerDate: newDate)
+            
+            await refreshAllHabits(date: newDate)
+        }
+    }
+    
+    private func updateWeekDatesOptimistically(centerDate: Date) {
+        let calendar = Calendar.current
+        let day = calendar.component(.weekday, from: centerDate)
+        let diff = (day == 1 ? -6 : (2 - day))
+        guard let monday = calendar.date(byAdding: .day, value: diff, to: calendar.startOfDay(for: centerDate)) else { return }
+        
+        var week: [DayOverview] = []
+        for i in 0..<7 {
+            guard let current = calendar.date(byAdding: .day, value: i, to: monday) else { continue }
+            // 保持原有的完成率或重置，关键是日期变了
+            week.append(DayOverview(
+                date: current,
+                completedCount: 0,
+                totalCount: 0,
+                completionRatio: 0
+            ))
+        }
+        self.weekOverview = week
+    }
+    
+    func toggleHabitRecord(item: HabitWithDailyStatus) async -> Bool {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let currentSel = calendar.startOfDay(for: selectedDate)
+        
+        if currentSel > today { return false }
+        
+        // 艾宾浩斯非复习日阻断打卡
+        let ebState = getEbbinghausState(habit: item.habit, targetDate: selectedDate)
+        if !ebState.isDue {
+            self.errorText = "今天不是该记忆周期的复习日"
+            return false
+        }
+        
+        let beforeRate = Double(item.doneCount) / Double(item.targetCount)
+        
+        do {
+            try await habitRepo.toggleRecord(habitId: item.habit.id, date: selectedDate)
+            await refreshAllHabits(date: selectedDate)
+            
+            if let afterItem = allHabitsCache.first(where: { $0.habit.id == item.habit.id }) {
+                let afterRate = Double(afterItem.doneCount) / Double(afterItem.targetCount)
+                if beforeRate < 1.0 && afterRate >= 1.0 {
+                    return true // 触发烟花
+                }
+            }
+        } catch {
+            logger.error("toggleHabitRecord failed: \(error.localizedDescription)")
+        }
+        return false
+    }
+
+    // MARK: - Task Logic (Original)
+
     func loadTasks() async { await initialLoad() }
     func refresh() async { await pullToRefresh() }
 
-    // MARK: - Local UI Patch (sync)
-    /// 只做 UI 内存更新 + 立即排序，返回“更新后是否 completed”
     func toggleCompleteLocal(_ item: DDLItem) -> Bool {
         beginSuppressReload()
-        
         var updated = item
         updated.isCompleted.toggle()
         updated.completeTime = updated.isCompleted ? Date().toLocalISOString() : ""
-
         if let idx = tasks.firstIndex(where: { $0.id == item.id }) {
             tasks[idx] = updated
-        } else {
-            // 理论上不会发生，但防御性处理
-            tasks.append(updated)
         }
-
         sortTasksInPlace()
         return updated.isCompleted
     }
 
-    // MARK: - Persist (async)
-    /// 写库/同步；失败则回滚到 original
     func persistToggleComplete(original: DDLItem) async {
         var updated = original
         updated.isCompleted.toggle()
         updated.completeTime = updated.isCompleted ? Date().toLocalISOString() : ""
-
         do {
             try await repo.updateDDL(updated)
-            // 依然可以保留 ddlDataChanged -> scheduleReload 做最终一致性校正
         } catch {
             errorText = "更新失败：\(error.localizedDescription)"
             rollbackTo(original)
@@ -136,7 +380,6 @@ final class HomeViewModel: ObservableObject {
     func toggleArchiveItem(item: DDLItem) async {
         var updated = item
         updated.isArchived.toggle()
-        
         do {
             try await repo.updateDDL(updated)
         } catch {
@@ -144,18 +387,6 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
-    @MainActor
-    func stageRebuildFromCurrentSnapshot(
-        snapshot: [DDLItem],
-        blankDelayMs: UInt64 = 90
-    ) async {
-        tasks = []
-
-        try? await Task.sleep(nanoseconds: blankDelayMs * 1_000_000)
-
-        tasks = snapshot
-    }
-    
     // MARK: - Helpers
     private func sortTasksInPlace() {
         tasks.sort { lhs, rhs in
@@ -169,13 +400,9 @@ final class HomeViewModel: ObservableObject {
     private func rollbackTo(_ original: DDLItem) {
         if let idx = tasks.firstIndex(where: { $0.id == original.id }) {
             tasks[idx] = original
-        } else {
-            tasks.append(original)
         }
         sortTasksInPlace()
     }
-
-    // MARK: - User Actions
 
     func delete(_ item: DDLItem) async {
         do {
@@ -193,6 +420,7 @@ final class HomeViewModel: ObservableObject {
             guard let self else { return }
             try? await Task.sleep(nanoseconds: delay)
             await self.reload()
+            await self.refreshAllHabits(date: selectedDate)
         }
     }
 
@@ -201,30 +429,20 @@ final class HomeViewModel: ObservableObject {
             pendingReload = true
             return
         }
-
         isReloading = true
-        defer {
-            isReloading = false
-        }
-
+        defer { isReloading = false }
         do {
             let sortedList = try await repo.getDDLsByType(.task)
-
-            // 🟢 核心优化：如果内容（ID序列）没变，且不是强制刷新，则跳过
             if !force && sortedList.map(\.id) == self.tasks.map(\.id) {
-                logger.debug("reload: data unchanged, skipping UI update.")
+                // skip
             } else {
                 tasks = sortedList
-                logger.info("reload: updated tasks count=\(sortedList.count, privacy: .public)")
             }
-
             errorText = nil
         } catch {
             tasks = []
             errorText = "加载失败：\(error.localizedDescription)"
-            logger.error("reload failed: \(error.localizedDescription, privacy: .public)")
         }
-
         if pendingReload {
             pendingReload = false
             await reload()
@@ -233,5 +451,12 @@ final class HomeViewModel: ObservableObject {
     
     private func beginSuppressReload(window: TimeInterval = 0.6) {
         suppressReloadUntil = Date().addingTimeInterval(window)
+    }
+
+    func stageRebuildFromCurrentSnapshot(snapshot: [DDLItem], blankDelayMs: Int) async {
+        tasks = []
+        // 给 UI 一个空档，以便重新创建视图
+        try? await Task.sleep(nanoseconds: UInt64(blankDelayMs * 1_000_000))
+        tasks = snapshot
     }
 }

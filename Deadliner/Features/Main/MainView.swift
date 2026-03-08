@@ -19,6 +19,7 @@ struct MainView: View {
     let repo: TaskRepository = TaskRepository.shared
 
     @State private var showAddTaskForm = false
+    @State private var showAddHabitForm = false
     @State private var showAddOptions = false
     
     @State private var showArchiveSheet = false
@@ -56,6 +57,14 @@ struct MainView: View {
                                 NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
                             }
                         )
+                    }
+                    .presentationDetents([.large])
+                }
+                .sheet(isPresented: $showAddHabitForm) {
+                    NavigationStack {
+                        AddHabitSheetView(onDone: {
+                            NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
+                        })
                     }
                     .presentationDetents([.large])
                 }
@@ -180,7 +189,7 @@ struct MainView: View {
                 
                 .confirmationDialog("选择添加类型", isPresented: $showAddOptions, titleVisibility: .hidden) {
                     Button("新建任务") { showAddTaskForm = true }
-                    Button("新建习惯") { /* 你的习惯逻辑 */ }
+                    Button("新建习惯") { showAddHabitForm = true }
                     Button("取消", role: .cancel) { }
                 }
             }
@@ -210,7 +219,7 @@ struct MainView: View {
                 
                 .confirmationDialog("选择添加类型", isPresented: $showAddOptions, titleVisibility: .hidden) {
                     Button("新建任务") { showAddTaskForm = true }
-                    Button("新建习惯") { /* 你的习惯逻辑 */ }
+                    Button("新建习惯") { showAddHabitForm = true }
                     Button("取消", role: .cancel) { }
                 }
             }

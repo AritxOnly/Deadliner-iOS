@@ -296,50 +296,179 @@ actor DatabaseHelper {
     // MARK: - Habit
 
     @discardableResult
-    func insertHabit(
-        ddlLegacyId: Int64,
-        name: String,
-        description: String?,
-        color: Int?,
-        iconKey: String?,
-        period: HabitPeriod,
-        timesPerPeriod: Int,
-        goalType: HabitGoalType,
-        totalTarget: Int?,
-        createdAt: String,
-        updatedAt: String,
-        status: HabitStatus,
-        sortOrder: Int,
-        alarmTime: String?
-    ) throws -> Int64 {
+    func insertHabit(ddlLegacyId: Int64, habit: Habit) throws -> Int64 {
         guard let context else { throw DBError.notInitialized }
 
         let ddlFd = FetchDescriptor<DDLItemEntity>(predicate: #Predicate { $0.legacyId == ddlLegacyId })
         guard let ddl = try context.fetch(ddlFd).first else { throw DBError.notFound("DDL \(ddlLegacyId)") }
 
         let id = nextId(.habit)
-        let habit = HabitEntity(
+        let entity = HabitEntity(
             legacyId: id,
-            name: name,
-            descText: description,
-            color: color,
-            iconKey: iconKey,
-            periodRaw: period.rawValue,
-            timesPerPeriod: timesPerPeriod,
-            goalTypeRaw: goalType.rawValue,
-            totalTarget: totalTarget,
-            createdAt: createdAt,
-            updatedAt: updatedAt,
-            statusRaw: status.rawValue,
-            sortOrder: sortOrder,
-            alarmTime: alarmTime,
+            name: habit.name,
+            descText: habit.description,
+            color: habit.color,
+            iconKey: habit.iconKey,
+            periodRaw: habit.period.rawValue,
+            timesPerPeriod: habit.timesPerPeriod,
+            goalTypeRaw: habit.goalType.rawValue,
+            totalTarget: habit.totalTarget,
+            createdAt: habit.createdAt,
+            updatedAt: habit.updatedAt,
+            statusRaw: habit.status.rawValue,
+            sortOrder: habit.sortOrder,
+            alarmTime: habit.alarmTime,
             ddl: ddl
         )
 
-        context.insert(habit)
-        ddl.habit = habit
+        context.insert(entity)
+        ddl.habit = entity
         try context.save()
         return id
+    }
+
+    func updateHabit(_ habit: Habit) throws {
+        guard let context else { throw DBError.notInitialized }
+        let targetId = habit.id
+        let fd = FetchDescriptor<HabitEntity>(predicate: #Predicate { $0.legacyId == targetId })
+        guard let e = try context.fetch(fd).first else { throw DBError.notFound("Habit \(habit.id)") }
+
+        e.apply(domain: habit)
+        try context.save()
+    }
+
+    func getHabitByDDLId(ddlLegacyId: Int64) throws -> Habit? {
+        guard let context else { throw DBError.notInitialized }
+        let targetId = ddlLegacyId
+        let fd = FetchDescriptor<HabitEntity>(predicate: #Predicate { $0.ddl?.legacyId == targetId })
+        return try context.fetch(fd).first?.toDomain()
+    }
+
+    func getHabitById(id: Int64) throws -> Habit? {
+        guard let context else { throw DBError.notInitialized }
+        let targetId = id
+        let fd = FetchDescriptor<HabitEntity>(predicate: #Predicate { $0.legacyId == targetId })
+        return try context.fetch(fd).first?.toDomain()
+    }
+
+    func getAllHabits() throws -> [Habit] {
+        guard let context else { throw DBError.notInitialized }
+        let fd = FetchDescriptor<HabitEntity>(sortBy: [SortDescriptor(\.sortOrder), SortDescriptor(\.legacyId)])
+        let entities = try context.fetch(fd)
+        return entities.map { $0.toDomain() }
+    }
+
+    func deleteHabit(legacyId: Int64) throws {
+        guard let context else { throw DBError.notInitialized }
+        let targetId = legacyId
+        let fd = FetchDescriptor<HabitEntity>(predicate: #Predicate { $0.legacyId == targetId })
+        if let e = try context.fetch(fd).first {
+            context.delete(e)
+            try context.save()
+        }
+    }
+
+    func deleteHabitByDDLId(ddlLegacyId: Int64) throws {
+        guard let context else { throw DBError.notInitialized }
+        let targetId = ddlLegacyId
+        let fd = FetchDescriptor<HabitEntity>(predicate: #Predicate { $0.ddl?.legacyId == targetId })
+        if let e = try context.fetch(fd).first {
+            context.delete(e)
+            try context.save()
+        }
+    }
+
+    // MARK: - Habit Record
+
+    @discardableResult
+    func insertHabitRecord(habitLegacyId: Int64, record: HabitRecord) throws -> Int64 {
+        guard let context else { throw DBError.notInitialized }
+
+        let hFd = FetchDescriptor<HabitEntity>(predicate: #Predicate { $0.legacyId == habitLegacyId })
+        guard let habit = try context.fetch(hFd).first else { throw DBError.notFound("Habit \(habitLegacyId)") }
+
+        let id = nextId(.habitRecord)
+        let entity = HabitRecordEntity(
+            legacyId: id,
+            date: record.date,
+            count: record.count,
+            statusRaw: record.status.rawValue,
+            createdAt: record.createdAt,
+            habit: habit
+        )
+
+        context.insert(entity)
+        try context.save()
+        return id
+    }
+
+    func deleteHabitRecord(legacyId: Int64) throws {
+        guard let context else { throw DBError.notInitialized }
+        let targetId = legacyId
+        let fd = FetchDescriptor<HabitRecordEntity>(predicate: #Predicate { $0.legacyId == targetId })
+        if let e = try context.fetch(fd).first {
+            context.delete(e)
+            try context.save()
+        }
+    }
+
+    func getHabitRecordsForHabitOnDate(habitLegacyId: Int64, date: String) throws -> [HabitRecord] {
+        guard let context else { throw DBError.notInitialized }
+        let hId = habitLegacyId
+        let d = date
+        let fd = FetchDescriptor<HabitRecordEntity>(
+            predicate: #Predicate { $0.habit?.legacyId == hId && $0.date == d }
+        )
+        return try context.fetch(fd).map { $0.toDomain() }
+    }
+
+    func getHabitRecordsForDate(date: String) throws -> [HabitRecord] {
+        guard let context else { throw DBError.notInitialized }
+        let d = date
+        let fd = FetchDescriptor<HabitRecordEntity>(predicate: #Predicate { $0.date == d })
+        return try context.fetch(fd).map { $0.toDomain() }
+    }
+
+    func getHabitRecordsInRange(startDate: String, endDate: String) throws -> [HabitRecord] {
+        guard let context else { throw DBError.notInitialized }
+        let s = startDate
+        let e = endDate
+        
+        let fd = FetchDescriptor<HabitRecordEntity>()
+        let all = try context.fetch(fd)
+        return all.filter { $0.date >= s && $0.date <= e }
+            .sorted { $0.date < $1.date }
+            .map { $0.toDomain() }
+    }
+
+    func getHabitRecordsForHabitInRange(habitLegacyId: Int64, startDate: String, endDate: String) throws -> [HabitRecord] {
+        guard let context else { throw DBError.notInitialized }
+        let hId = habitLegacyId
+        let s = startDate
+        let e = endDate
+        
+        // SwiftData Predicate 对 String 范围查询支持有限，这里先查出该习惯的所有记录再过滤，或者按 legacyId 范围查
+        let fd = FetchDescriptor<HabitRecordEntity>(
+            predicate: #Predicate { $0.habit?.legacyId == hId }
+        )
+        let all = try context.fetch(fd)
+        return all.filter { $0.date >= s && $0.date <= e }
+            .sorted { $0.date < $1.date }
+            .map { $0.toDomain() }
+    }
+
+    func deleteHabitRecordsForHabitOnDate(habitLegacyId: Int64, date: String) throws {
+        guard let context else { throw DBError.notInitialized }
+        let hId = habitLegacyId
+        let d = date
+        let fd = FetchDescriptor<HabitRecordEntity>(
+            predicate: #Predicate { $0.habit?.legacyId == hId && $0.date == d }
+        )
+        let targets = try context.fetch(fd)
+        for t in targets {
+            context.delete(t)
+        }
+        try context.save()
     }
 
     // MARK: - Archive
@@ -392,15 +521,23 @@ actor DatabaseHelper {
 
     private func maxLegacyId<T: PersistentModel>(
         context: ModelContext,
-        for _: T.Type
+        for type: T.Type
     ) throws -> Int64 {
         let fd = FetchDescriptor<T>()
         let all = try context.fetch(fd)
-        // 反射拿 legacyId，避免为每个实体写重复方法
-        let ids: [Int64] = all.compactMap { model in
-            Mirror(reflecting: model).children.first(where: { $0.label == "legacyId" })?.value as? Int64
+        
+        // SwiftData 的 @Model 属性对 Mirror 不友好，改为针对已知类型手动提取
+        if type == DDLItemEntity.self {
+            return (all as? [DDLItemEntity])?.map { $0.legacyId }.max() ?? 0
+        } else if type == SubTaskEntity.self {
+            return (all as? [SubTaskEntity])?.map { $0.legacyId }.max() ?? 0
+        } else if type == HabitEntity.self {
+            return (all as? [HabitEntity])?.map { $0.legacyId }.max() ?? 0
+        } else if type == HabitRecordEntity.self {
+            return (all as? [HabitRecordEntity])?.map { $0.legacyId }.max() ?? 0
         }
-        return ids.max() ?? 0
+        
+        return 0
     }
     
     // MARK: - Sync Bridge (v1 snapshot)

@@ -174,15 +174,7 @@
 				E52762FE2F3F618B002162DF /* DeadlinerUITests */,
 				E538761B2F5A5AC200E5D81A /* DeadlinerWidget */,
 				E52762E32F3F6189002162DF /* Products */,
-				E52763CE2F42F09F002162DF /* DeadlinerDefault.icon */,
-				E5B68B6E2F4C821E00E603F3 /* DeadlinerPurple.icon */,
-				E5B68B702F4C825700E603F3 /* DeadlinerOragne.icon */,
-				E5B68B672F4B493500E603F3 /* DeadlinerBlackGold.icon */,
-				E5B68B682F4B493500E603F3 /* DeadlinerPixel.icon */,
-				E5A147592F512B7D001845F7 /* DeadlinerSpring.icon */,
-				E5A1475A2F512B7D001845F7 /* DeadlinerSummer.icon */,
-				E5A1475D2F51DFA3001845F7 /* DeadlinerAutumn.icon */,
-				E5A1475F2F51E766001845F7 /* DeadlinerWinter.icon */,
+				E574E6E72F5C23B200AF1661 /* Icons */,
 				E53876042F54411200E5D81A /* Frameworks */,
 			);
 			sourceTree = "<group>";
@@ -206,6 +198,22 @@
 				E53876192F5A5AC200E5D81A /* SwiftUI.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		E574E6E72F5C23B200AF1661 /* Icons */ = {
+			isa = PBXGroup;
+			children = (
+				E52763CE2F42F09F002162DF /* DeadlinerDefault.icon */,
+				E5B68B6E2F4C821E00E603F3 /* DeadlinerPurple.icon */,
+				E5B68B702F4C825700E603F3 /* DeadlinerOragne.icon */,
+				E5B68B672F4B493500E603F3 /* DeadlinerBlackGold.icon */,
+				E5B68B682F4B493500E603F3 /* DeadlinerPixel.icon */,
+				E5A147592F512B7D001845F7 /* DeadlinerSpring.icon */,
+				E5A1475A2F512B7D001845F7 /* DeadlinerSummer.icon */,
+				E5A1475D2F51DFA3001845F7 /* DeadlinerAutumn.icon */,
+				E5A1475F2F51E766001845F7 /* DeadlinerWinter.icon */,
+			);
+			path = Icons;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */

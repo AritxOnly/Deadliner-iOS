@@ -15,6 +15,7 @@ struct HomeView: View {
 
     @StateObject private var vm = HomeViewModel()
     @State private var pendingDeleteItem: DDLItem? = nil
+    @State private var pendingDeleteHabit: Habit? = nil
     @State private var showDeleteConfirm: Bool = false
     
     @StateObject private var confetti = ConfettiController()
@@ -24,15 +25,7 @@ struct HomeView: View {
     @State private var isStagingRebuild: Bool = false
     
     @State private var editSheetItem: DDLItem? = nil
-
-    // Habit 暂不接入，先留占位
-    private let habitItems = [
-        "Morning Workout",
-        "Drink 2L Water",
-        "Meditation 10min",
-        "Anki Review",
-        "Sleep before 00:30"
-    ]
+    @State private var editSheetHabit: Habit? = nil
 
     private var filteredTasks: [DDLItem] {
         let base = vm.tasks.filter { !$0.isArchived }
@@ -42,11 +35,6 @@ struct HomeView: View {
             $0.note.localizedCaseInsensitiveContains(query) ||
             $0.endTime.localizedCaseInsensitiveContains(query)
         }
-    }
-
-    private var filteredHabitItems: [String] {
-        guard !query.isEmpty else { return habitItems }
-        return habitItems.filter { $0.localizedCaseInsensitiveContains(query) }
     }
     
     var body: some View {
@@ -122,9 +110,86 @@ struct HomeView: View {
                         }
                     }
                 } else {
-                    // TODO: Habit 数据接入 Repository（后续）
-                    ForEach(filteredHabitItems, id: \.self) { item in
-                        Text(item)
+                    // 1. 顶部进度
+                    HabitProgressView(progress: vm.getTodayCompletionRatio())
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .padding(.vertical, 8)
+                        .id("habit-progress-\(enterAnimToken)")
+
+                    // 2. 本周日期横条
+                    WeekRow(
+                        weekOverview: vm.weekOverview,
+                        selectedDate: vm.selectedDate,
+                        onSelectDate: { d in
+                            Task { await vm.onDateSelected(d) }
+                        },
+                        onChangeWeek: { offset in
+                            Task { await vm.changeWeek(offset: offset) }
+                        }
+                    )
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .padding(.bottom, 8)
+
+                    if vm.displayHabits.isEmpty {
+                        Text("暂无待打卡待办")
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .padding(.top, 40)
+                    } else {
+                        ForEach(Array(vm.displayHabits.enumerated()), id: \.element.id) { idx, item in
+                            FloatUpRow(index: idx + 1, maxLoad: 15, enable: true, animateToken: enterAnimToken) {
+                                let ebState = vm.getEbbinghausState(habit: item.habit, targetDate: vm.selectedDate)
+                                HabitItemCard(
+                                    habit: item.habit,
+                                    doneCount: item.doneCount,
+                                    targetCount: item.targetCount,
+                                    isCompleted: item.isCompleted,
+                                    status: item.isCompleted ? .completed : .undergo,
+                                    remainingText: ebState.text,
+                                    canToggle: (Calendar.current.startOfDay(for: vm.selectedDate) <= Calendar.current.startOfDay(for: Date())) && ebState.isDue,
+                                    onToggle: {
+                                        Task {
+                                            let finished = await vm.toggleHabitRecord(item: item)
+                                            if finished { confetti.fire() }
+                                        }
+                                    },
+                                    onLongPress: {
+                                        editSheetHabit = item.habit
+                                    }
+                                )
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    Button {
+                                        pendingDeleteHabit = item.habit
+                                        showDeleteConfirm = true
+                                    } label: {
+                                        Label("删除", systemImage: "trash")
+                                    }
+                                    .tint(.red)
+                                    
+                                    Button {
+                                        editSheetHabit = item.habit
+                                    } label: {
+                                        Label("编辑", systemImage: "pencil")
+                                    }
+                                    .tint(.blue)
+                                }
+                                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                    Button {
+                                        Task { await vm.archiveHabit(item.habit) }
+                                    } label: {
+                                        Label("归档", systemImage: "archivebox")
+                                    }
+                                    .tint(.gray)
+                                }
+                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                            }
+                        }
                     }
                 }
             } header: {
@@ -172,22 +237,28 @@ struct HomeView: View {
         } message: {
             Text(vm.errorText ?? "")
         }
-        .confirmationDialog(
-            "确认删除任务？",
-            isPresented: $showDeleteConfirm,
-            titleVisibility: .visible
+        .alert(
+            pendingDeleteItem != nil ? "确认删除任务？" : "确认删除习惯？",
+            isPresented: $showDeleteConfirm
         ) {
             Button("删除", role: .destructive) {
-                guard let item = pendingDeleteItem else { return }
-                Task { await vm.delete(item) }
+                if let item = pendingDeleteItem {
+                    Task { await vm.delete(item) }
+                } else if let habit = pendingDeleteHabit {
+                    Task { await vm.deleteHabit(habit) }
+                }
                 pendingDeleteItem = nil
+                pendingDeleteHabit = nil
             }
             Button("取消", role: .cancel) {
                 pendingDeleteItem = nil
+                pendingDeleteHabit = nil
             }
         } message: {
             if let item = pendingDeleteItem {
                 Text("将删除「\(item.name)」。此操作不可撤销。")
+            } else if let habit = pendingDeleteHabit {
+                Text("将删除「\(habit.name)」。此操作不可撤销。")
             } else {
                 Text("此操作不可撤销。")
             }
@@ -197,6 +268,15 @@ struct HomeView: View {
         }
         .sheet(item: $editSheetItem) { item in
             EditTaskSheetView(repository: TaskRepository.shared, item: item)
+        }
+        .sheet(item: $editSheetHabit) { habit in
+            HabitEditorSheetView(
+                mode: .edit(original: habit),
+                initialDraft: .fromHabit(habit),
+                onDone: {
+                    NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
+                }
+            )
         }
     }
 

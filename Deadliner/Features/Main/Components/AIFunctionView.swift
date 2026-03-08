@@ -672,8 +672,36 @@ extension AIFunctionView {
         defer { repoBusy = false }
 
         do {
-            // TODO: HabitRepository / HabitInsertParams 还没实现的话，在这里接上
-            // _ = try await HabitRepository.shared.insertHabit(...)
+            // 1. 先创建一个 DDLItem 作为载体 (类型为 .habit)
+            let ddlParams = DDLInsertParams(
+                name: habit.name,
+                startTime: Date().toLocalISOString(),
+                endTime: "", // 习惯通常没有明确截止时间
+                isCompleted: false,
+                completeTime: "",
+                note: "",
+                isArchived: false,
+                isStared: false,
+                type: .habit,
+                calendarEventId: nil
+            )
+            
+            let ddlId = try await TaskRepository.shared.insertDDL(ddlParams)
+            
+            // 2. 解析周期与目标类型
+            let periodEnum = HabitPeriod(rawValue: habit.period.uppercased()) ?? .daily
+            let goalTypeEnum = HabitGoalType(rawValue: habit.goalType.uppercased()) ?? .perPeriod
+            
+            // 3. 创建 Habit 本体
+            _ = try await HabitRepository.shared.createHabitForDdl(
+                ddlId: ddlId,
+                name: habit.name,
+                period: periodEnum,
+                timesPerPeriod: habit.timesPerPeriod,
+                goalType: goalTypeEnum,
+                totalTarget: habit.totalTarget,
+                description: ""
+            )
 
             let key = makeHabitKey(habit)
             addedHabitKeys.insert(key)

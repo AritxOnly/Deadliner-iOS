@@ -131,7 +131,7 @@ struct DDLItemCardSwipeable: View {
             )
             .swipeActions(edge: .trailing, allowsFullSwipe: !selectionMode) {
                 if !selectionMode {
-                    Button(role: .destructive) {
+                    Button {
                         onDelete()
                     } label: {
                         Label("删除", systemImage: "trash")
