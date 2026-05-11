@@ -54,6 +54,7 @@ actor LocalValues {
         static let aiHideThinkingProcess = "settings.ai.hide_thinking_process"
         
         static let progressDir = "settings.progress.dir"
+        static let experimentalHomeNavTitle = "settings.nav_title.experimental_home"
         static let overviewCardOrder = "settings.overview.card_order"
         static let trendCardOrder = "settings.trend.card_order"
         
@@ -92,7 +93,8 @@ actor LocalValues {
             Key.aiAutoApproveReadTasks: false,
             Key.aiSilentTaskAdd: true,
             Key.aiHideThinkingProcess: false,
-            Key.progressDir: false
+            Key.progressDir: false,
+            Key.experimentalHomeNavTitle: false
         ])
     }
 
@@ -254,6 +256,14 @@ actor LocalValues {
         defaults.set(enable, forKey: Key.progressDir)
     }
 
+    func getExperimentalHomeNavTitleEnabled() -> Bool {
+        defaults.bool(forKey: Key.experimentalHomeNavTitle)
+    }
+
+    func setExperimentalHomeNavTitleEnabled(_ enabled: Bool) {
+        defaults.set(enabled, forKey: Key.experimentalHomeNavTitle)
+    }
+
     func getOverviewCardOrder() -> [String] {
         defaults.stringArray(forKey: Key.overviewCardOrder) ?? []
     }
@@ -306,6 +316,7 @@ actor LocalValues {
             Key.aiSilentTaskAdd,
             Key.aiHideThinkingProcess,
             Key.progressDir,
+            Key.experimentalHomeNavTitle,
             Key.onboardingHasSeen,
             Key.onboardingShowOnNextLaunch
         ]

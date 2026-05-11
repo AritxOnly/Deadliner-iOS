@@ -13,6 +13,8 @@ struct RichHomeTabView: View {
     @Binding var overlayProgress: CGFloat
 
     @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
+    @AppStorage("settings.nav_title.experimental_home") private var experimentalHomeNavTitle: Bool = false
+    @State private var homeSelectionMode: Bool = false
 
     let onSettingsTapped: () -> Void
 
@@ -21,38 +23,63 @@ struct RichHomeTabView: View {
             HomeView(
                 query: $query,
                 taskSegment: $taskSegment,
-                onScrollProgressChange: { overlayProgress = $0 }
+                onScrollProgressChange: { overlayProgress = $0 },
+                onSelectionModeChange: { homeSelectionMode = $0 }
             )
-            .navigationTitle("清单")
-            .navigationBarTitleDisplayMode(.automatic)
+            .navigationTitle(experimentalHomeNavTitle ? "" : "清单")
+            .navigationBarTitleDisplayMode(experimentalHomeNavTitle ? .inline : .automatic)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        onSettingsTapped()
-                    } label: {
-                        Group {
-                            if let avatar = AvatarManager.shared.avatarImage {
-                                avatar
-                                    .resizable()
-                                    .renderingMode(.original)
-                            } else {
-                                Image(systemName: "person.crop.circle")
-                                    .resizable()
-                                    .renderingMode(.original)
-                                    .symbolRenderingMode(.hierarchical)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .scaledToFill()
-                        .frame(width: 42, height: 42)
-                        .clipShape(Circle())
-                        .overlay(Circle().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5))
-                        .contentShape(Circle())
+                if experimentalHomeNavTitle && !homeSelectionMode {
+                    ToolbarItem(placement: .topBarLeading) {
+                        ExperimentalHomeNavigationTitleLabel(text: "Deadliner", style: .expanded)
+                            .opacity(1 - homeTitleCollapseProgress)
+                            .blur(radius: homeTitleCollapseProgress * 5)
+                            .offset(x: -8 * homeTitleCollapseProgress)
+                            .allowsHitTesting(false)
                     }
-                    .accessibilityLabel("用户与设置")
-                    .accessibilityHint("打开用户面板与设置")
+                    .sharedBackgroundVisibility(.hidden)
+
+                    ToolbarItem(placement: .principal) {
+                        ExperimentalHomeNavigationTitleLabel(text: "清单", style: .collapsed)
+                            .opacity(homeTitleCollapseProgress)
+                            .blur(radius: (1 - homeTitleCollapseProgress) * 4)
+                            .scaleEffect(0.94 + (0.06 * homeTitleCollapseProgress))
+                            .offset(y: 1 - homeTitleCollapseProgress)
+                            .animation(.smooth(duration: 0.22, extraBounce: 0), value: homeTitleCollapseProgress)
+                            .allowsHitTesting(false)
+                    }
+                    .sharedBackgroundVisibility(.hidden)
                 }
-                .sharedBackgroundVisibility(.hidden)
+
+                if !homeSelectionMode {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            onSettingsTapped()
+                        } label: {
+                            Group {
+                                if let avatar = AvatarManager.shared.avatarImage {
+                                    avatar
+                                        .resizable()
+                                        .renderingMode(.original)
+                                } else {
+                                    Image(systemName: "person.crop.circle")
+                                        .resizable()
+                                        .renderingMode(.original)
+                                        .symbolRenderingMode(.hierarchical)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .scaledToFill()
+                            .frame(width: 42, height: 42)
+                            .clipShape(Circle())
+                            .overlay(Circle().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5))
+                            .contentShape(Circle())
+                        }
+                        .accessibilityLabel("用户与设置")
+                        .accessibilityHint("打开用户面板与设置")
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                }
             }
             .background {
                 ZStack(alignment: .top) {
@@ -64,6 +91,10 @@ struct RichHomeTabView: View {
             }
             .toolbarBackground(.hidden, for: .navigationBar)
         }
+    }
+
+    private var homeTitleCollapseProgress: CGFloat {
+        ExperimentalHomeNavigationTitleMetrics.collapseProgress(for: overlayProgress)
     }
 }
 

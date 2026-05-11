@@ -23,6 +23,7 @@ struct FocusMainView: View {
     @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
     @AppStorage("settings.ai.enabled") private var aiEnabled: Bool = true
     @AppStorage("settings.ai.last_analyzed_month") private var lastAnalyzedMonth: String = ""
+    @AppStorage("settings.nav_title.experimental_home") private var experimentalHomeNavTitle: Bool = false
     @AppStorage("userTier") private var userTier: UserTier = .free
     @AppStorage("userName") private var userName: String = "用户"
     
@@ -46,11 +47,12 @@ struct FocusMainView: View {
     var body: some View {
         NavigationStack {
             contentView
-                .navigationTitle(module.title)
-                .navigationBarTitleDisplayMode(.automatic)
+                .navigationTitle(primaryNavigationTitle)
+                .navigationBarTitleDisplayMode(primaryNavigationTitleDisplayMode)
                 .searchable(text: $query, prompt: searchPrompt)
                 .toolbar {
                     topLeadingToolbar
+                    topPrincipalToolbar
                     topTrailingToolbar
                     bottomToolbar
                 }
@@ -101,6 +103,26 @@ struct FocusMainView: View {
         }
     }
 
+    private var usesExperimentalHomeNavTitle: Bool {
+        experimentalHomeNavTitle && module == .taskManagement
+    }
+
+    private var showsExperimentalHomeNavTitle: Bool {
+        usesExperimentalHomeNavTitle && !homeSelectionMode
+    }
+
+    private var primaryNavigationTitle: String {
+        usesExperimentalHomeNavTitle ? "" : module.title
+    }
+
+    private var primaryNavigationTitleDisplayMode: NavigationBarItem.TitleDisplayMode {
+        usesExperimentalHomeNavTitle ? .inline : .automatic
+    }
+
+    private var homeTitleCollapseProgress: CGFloat {
+        ExperimentalHomeNavigationTitleMetrics.collapseProgress(for: navGradientProgress)
+    }
+
     // MARK: - Content Host
 
     @ViewBuilder
@@ -137,30 +159,55 @@ struct FocusMainView: View {
 
     @ToolbarContentBuilder
     private var topLeadingToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            Menu {
-                ForEach(MainModule.allCases) { m in
-                    Button {
-                        withAnimation(.smooth(duration: 0.32, extraBounce: 0)) {
-                            resetScroll(for: m)
-                            module = m
-                            query = ""
+        if !(module == .taskManagement && homeSelectionMode) {
+            ToolbarItemGroup(placement: .topBarLeading) {
+                Menu {
+                    ForEach(MainModule.allCases) { m in
+                        Button {
+                            withAnimation(.smooth(duration: 0.32, extraBounce: 0)) {
+                                resetScroll(for: m)
+                                module = m
+                                query = ""
+                            }
+                        } label: {
+                            Label(m.title, systemImage: m.systemImage)
                         }
-                    } label: {
-                        Label(m.title, systemImage: m.systemImage)
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: module.systemImage)
+                        Image(systemName: "chevron.down")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                 }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: module.systemImage)
-                    Image(systemName: "chevron.down")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                .accessibilityLabel("切换模块")
+                .matchedTransitionSource(id: "main-toolbar-leading", in: toolbarTransition)
+
+                if showsExperimentalHomeNavTitle {
+                    ExperimentalHomeNavigationTitleLabel(text: "Deadliner", style: .expanded)
+                        .opacity(1 - homeTitleCollapseProgress)
+                        .blur(radius: homeTitleCollapseProgress * 5)
+                        .offset(x: -8 * homeTitleCollapseProgress)
+                        .allowsHitTesting(false)
                 }
             }
-            .accessibilityLabel("切换模块")
         }
-        .matchedTransitionSource(id: "main-toolbar-leading", in: toolbarTransition)
+    }
+
+    @ToolbarContentBuilder
+    private var topPrincipalToolbar: some ToolbarContent {
+        if showsExperimentalHomeNavTitle {
+            ToolbarItem(placement: .principal) {
+                ExperimentalHomeNavigationTitleLabel(text: "清单", style: .collapsed)
+                    .opacity(homeTitleCollapseProgress)
+                    .blur(radius: (1 - homeTitleCollapseProgress) * 4)
+                    .scaleEffect(0.94 + (0.06 * homeTitleCollapseProgress))
+                    .offset(y: 1 - homeTitleCollapseProgress)
+                    .animation(.smooth(duration: 0.22, extraBounce: 0), value: homeTitleCollapseProgress)
+                    .allowsHitTesting(false)
+            }
+        }
     }
 
     private func resetScroll(for module: MainModule) {
