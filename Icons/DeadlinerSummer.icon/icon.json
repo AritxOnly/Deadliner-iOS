@@ -60,18 +60,6 @@
       "blur-material" : 0.5,
       "layers" : [
         {
-          "hidden" : true,
-          "image-name" : "Details_summer 2.png",
-          "name" : "Details_summer 2",
-          "position" : {
-            "scale" : 1.05,
-            "translation-in-points" : [
-              0,
-              0
-            ]
-          }
-        },
-        {
           "hidden" : false,
           "image-name" : "Details_summer1 (1).png",
           "name" : "Details_summer1 (1)",

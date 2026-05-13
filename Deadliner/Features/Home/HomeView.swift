@@ -13,7 +13,9 @@ struct HomeView: View {
     @Binding var query: String
     @Binding var taskSegment: TaskSegment
     var onScrollProgressChange: ((CGFloat) -> Void)? = nil
+    var onScrollOffsetChange: ((CGFloat) -> Void)? = nil
     var onSelectionModeChange: ((Bool) -> Void)? = nil
+    var compactLayoutProgress: CGFloat? = nil
     
     @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
 
@@ -39,6 +41,15 @@ struct HomeView: View {
     @State private var selectionMode: Bool = false
     @State private var selectedTaskIDs = Set<Int64>()
     @State private var selectedHabitIDs = Set<Int64>()
+    @State private var scrollProgress: CGFloat = 0
+
+    private var compactLayoutEnabled: Bool {
+        compactLayoutProgress != nil
+    }
+
+    private var effectiveCompactProgress: CGFloat {
+        compactLayoutProgress ?? scrollProgress
+    }
 
     private var filteredTasks: [DDLItem] {
         let base = vm.tasks.filter { !$0.isArchived }
@@ -263,15 +274,9 @@ struct HomeView: View {
                     }
                 }
             } header: {
-                Picker("Task Segment", selection: $taskSegment) {
-                    ForEach(TaskSegment.allCases) { segment in
-                        Text(segment.rawValue).tag(segment)
-                    }
+                if !compactLayoutEnabled {
+                    segmentedControl
                 }
-                .pickerStyle(.segmented)
-                .glassEffect()
-                .textCase(nil)
-                .padding(EdgeInsets(top: 0, leading: 16, bottom: 4, trailing: 16))
             }
         }
         .listStyle(.plain)
@@ -280,10 +285,17 @@ struct HomeView: View {
         .toolbar {
             homeToolbar
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if compactLayoutEnabled {
+                segmentedControlInset
+            }
+        }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: listAnimToken)
         .onScrollGeometryChange(for: CGFloat.self) { geo in
             max(0, geo.contentOffset.y + geo.contentInsets.top)
         } action: { _, newValue in
+            scrollProgress = min(max(newValue / 120, 0), 1)
+            onScrollOffsetChange?(newValue)
             let p = min(max(newValue / 120, 0), 1)
             onScrollProgressChange?(p)
         }
@@ -411,6 +423,38 @@ struct HomeView: View {
                 .presentationDetents([.medium, .large], selection: $detailSheetDetent)
                 .presentationDragIndicator(.visible)
         }
+    }
+
+    private var segmentedControl: some View {
+        Picker("Task Segment", selection: $taskSegment) {
+            ForEach(TaskSegment.allCases) { segment in
+                Text(segment.rawValue).tag(segment)
+            }
+        }
+        .pickerStyle(.segmented)
+        .glassEffect()
+        .textCase(nil)
+        .padding(
+            EdgeInsets(
+                top: selectionMode
+                    ? 0
+                    : RichCompactLayout.headerTopPadding(
+                        enabled: compactLayoutEnabled,
+                        progress: effectiveCompactProgress
+                    ),
+                leading: 16,
+                bottom: 4,
+                trailing: 16
+            )
+        )
+    }
+
+    private var segmentedControlInset: some View {
+        segmentedControl
+            .padding(.top, 4)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+            .background(Color.clear)
     }
 
     private var deleteConfirmTitle: String {

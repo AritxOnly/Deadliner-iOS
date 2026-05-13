@@ -14,8 +14,6 @@ struct BehaviorAndDisplayView: View {
     @State private var tombstoneRetentionDays = 30
     
     @State private var progressDir = false
-    @State private var experimentalHomeNavTitle = false
-    
     // 未来可以加的占位变量：
     // @State private var defaultHomePage = 0
     // @State private var showCompletedTasks = true
@@ -24,11 +22,6 @@ struct BehaviorAndDisplayView: View {
         Form {
             Section("界面显示") {
                 Toggle("主界面正向进度条", isOn: $progressDir)
-                Toggle("实验性清单导航标题", isOn: $experimentalHomeNavTitle)
-
-                Text("开启后，清单页会使用 inline 高度的实验性标题：顶部默认左对齐显示 Deadliner，滚动收起后切换为居中的“清单”。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
             
             Section("任务归档与清理") {
@@ -70,19 +63,15 @@ struct BehaviorAndDisplayView: View {
             autoArchiveDays = await LocalValues.shared.getAutoArchiveDays()
             tombstoneRetentionDays = await LocalValues.shared.getTombstoneRetentionDays()
             progressDir = await LocalValues.shared.getProgressDir()
-            experimentalHomeNavTitle = await LocalValues.shared.getExperimentalHomeNavTitleEnabled()
         }
-        .onChange(of: autoArchiveDays) { _, newValue in
+        .onChange(of: autoArchiveDays) { newValue in
             Task { await LocalValues.shared.setAutoArchiveDays(newValue) }
         }
-        .onChange(of: tombstoneRetentionDays) { _, newValue in
+        .onChange(of: tombstoneRetentionDays) { newValue in
             Task { await LocalValues.shared.setTombstoneRetentionDays(newValue) }
         }
-        .onChange(of: progressDir) { _, newValue in
+        .onChange(of: progressDir) { newValue in
             Task { await LocalValues.shared.setProgressDir(newValue) }
-        }
-        .onChange(of: experimentalHomeNavTitle) { _, newValue in
-            Task { await LocalValues.shared.setExperimentalHomeNavTitleEnabled(newValue) }
         }
     }
 

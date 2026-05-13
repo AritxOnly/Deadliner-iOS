@@ -18,7 +18,13 @@ public enum SharedModelContainer {
         let defaults = UserDefaults.standard
         let cloudSyncEnabled = defaults.object(forKey: cloudSyncEnabledKey) as? Bool ?? true
         let rawProvider = defaults.string(forKey: syncProviderKey) ?? "webdav"
-        return cloudSyncEnabled && rawProvider == iCloudSyncProviderRawValue
+        guard cloudSyncEnabled && rawProvider == iCloudSyncProviderRawValue else {
+            return false
+        }
+
+        // Avoid triggering a system Apple ID sign-in prompt on launch when iCloud is not signed in.
+        // Only initialize CloudKit-backed store when an iCloud identity is already available.
+        return FileManager.default.ubiquityIdentityToken != nil
     }
 
     private static func makeConfiguration(

@@ -32,6 +32,7 @@ enum HomeStyleOption: String, CaseIterable, Identifiable {
 
 struct HomeStyleSettingsView: View {
     @AppStorage("settings.home.style") private var homeStyleRawValue: String = HomeStyleOption.rich.rawValue
+    @AppStorage(RichCompactLayout.settingKey) private var richCompactLayoutEnabled: Bool = false
 
     var body: some View {
         List {
@@ -58,6 +59,16 @@ struct HomeStyleSettingsView: View {
                         }
                     }
                     .buttonStyle(.plain)
+                }
+            }
+
+            if selectedOption == .rich {
+                Section("丰富模式") {
+                    Toggle("紧凑布局", isOn: $richCompactLayoutEnabled)
+
+                    Text("开启后，丰富模式会使用标题与内容左对齐的紧凑导航样式；关闭后保持当前布局。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
         }

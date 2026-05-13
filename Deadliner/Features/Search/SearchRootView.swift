@@ -12,6 +12,7 @@ struct RichSearchTabView: View {
     @Binding var overlayProgress: CGFloat
 
     @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
+    @AppStorage(RichCompactLayout.settingKey) private var compactLayoutEnabled: Bool = false
     @State private var scope: SearchScope = .all
     @StateObject private var captureStore = CaptureStore()
     @State private var activeTasks: [DDLItem] = []
@@ -118,6 +119,10 @@ struct RichSearchTabView: View {
                 } else {
                     SearchResultsView(
                         scope: $scope,
+                        compactHeaderTopPadding: RichCompactLayout.headerTopPadding(
+                            enabled: compactLayoutEnabled,
+                            progress: overlayProgress
+                        ),
                         query: query,
                         inspirations: captureStore.items,
                         activeTasks: activeTasks,
@@ -140,8 +145,7 @@ struct RichSearchTabView: View {
             .modifier(SearchListStyleModifier(useInsetGrouped: isBrowsingHome))
             .scrollContentBackground(.hidden)
             .animation(.smooth(duration: 0.22, extraBounce: 0), value: isBrowsingHome)
-            .navigationTitle("搜索")
-            .navigationBarTitleDisplayMode(.automatic)
+            .richCompactNavigationTitle("搜索")
             .searchable(text: $query, prompt: searchPrompt)
             .navigationDestination(for: SearchBrowseCategory.self) { category in
                 SearchCategoryDetailView(

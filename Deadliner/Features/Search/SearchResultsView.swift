@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SearchResultsView: View {
     @Binding var scope: SearchScope
+    var compactHeaderTopPadding: CGFloat = 0
     let query: String
     let inspirations: [CaptureInboxItem]
     let activeTasks: [DDLItem]
@@ -109,6 +110,7 @@ struct SearchResultsView: View {
             .pickerStyle(.segmented)
             .glassEffect()
             .textCase(nil)
+            .padding(.top, compactHeaderTopPadding)
             .padding(.horizontal, 16)
         }
         .listRowSeparator(.hidden)
@@ -198,7 +200,7 @@ struct SearchResultsView: View {
             Button {
                 inspirationActions.onAIConvertToTask(item.item)
             } label: {
-                Label("AI 任务", image: "sparkles")
+                Label("AI 任务", systemImage: "sparkles")
             }
             .tint(.blue)
         }

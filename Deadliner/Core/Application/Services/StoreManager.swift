@@ -31,9 +31,6 @@ final class StoreManager: ObservableObject {
     @AppStorage("store.has_geek_entitlement_cache") private var hasGeekEntitlementCache: Bool = false
     
     let geekProductID = "top.aritxonly.deadliner.geek.lifetime"
-    private let launchSyncCooldown: TimeInterval = 60 * 60 * 6
-    private let launchSyncTimeoutSeconds: Double = 3.0
-    private let lastLaunchSyncAtKey = "store.launch.last_sync_at"
     
     private var updatesTask: Task<Void, Never>?
     private let logger = Logger(subsystem: "Deadliner", category: "StoreManager")
@@ -60,7 +57,6 @@ final class StoreManager: ObservableObject {
         
         Task {
             await updatePurchasedProducts(reason: .passive)
-            await fetchProducts()
         }
     }
     
@@ -130,27 +126,10 @@ final class StoreManager: ObservableObject {
     }
 
     /// App 启动/回前台时调用：
-    /// 1) 先本地 entitlement 快速同步，保证弱网也能立即更新 UI
-    /// 2) 再后台做一次限时网络校验，超时即放弃，不影响交互
+    /// 启动阶段只做本地 entitlement 同步，避免触发 Apple ID 登录弹窗。
+    /// 联网校验与商品拉取仅在用户主动进入会员页或恢复购买时触发。
     func refreshEntitlementsOnLaunch() async {
         await updatePurchasedProducts(reason: .passive)
-
-        Task { [weak self] in
-            guard let self else { return }
-            guard self.shouldRunLaunchSyncNow else {
-                self.log("skip launch sync due to cooldown")
-                return
-            }
-
-            self.markLaunchSyncAttempt()
-            let synced = await self.syncAppStoreWithTimeout(seconds: self.launchSyncTimeoutSeconds)
-            if synced {
-                self.log("launch sync completed")
-                await self.updatePurchasedProducts(reason: .postSync)
-            } else {
-                self.log("launch sync skipped/timeout/failure, keep local entitlement state")
-            }
-        }
     }
     
     /// 检查并同步内购权限到 AppStorage
@@ -214,36 +193,4 @@ final class StoreManager: ObservableObject {
         }
     }
 
-    private var shouldRunLaunchSyncNow: Bool {
-        let last = UserDefaults.standard.double(forKey: lastLaunchSyncAtKey)
-        guard last > 0 else { return true }
-        return Date().timeIntervalSince1970 - last >= launchSyncCooldown
-    }
-
-    private func markLaunchSyncAttempt() {
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastLaunchSyncAtKey)
-    }
-
-    private func syncAppStoreWithTimeout(seconds: Double) async -> Bool {
-        await withTaskGroup(of: Bool.self) { group in
-            group.addTask {
-                do {
-                    try await AppStore.sync()
-                    return true
-                } catch {
-                    return false
-                }
-            }
-
-            group.addTask {
-                let ns = UInt64(max(0.1, seconds) * 1_000_000_000)
-                try? await Task.sleep(nanoseconds: ns)
-                return false
-            }
-
-            let result = await group.next() ?? false
-            group.cancelAll()
-            return result
-        }
-    }
 }

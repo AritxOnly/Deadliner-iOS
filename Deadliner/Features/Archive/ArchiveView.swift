@@ -10,6 +10,7 @@ import SwiftUI
 struct ArchiveView: View {
     @Binding var query: String
     var onScrollProgressChange: ((CGFloat) -> Void)? = nil
+    var compactLayoutProgress: CGFloat? = nil
     
     @State private var selectedTab: Int = 0 // 0: 任务, 1: 习惯
     @State private var archivedTasks: [DDLItem] = []
@@ -19,6 +20,15 @@ struct ArchiveView: View {
     @State private var itemToDelete: DeleteTarget?
     @State private var showDeleteAlert: Bool = false
     @State private var showDeleteAllAlert: Bool = false
+    @State private var scrollProgress: CGFloat = 0
+
+    private var compactLayoutEnabled: Bool {
+        compactLayoutProgress != nil
+    }
+
+    private var effectiveCompactProgress: CGFloat {
+        compactLayoutProgress ?? scrollProgress
+    }
     
     enum DeleteTarget {
         case task(DDLItem)
@@ -50,22 +60,23 @@ struct ArchiveView: View {
                     habitRows
                 }
             } header: {
-                Picker("归档类型", selection: $selectedTab) {
-                    Text("任务").tag(0)
-                    Text("习惯").tag(1)
+                if !compactLayoutEnabled {
+                    segmentedControl
                 }
-                .pickerStyle(.segmented)
-                .glassEffect()
-                .textCase(nil)
-                .padding(EdgeInsets(top: 0, leading: 16, bottom: 4, trailing: 16))
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Color.clear)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if compactLayoutEnabled {
+                segmentedControlInset
+            }
+        }
         .onScrollGeometryChange(for: CGFloat.self) { geo in
             max(0, geo.contentOffset.y + geo.contentInsets.top)
         } action: { _, newValue in
+            scrollProgress = min(max(newValue / 120, 0), 1)
             let p = min(max(newValue / 120, 0), 1)
             onScrollProgressChange?(p)
         }
@@ -102,6 +113,35 @@ struct ArchiveView: View {
                 if !archivedHabits.isEmpty { showDeleteAllAlert = true }
             }
         }
+    }
+
+    private var segmentedControl: some View {
+        Picker("归档类型", selection: $selectedTab) {
+            Text("任务").tag(0)
+            Text("习惯").tag(1)
+        }
+        .pickerStyle(.segmented)
+        .glassEffect()
+        .textCase(nil)
+        .padding(
+            EdgeInsets(
+                top: RichCompactLayout.headerTopPadding(
+                    enabled: compactLayoutEnabled,
+                    progress: effectiveCompactProgress
+                ),
+                leading: 16,
+                bottom: 4,
+                trailing: 16
+            )
+        )
+    }
+
+    private var segmentedControlInset: some View {
+        segmentedControl
+            .padding(.top, 4)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+            .background(Color.clear)
     }
     
     // MARK: - Row Views

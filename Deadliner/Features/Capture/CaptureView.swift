@@ -10,6 +10,7 @@ import SwiftUI
 struct CaptureInboxView: View {
     var query: Binding<String>? = nil
     var onScrollProgressChange: ((CGFloat) -> Void)? = nil
+    var onSelectionModeChange: ((Bool) -> Void)? = nil
 
     @EnvironmentObject private var themeStore: ThemeStore
 
@@ -115,6 +116,12 @@ struct CaptureInboxView: View {
         .onChange(of: speechInput.composedText) { _, newValue in
             guard speechInput.isRecording || speechInput.isBusy else { return }
             draftText = newValue
+        }
+        .onChange(of: selectionMode) { _, newValue in
+            onSelectionModeChange?(newValue)
+        }
+        .onAppear {
+            onSelectionModeChange?(selectionMode)
         }
     }
 
@@ -258,7 +265,7 @@ struct CaptureInboxView: View {
                 Button {
                     conversionRequest = singleConversionRequest(kind: .aiTask, item: item)
                 } label: {
-                    Label("AI 任务", image: "sparkles")
+                    Label("AI 任务", systemImage: "sparkles")
                 }
                 .tint(.blue)
             }

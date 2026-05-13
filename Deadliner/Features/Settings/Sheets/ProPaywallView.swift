@@ -68,6 +68,7 @@ struct ProPaywallView: View {
         }
         .task {
             await storeManager.updatePurchasedProducts()
+            await storeManager.fetchProducts()
         }
     }
 

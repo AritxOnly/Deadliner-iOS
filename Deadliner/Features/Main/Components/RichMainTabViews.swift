@@ -13,9 +13,9 @@ struct RichHomeTabView: View {
     @Binding var overlayProgress: CGFloat
 
     @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
-    @AppStorage("settings.nav_title.experimental_home") private var experimentalHomeNavTitle: Bool = false
-    @State private var homeSelectionMode: Bool = false
-
+    @AppStorage(RichCompactLayout.settingKey) private var compactLayoutEnabled: Bool = false
+    @State private var selectionMode = false
+    @State private var homeScrollOffset: CGFloat = 0
     let onSettingsTapped: () -> Void
 
     var body: some View {
@@ -24,62 +24,42 @@ struct RichHomeTabView: View {
                 query: $query,
                 taskSegment: $taskSegment,
                 onScrollProgressChange: { overlayProgress = $0 },
-                onSelectionModeChange: { homeSelectionMode = $0 }
+                onScrollOffsetChange: { homeScrollOffset = $0 },
+                onSelectionModeChange: { selectionMode = $0 },
+                compactLayoutProgress: compactLayoutEnabled && !selectionMode ? overlayProgress : nil
             )
-            .navigationTitle(experimentalHomeNavTitle ? "" : "清单")
-            .navigationBarTitleDisplayMode(experimentalHomeNavTitle ? .inline : .automatic)
+            .richCompactNavigationTitle(
+                homeSystemNavigationTitle,
+                inlineWhenCompact: selectionMode
+            )
             .toolbar {
-                if experimentalHomeNavTitle && !homeSelectionMode {
-                    ToolbarItem(placement: .topBarLeading) {
-                        ExperimentalHomeNavigationTitleLabel(text: "Deadliner", style: .expanded)
-                            .opacity(1 - homeTitleCollapseProgress)
-                            .blur(radius: homeTitleCollapseProgress * 5)
-                            .offset(x: -8 * homeTitleCollapseProgress)
-                            .allowsHitTesting(false)
-                    }
-                    .sharedBackgroundVisibility(.hidden)
-
-                    ToolbarItem(placement: .principal) {
-                        ExperimentalHomeNavigationTitleLabel(text: "清单", style: .collapsed)
-                            .opacity(homeTitleCollapseProgress)
-                            .blur(radius: (1 - homeTitleCollapseProgress) * 4)
-                            .scaleEffect(0.94 + (0.06 * homeTitleCollapseProgress))
-                            .offset(y: 1 - homeTitleCollapseProgress)
-                            .animation(.smooth(duration: 0.22, extraBounce: 0), value: homeTitleCollapseProgress)
-                            .allowsHitTesting(false)
-                    }
-                    .sharedBackgroundVisibility(.hidden)
-                }
-
-                if !homeSelectionMode {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            onSettingsTapped()
-                        } label: {
-                            Group {
-                                if let avatar = AvatarManager.shared.avatarImage {
-                                    avatar
-                                        .resizable()
-                                        .renderingMode(.original)
-                                } else {
-                                    Image(systemName: "person.crop.circle")
-                                        .resizable()
-                                        .renderingMode(.original)
-                                        .symbolRenderingMode(.hierarchical)
-                                        .foregroundStyle(.secondary)
-                                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        onSettingsTapped()
+                    } label: {
+                        Group {
+                            if let avatar = AvatarManager.shared.avatarImage {
+                                avatar
+                                    .resizable()
+                                    .renderingMode(.original)
+                            } else {
+                                Image(systemName: "person.crop.circle")
+                                    .resizable()
+                                    .renderingMode(.original)
+                                    .symbolRenderingMode(.hierarchical)
+                                    .foregroundStyle(.secondary)
                             }
-                            .scaledToFill()
-                            .frame(width: 42, height: 42)
-                            .clipShape(Circle())
-                            .overlay(Circle().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5))
-                            .contentShape(Circle())
                         }
-                        .accessibilityLabel("用户与设置")
-                        .accessibilityHint("打开用户面板与设置")
+                        .scaledToFill()
+                        .frame(width: 42, height: 42)
+                        .clipShape(Circle())
+                        .overlay(Circle().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5))
+                        .contentShape(Circle())
                     }
-                    .sharedBackgroundVisibility(.hidden)
+                    .accessibilityLabel("用户与设置")
+                    .accessibilityHint("打开用户面板与设置")
                 }
+                .sharedBackgroundVisibility(.hidden)
             }
             .background {
                 ZStack(alignment: .top) {
@@ -93,8 +73,9 @@ struct RichHomeTabView: View {
         }
     }
 
-    private var homeTitleCollapseProgress: CGFloat {
-        ExperimentalHomeNavigationTitleMetrics.collapseProgress(for: overlayProgress)
+    private var homeSystemNavigationTitle: String {
+        guard compactLayoutEnabled, !selectionMode else { return "清单" }
+        return homeScrollOffset > 10 ? "清单" : "Deadliner"
     }
 }
 
@@ -103,12 +84,16 @@ struct RichArchiveTabView: View {
     @Binding var overlayProgress: CGFloat
 
     @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
+    @AppStorage(RichCompactLayout.settingKey) private var compactLayoutEnabled: Bool = false
 
     var body: some View {
         NavigationStack {
-            ArchiveView(query: $query, onScrollProgressChange: { overlayProgress = $0 })
-                .navigationTitle("归档")
-                .navigationBarTitleDisplayMode(.automatic)
+            ArchiveView(
+                query: $query,
+                onScrollProgressChange: { overlayProgress = $0 },
+                compactLayoutProgress: compactLayoutEnabled ? overlayProgress : nil
+            )
+                .richCompactNavigationTitle("归档")
                 .searchable(text: $query, prompt: "搜索归档...")
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -137,15 +122,18 @@ struct RichOverviewTabView: View {
     @Binding var overlayProgress: CGFloat
 
     @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
+    @AppStorage(RichCompactLayout.settingKey) private var compactLayoutEnabled: Bool = false
     @AppStorage("settings.ai.last_analyzed_month") private var lastAnalyzedMonth: String = ""
     @AppStorage("userTier") private var userTier: UserTier = .free
     @State private var showPaywall = false
 
     var body: some View {
         NavigationStack {
-            OverviewView(onScrollProgressChange: { overlayProgress = $0 })
-                .navigationTitle("概览")
-                .navigationBarTitleDisplayMode(.automatic)
+            OverviewView(
+                onScrollProgressChange: { overlayProgress = $0 },
+                compactLayoutProgress: compactLayoutEnabled ? overlayProgress : nil
+            )
+                .richCompactNavigationTitle("概览")
                 .navigationSubtitle(overviewSubtitle)
                 .toolbarBackground(.hidden, for: .navigationBar)
                 .toolbar {
@@ -217,12 +205,18 @@ struct RichInspirationTabView: View {
     @Binding var overlayProgress: CGFloat
 
     @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
+    @State private var selectionMode = false
 
     var body: some View {
         NavigationStack {
-            CaptureInboxView(onScrollProgressChange: { overlayProgress = $0 })
-                .navigationTitle("灵感")
-                .navigationBarTitleDisplayMode(.automatic)
+            CaptureInboxView(
+                onScrollProgressChange: { overlayProgress = $0 },
+                onSelectionModeChange: { selectionMode = $0 }
+            )
+                .richCompactNavigationTitle(
+                    "灵感",
+                    inlineWhenCompact: selectionMode
+                )
                 .toolbarBackground(.hidden, for: .navigationBar)
                 .background {
                     ZStack(alignment: .top) {
