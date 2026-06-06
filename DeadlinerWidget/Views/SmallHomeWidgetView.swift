@@ -150,12 +150,12 @@ struct SmallHomeWidgetView: View {
                 )
 
                 Circle()
-                    .fill(.white.opacity(colorScheme == .dark ? 0.06 : 0.08))
+                    .fill(.white.opacity(colorScheme == .dark ? 0.018 : 0.10))
                     .frame(width: 126, height: 126)
                     .offset(x: 72, y: -58)
 
                 Circle()
-                    .fill(statusStyle.indicator.opacity(colorScheme == .dark ? 0.12 : 0.08))
+                    .fill(statusStyle.indicator.opacity(colorScheme == .dark ? 0.028 : 0.08))
                     .frame(width: 166, height: 166)
                     .offset(x: 88, y: 78)
             }
@@ -215,13 +215,13 @@ private struct SmallWidgetStatusStyle {
             .init(
                 status: status,
                 indicator: indicator,
-                baseBackground: isDark ? Color(red: 0.035, green: 0.04, blue: 0.05) : Color(red: 0.995, green: 0.995, blue: 0.998),
+                baseBackground: isDark ? Color(red: 0.006, green: 0.008, blue: 0.012) : Color.white,
                 tintBackground: isDark ? darkTint : lightTint,
-                surfaceGlow: isDark ? .white.opacity(0.04) : .white.opacity(0.08),
-                badgeFill: isDark ? .white.opacity(0.08) : .black.opacity(0.12),
-                badgeStroke: isDark ? .white.opacity(0.14) : .white.opacity(0.18),
-                trackFill: isDark ? .white.opacity(0.06) : .black.opacity(0.10),
-                trackStroke: isDark ? .white.opacity(0.14) : .white.opacity(0.32),
+                surfaceGlow: isDark ? .white.opacity(0.007) : .white.opacity(0.10),
+                badgeFill: isDark ? .white.opacity(0.045) : .black.opacity(0.09),
+                badgeStroke: isDark ? .white.opacity(0.08) : .white.opacity(0.18),
+                trackFill: isDark ? .white.opacity(0.03) : .black.opacity(0.08),
+                trackStroke: isDark ? .white.opacity(0.08) : .white.opacity(0.32),
                 primaryText: isDark ? .white.opacity(0.95) : .primary.opacity(0.96),
                 progress: progress
             )
@@ -231,8 +231,8 @@ private struct SmallWidgetStatusStyle {
             return makeStyle(
                 status: .completed,
                 indicator: .green.opacity(0.72),
-                lightTint: .green.opacity(0.10),
-                darkTint: .green.opacity(0.15),
+                lightTint: .green.opacity(0.075),
+                darkTint: .green.opacity(0.035),
                 progress: 1
             )
         }
@@ -243,8 +243,8 @@ private struct SmallWidgetStatusStyle {
             return makeStyle(
                 status: .undergo,
                 indicator: .accentColor.opacity(0.74),
-                lightTint: Color.accentColor.opacity(0.10),
-                darkTint: Color.accentColor.opacity(0.15),
+                lightTint: Color.accentColor.opacity(0.075),
+                darkTint: Color.accentColor.opacity(0.032),
                 progress: progress
             )
         }
@@ -253,32 +253,32 @@ private struct SmallWidgetStatusStyle {
             return makeStyle(
                 status: .completed,
                 indicator: .green.opacity(0.72),
-                lightTint: .green.opacity(0.10),
-                darkTint: .green.opacity(0.15),
+                lightTint: .green.opacity(0.075),
+                darkTint: .green.opacity(0.035),
                 progress: 1
             )
         } else if endDate.timeIntervalSinceNow <= 0 {
             return makeStyle(
                 status: .passed,
                 indicator: .red.opacity(0.84),
-                lightTint: .red.opacity(0.12),
-                darkTint: .red.opacity(0.18),
+                lightTint: .red.opacity(0.09),
+                darkTint: .red.opacity(0.04),
                 progress: 1
             )
         } else if endDate.timeIntervalSinceNow < 24 * 3600 {
             return makeStyle(
                 status: .near,
                 indicator: .orange.opacity(0.86),
-                lightTint: .orange.opacity(0.12),
-                darkTint: .orange.opacity(0.18),
+                lightTint: .orange.opacity(0.09),
+                darkTint: .orange.opacity(0.04),
                 progress: progress
             )
         } else {
             return makeStyle(
                 status: .undergo,
                 indicator: .accentColor.opacity(0.76),
-                lightTint: Color.accentColor.opacity(0.10),
-                darkTint: Color.accentColor.opacity(0.15),
+                lightTint: Color.accentColor.opacity(0.075),
+                darkTint: Color.accentColor.opacity(0.032),
                 progress: progress
             )
         }
