@@ -57,6 +57,11 @@ struct Metric: Identifiable {
     let isDown: Bool?
 }
 
+private struct MonthlyAnalysisContext {
+    let monthKey: String
+    let monthLabel: String
+}
+
 // DTO for background computation result
 struct ComputedStats {
     let completedTodayCount: Int
@@ -127,16 +132,15 @@ final class OverviewViewModel: ObservableObject {
                 print("[OverviewViewModel] Manual request for monthly analysis received")
                 Task { 
                     let now = Date()
-                    let calendar = Calendar.current
-                    guard let firstDayOfThisMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)),
-                          let firstDayOfLastMonth = calendar.date(byAdding: .month, value: -1, to: firstDayOfThisMonth) else {
+                    guard let context = self.makeMonthlyAnalysisContext(referenceDate: now) else {
                         return
                     }
-                    let monthKey = DateFormatter()
-                    monthKey.dateFormat = "yyyy-MM"
-                    let currentMonthKey = monthKey.string(from: firstDayOfLastMonth)
-                    
-                    await self.generateMonthlyAnalysis(items: self.allItems, monthKey: currentMonthKey, monthLabel: self.lastMonthName)
+
+                    await self.generateMonthlyAnalysis(
+                        items: self.allItems,
+                        monthKey: context.monthKey,
+                        monthLabel: context.monthLabel
+                    )
                 }
             }
             .store(in: &cancellables)
@@ -189,18 +193,26 @@ final class OverviewViewModel: ObservableObject {
             self.lastMonthDailyStats = stats.lastMonthDailyStats
             self.metrics = stats.metrics
             
-            let calendar = Calendar.current
-            let lastMonthDate = calendar.date(byAdding: .month, value: -1, to: now) ?? now
-            let monthFormatter = DateFormatter()
-            monthFormatter.dateFormat = "M月"
-            self.lastMonthName = monthFormatter.string(from: lastMonthDate)
-            
-            await loadMonthlyAnalysis(items: items, lastMonthName: self.lastMonthName, now: now)
+            if let context = makeMonthlyAnalysisContext(referenceDate: now) {
+                self.lastMonthName = context.monthLabel
+                if self.monthlyAnalysis?.month != context.monthKey {
+                    self.monthlyAnalysis = nil
+                }
+            } else {
+                self.lastMonthName = ""
+                self.monthlyAnalysis = nil
+            }
+
+            isLoading = false
+
+            if let context = makeMonthlyAnalysisContext(referenceDate: now) {
+                startMonthlyAnalysisLoad(items: items, context: context)
+            }
             
         } catch {
             print("[OverviewViewModel] Load data error: \(error)")
+            isLoading = false
         }
-        isLoading = false
     }
     
     // DTO for pre-parsed item to avoid repeated parsing
@@ -308,16 +320,33 @@ final class OverviewViewModel: ObservableObject {
         )
     }
     
-    private func loadMonthlyAnalysis(items: [DDLItem], lastMonthName: String, now: Date) async {
-        let calendar = Calendar.current
-        guard let firstDayOfThisMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)),
-              let firstDayOfLastMonth = calendar.date(byAdding: .month, value: -1, to: firstDayOfThisMonth) else {
-            return
+    private func startMonthlyAnalysisLoad(items: [DDLItem], context: MonthlyAnalysisContext) {
+        Task { [weak self] in
+            guard let self else { return }
+            await self.loadMonthlyAnalysis(items: items, context: context)
         }
-        
-        let monthKey = DateFormatter()
-        monthKey.dateFormat = "yyyy-MM"
-        let currentMonthKey = monthKey.string(from: firstDayOfLastMonth)
+    }
+
+    private func makeMonthlyAnalysisContext(referenceDate: Date) -> MonthlyAnalysisContext? {
+        let calendar = Calendar.current
+        guard let firstDayOfThisMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: referenceDate)),
+              let firstDayOfLastMonth = calendar.date(byAdding: .month, value: -1, to: firstDayOfThisMonth) else {
+            return nil
+        }
+
+        let monthKeyFormatter = DateFormatter()
+        monthKeyFormatter.dateFormat = "yyyy-MM"
+
+        let monthLabelFormatter = DateFormatter()
+        monthLabelFormatter.dateFormat = "M月"
+
+        return MonthlyAnalysisContext(
+            monthKey: monthKeyFormatter.string(from: firstDayOfLastMonth),
+            monthLabel: monthLabelFormatter.string(from: firstDayOfLastMonth)
+        )
+    }
+
+    private func loadMonthlyAnalysis(items: [DDLItem], context: MonthlyAnalysisContext) async {
         
         if let json = await LocalValues.shared.getMonthlyAnalysis(),
            let data = json.data(using: .utf8) {
@@ -325,7 +354,7 @@ final class OverviewViewModel: ObservableObject {
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .iso8601
                 let result = try decoder.decode(MonthlyAnalysisResult.self, from: data)
-                if result.month == currentMonthKey {
+                if result.month == context.monthKey {
                     self.monthlyAnalysis = result
                     return
                 }
@@ -333,8 +362,8 @@ final class OverviewViewModel: ObservableObject {
                 print("[OverviewViewModel] Decode monthly analysis error: \(error)")
             }
         }
-        
-        await generateMonthlyAnalysis(items: items, monthKey: currentMonthKey, monthLabel: lastMonthName)
+
+        await generateMonthlyAnalysis(items: items, monthKey: context.monthKey, monthLabel: context.monthLabel)
     }
     
     func generateMonthlyAnalysis(items: [DDLItem], monthKey: String, monthLabel: String) async {

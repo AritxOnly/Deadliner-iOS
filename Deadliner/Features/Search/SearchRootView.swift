@@ -267,7 +267,7 @@ struct RichSearchTabView: View {
     private var searchPrompt: String {
         switch scope {
         case .all:
-            return "搜索任务、习惯、灵感、归档内容..."
+            return "搜索 Deadliner..."
         case .active:
             return "搜索当前清单和灵感..."
         case .archive:

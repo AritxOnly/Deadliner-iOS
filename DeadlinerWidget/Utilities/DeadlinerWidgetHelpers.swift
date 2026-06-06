@@ -5,10 +5,10 @@ func isWithin12Hours(task: DDLItem) -> Bool {
     return endDate.timeIntervalSinceNow < 12 * 3600
 }
 
-func remainingTimeStr(task: DDLItem) -> String {
+func remainingTimeStr(task: DDLItem, overdueText: String = "0m") -> String {
     guard let endDate = DeadlineDateParser.safeParseOptional(task.endTime) else { return "" }
     let diff = endDate.timeIntervalSinceNow
-    if diff < 0 { return "0m" }
+    if diff <= 0 { return overdueText }
 
     let hours = Int(diff / 3600)
     if hours >= 24 {
@@ -16,7 +16,7 @@ func remainingTimeStr(task: DDLItem) -> String {
     } else if hours >= 1 {
         return "\(hours)h"
     } else {
-        return "\(max(0, Int(diff / 60)))m"
+        return "\(max(1, Int(diff / 60)))m"
     }
 }
 

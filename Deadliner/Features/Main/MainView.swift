@@ -48,6 +48,9 @@ struct FocusMainView: View {
             contentView
                 .navigationTitle(module.title)
                 .navigationBarTitleDisplayMode(.automatic)
+                .navigationLargeTitleOverride(
+                    module == .taskManagement && !homeSelectionMode ? "Deadliner" : nil
+                )
                 .searchable(text: $query, prompt: searchPrompt)
                 .toolbar {
                     topLeadingToolbar
@@ -175,6 +178,7 @@ struct FocusMainView: View {
             archiveResetToken += 1
         }
     }
+
     @ToolbarContentBuilder
     private var topTrailingToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {

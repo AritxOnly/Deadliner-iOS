@@ -13,7 +13,6 @@ struct HomeView: View {
     @Binding var query: String
     @Binding var taskSegment: TaskSegment
     var onScrollProgressChange: ((CGFloat) -> Void)? = nil
-    var onScrollOffsetChange: ((CGFloat) -> Void)? = nil
     var onSelectionModeChange: ((Bool) -> Void)? = nil
     var compactLayoutProgress: CGFloat? = nil
     
@@ -52,18 +51,12 @@ struct HomeView: View {
     }
 
     private var filteredTasks: [DDLItem] {
-        let base = vm.tasks.filter { !$0.isArchived }
-        let queried = query.isEmpty ? base : base.filter {
+        let visibleTasks = vm.tasks.filter(\.state.isMainListVisible)
+        return query.isEmpty ? visibleTasks : visibleTasks.filter {
             $0.name.localizedCaseInsensitiveContains(query) ||
             $0.note.localizedCaseInsensitiveContains(query) ||
             $0.endTime.localizedCaseInsensitiveContains(query)
         }
-        let incomplete = queried.filter { !$0.isCompleted }
-        let completed = queried.filter(\.isCompleted)
-        return incomplete.filter(\.isStared)
-            + incomplete.filter { !$0.isStared }
-            + completed.filter(\.isStared)
-            + completed.filter { !$0.isStared }
     }
     
     private var selectedTasks: [DDLItem] {
@@ -90,214 +83,28 @@ struct HomeView: View {
     }
     
     var body: some View {
-        List {
-            Section {
-                if taskSegment == .tasks {
-                    if vm.isLoading && vm.tasks.isEmpty {
-                        ProgressView("加载中...")
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                    } else if filteredTasks.isEmpty {
-                        if isStagingRebuild {
-                            ProgressView()
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                        } else {
-                            emptyView(text: "暂无任务", icon: "checklist")
-                        }
-                    } else {
-                        ForEach(Array(filteredTasks.enumerated()), id: \.element.id) { idx, item in
-                            FloatUpRow(index: idx, maxLoad: 15, enable: true, animateToken: enterAnimToken) {
-                                DDLItemCardSwipeable(
-                                    title: item.name,
-                                    remainingTimeAlt: remainingTimeText(for: item),
-                                    note: item.note,
-                                    progress: progress(for: item),
-                                    isStarred: item.isStared,
-                                    status: status(for: item),
-                                    selectionMode: selectionMode,
-                                    selected: selectedTaskIDs.contains(item.id),
-                                    onTap: {
-                                        detailSheetDetent = .medium
-                                        detailSheetItem = item
-                                    },
-                                    onLongPressSelect: {
-                                        if selectionMode {
-                                            toggleTaskSelection(item.id)
-                                        } else {
-                                            enterTaskSelection(with: item.id)
-                                        }
-                                    },
-                                    onToggleSelect: {
-                                        toggleTaskSelection(item.id)
-                                    },
-                                    onComplete: {
-                                        let wasCompleted = item.isCompleted
-                                        let isNowCompleted = withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                            listAnimToken += 1
-                                            return vm.toggleCompleteLocal(item)
-                                        }
-
-                                        if isNowCompleted { confetti.fire() }
-
-                                        if wasCompleted && !isNowCompleted {
-                                            Task { @MainActor in
-                                                isStagingRebuild = true
-                                                let snapshot = vm.tasks
-                                                await vm.stageRebuildFromCurrentSnapshot(snapshot: snapshot, blankDelayMs: 90)
-                                                enterAnimToken += 1 // 触发重排后的上浮
-                                                isStagingRebuild = false
-                                            }
-                                        }
-                                        Task { await vm.persistToggleComplete(original: item) }
-                                    },
-                                    onDelete: {
-                                        pendingDeleteItems = [item]
-                                        pendingDeleteHabits = []
-                                        showDeleteConfirm = true
-                                    },
-                                    onGiveUp: {
-                                        if item.state.isAbandonedLike {
-                                            Task { await vm.toggleGiveUpItem(item: item) }
-                                        } else {
-                                            pendingGiveUpItem = item
-                                            showGiveUpConfirm = true
-                                        }
-                                    },
-                                    onArchive: {
-                                        Task { await vm.toggleArchiveItem(item: item) }
-                                    },
-                                    onEdit: {
-                                        editSheetItem = item
-                                    }
-                                )
-                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                            }
-                            .id(item.id) // 🟢 关键修复：确保 List 复用时识别出新行
-                        }
-                    }
+        GeometryReader { proxy in
+            let isWide = proxy.size.width >= 840
+            
+            Group {
+                if isWide {
+                    twoColumnLayout
                 } else {
-                    // 1. 顶部进度
-                    HabitProgressView(progress: vm.getTodayCompletionRatio())
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .padding(.vertical, 8)
-                        .id("habit-progress-\(enterAnimToken)")
-
-                    // 2. 本周日期横条
-                    WeekRow(
-                        weekOverview: vm.weekOverview,
-                        selectedDate: vm.selectedDate,
-                        onSelectDate: { d in
-                            Task { await vm.onDateSelected(d) }
-                        },
-                        onChangeWeek: { offset in
-                            Task { await vm.changeWeek(offset: offset) }
-                        }
-                    )
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .padding(.bottom, 8)
-
-                    if vm.displayHabits.isEmpty {
-                        emptyView(text: "暂无待打卡习惯", icon: "leaf")
-                            .padding(.top, 40)
-                    } else {
-                        ForEach(Array(vm.displayHabits.enumerated()), id: \.element.id) { idx, item in
-                            FloatUpRow(index: idx + 1, maxLoad: 15, enable: true, animateToken: enterAnimToken) {
-                                let ebState = vm.getEbbinghausState(habit: item.habit, targetDate: vm.selectedDate)
-                                HabitItemCard(
-                                    habit: item.habit,
-                                    doneCount: item.doneCount,
-                                    targetCount: item.targetCount,
-                                    isCompleted: item.isCompleted,
-                                    status: item.isCompleted ? .completed : .undergo,
-                                    remainingText: ebState.text,
-                                    isSelected: selectedHabitIDs.contains(item.habit.id),
-                                    selectionMode: selectionMode,
-                                    canToggle: (Calendar.current.startOfDay(for: vm.selectedDate) <= Calendar.current.startOfDay(for: Date())) && ebState.isDue,
-                                    onToggle: {
-                                        Task {
-                                            let finished = await vm.toggleHabitRecord(item: item)
-                                            if finished { confetti.fire() }
-                                        }
-                                    },
-                                    onToggleSelect: {
-                                        toggleHabitSelection(item.habit.id)
-                                    },
-                                    onLongPress: {
-                                        if selectionMode {
-                                            toggleHabitSelection(item.habit.id)
-                                        } else {
-                                            enterHabitSelection(with: item.habit.id)
-                                        }
-                                    }
-                                )
-                                .swipeActions(edge: .trailing, allowsFullSwipe: !selectionMode) {
-                                    if !selectionMode {
-                                        Button {
-                                            pendingDeleteItems = []
-                                            pendingDeleteHabits = [item.habit]
-                                            showDeleteConfirm = true
-                                        } label: {
-                                            Label("删除", systemImage: "trash")
-                                        }
-                                        .tint(.red)
-                                        
-                                        Button {
-                                            editSheetHabit = item.habit
-                                        } label: {
-                                            Label("编辑", systemImage: "pencil")
-                                        }
-                                        .tint(.blue)
-                                    }
-                                }
-                                .swipeActions(edge: .leading, allowsFullSwipe: !selectionMode) {
-                                    if !selectionMode {
-                                        Button {
-                                            Task { await vm.archiveHabit(item.habit) }
-                                        } label: {
-                                            Label("归档", systemImage: "archivebox")
-                                        }
-                                        .tint(.gray)
-                                    }
-                                }
-                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                            }
-                        }
-                    }
-                }
-            } header: {
-                if !compactLayoutEnabled {
-                    segmentedControl
+                    singleColumnLayout
                 }
             }
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: listAnimToken)
+            .onScrollGeometryChange(for: CGFloat.self) { geo in
+                max(0, geo.contentOffset.y + geo.contentInsets.top)
+            } action: { _, newValue in
+                scrollProgress = min(max(newValue / 120, 0), 1)
+                let p = min(max(newValue / 120, 0), 1)
+                onScrollProgressChange?(p)
+            }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
         .background(.clear)
         .toolbar {
             homeToolbar
-        }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if compactLayoutEnabled {
-                segmentedControlInset
-            }
-        }
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: listAnimToken)
-        .onScrollGeometryChange(for: CGFloat.self) { geo in
-            max(0, geo.contentOffset.y + geo.contentInsets.top)
-        } action: { _, newValue in
-            scrollProgress = min(max(newValue / 120, 0), 1)
-            onScrollOffsetChange?(newValue)
-            let p = min(max(newValue / 120, 0), 1)
-            onScrollProgressChange?(p)
         }
         .task {
             do {
@@ -425,15 +232,260 @@ struct HomeView: View {
         }
     }
 
-    private var segmentedControl: some View {
-        Picker("Task Segment", selection: $taskSegment) {
-            ForEach(TaskSegment.allCases) { segment in
-                Text(segment.rawValue).tag(segment)
+    private var singleColumnLayout: some View {
+        List {
+            Section {
+                if taskSegment == .tasks {
+                    tasksSectionContent
+                } else {
+                    habitsSectionContent
+                }
+            } header: {
+                if !compactLayoutEnabled {
+                    segmentedControl
+                }
             }
         }
-        .pickerStyle(.segmented)
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if compactLayoutEnabled {
+                segmentedControlInset
+            }
+        }
+    }
+
+    private var twoColumnLayout: some View {
+        HStack(spacing: 0) {
+            List {
+                Section {
+                    tasksSectionContent
+                } header: {
+                    Text("任务")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                        .padding(.bottom, 8)
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+
+            Divider()
+
+            List {
+                Section {
+                    habitsSectionContent
+                } header: {
+                    Text("习惯")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                        .padding(.bottom, 8)
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+        }
+    }
+
+    @ViewBuilder
+    private var tasksSectionContent: some View {
+        if vm.isLoading && vm.tasks.isEmpty {
+            ProgressView("加载中...")
+                .frame(maxWidth: .infinity, alignment: .center)
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+        } else if filteredTasks.isEmpty {
+            if isStagingRebuild {
+                ProgressView()
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            } else {
+                emptyView(text: "暂无任务", icon: "checklist")
+            }
+        } else {
+            ForEach(Array(filteredTasks.enumerated()), id: \.element.id) { idx, item in
+                FloatUpRow(index: idx, maxLoad: 15, enable: true, animateToken: enterAnimToken) {
+                    DDLItemCardSwipeable(
+                        title: item.name,
+                        remainingTimeAlt: remainingTimeText(for: item),
+                        note: item.note,
+                        progress: progress(for: item),
+                        isStarred: item.isStared,
+                        status: status(for: item),
+                        selectionMode: selectionMode,
+                        selected: selectedTaskIDs.contains(item.id),
+                        onTap: {
+                            detailSheetDetent = .medium
+                            detailSheetItem = item
+                        },
+                        onLongPressSelect: {
+                            if selectionMode {
+                                toggleTaskSelection(item.id)
+                            } else {
+                                enterTaskSelection(with: item.id)
+                            }
+                        },
+                        onToggleSelect: {
+                            toggleTaskSelection(item.id)
+                        },
+                        onComplete: {
+                            let wasCompleted = item.isCompleted
+                            let isNowCompleted = withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                listAnimToken += 1
+                                return vm.toggleCompleteLocal(item)
+                            }
+
+                            if isNowCompleted { confetti.fire() }
+
+                            if wasCompleted && !isNowCompleted {
+                                Task { @MainActor in
+                                    isStagingRebuild = true
+                                    let snapshot = vm.tasks
+                                    await vm.stageRebuildFromCurrentSnapshot(snapshot: snapshot, blankDelayMs: 90)
+                                    enterAnimToken += 1 // 触发重排后的上浮
+                                    isStagingRebuild = false
+                                }
+                            }
+                            Task { await vm.persistToggleComplete(original: item) }
+                        },
+                        onDelete: {
+                            pendingDeleteItems = [item]
+                            pendingDeleteHabits = []
+                            showDeleteConfirm = true
+                        },
+                        onGiveUp: {
+                            if item.state.isAbandonedLike {
+                                Task { await vm.toggleGiveUpItem(item: item) }
+                            } else {
+                                pendingGiveUpItem = item
+                                showGiveUpConfirm = true
+                            }
+                        },
+                        onArchive: {
+                            Task { await vm.toggleArchiveItem(item: item) }
+                        },
+                        onEdit: {
+                            editSheetItem = item
+                        }
+                    )
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                }
+                .id(item.id) // 🟢 关键修复：确保 List 复用时识别出新行
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var habitsSectionContent: some View {
+        // 1. 顶部进度
+        HabitProgressView(progress: vm.getTodayCompletionRatio())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .padding(.vertical, 8)
+            .id("habit-progress-\(enterAnimToken)")
+
+        // 2. 本周日期横条
+        WeekRow(
+            weekOverview: vm.weekOverview,
+            selectedDate: vm.selectedDate,
+            onSelectDate: { d in
+                Task { await vm.onDateSelected(d) }
+            },
+            onChangeWeek: { offset in
+                Task { await vm.changeWeek(offset: offset) }
+            }
+        )
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .padding(.bottom, 8)
+
+        if vm.displayHabits.isEmpty {
+            emptyView(text: "暂无待打卡习惯", icon: "leaf")
+                .padding(.top, 40)
+        } else {
+            ForEach(Array(vm.displayHabits.enumerated()), id: \.element.id) { idx, item in
+                FloatUpRow(index: idx + 1, maxLoad: 15, enable: true, animateToken: enterAnimToken) {
+                    let ebState = vm.getEbbinghausState(habit: item.habit, targetDate: vm.selectedDate)
+                    HabitItemCard(
+                        habit: item.habit,
+                        doneCount: item.doneCount,
+                        targetCount: item.targetCount,
+                        isCompleted: item.isCompleted,
+                        status: item.isCompleted ? .completed : .undergo,
+                        remainingText: ebState.text,
+                        isSelected: selectedHabitIDs.contains(item.habit.id),
+                        selectionMode: selectionMode,
+                        canToggle: (Calendar.current.startOfDay(for: vm.selectedDate) <= Calendar.current.startOfDay(for: Date())) && ebState.isDue,
+                        onToggle: {
+                            Task {
+                                let finished = await vm.toggleHabitRecord(item: item)
+                                if finished { confetti.fire() }
+                            }
+                        },
+                        onToggleSelect: {
+                            toggleHabitSelection(item.habit.id)
+                        },
+                        onLongPress: {
+                            if selectionMode {
+                                toggleHabitSelection(item.habit.id)
+                            } else {
+                                enterHabitSelection(with: item.habit.id)
+                            }
+                        }
+                    )
+                    .swipeActions(edge: .trailing, allowsFullSwipe: !selectionMode) {
+                        if !selectionMode {
+                            Button {
+                                pendingDeleteItems = []
+                                pendingDeleteHabits = [item.habit]
+                                showDeleteConfirm = true
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                            .tint(.red)
+                            
+                            Button {
+                                editSheetHabit = item.habit
+                            } label: {
+                                Label("编辑", systemImage: "pencil")
+                            }
+                            .tint(.blue)
+                        }
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: !selectionMode) {
+                        if !selectionMode {
+                            Button {
+                                Task { await vm.archiveHabit(item.habit) }
+                            } label: {
+                                Label("归档", systemImage: "archivebox")
+                            }
+                            .tint(.gray)
+                        }
+                    }
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                }
+            }
+        }
+    }
+
+    private var segmentedControl: some View {
+        HStack {
+            Picker("Task Segment", selection: $taskSegment) {
+                ForEach(TaskSegment.allCases) { segment in
+                    Text(segment.rawValue).tag(segment)
+                }
+            }
+            .pickerStyle(.segmented)
+            .textCase(nil)
+            .padding(EdgeInsets(top: 0, leading: 0, bottom: 1, trailing: 0))
+        }
         .glassEffect()
-        .textCase(nil)
+        .clipShape(Capsule())
         .padding(
             EdgeInsets(
                 top: selectionMode
@@ -442,16 +494,16 @@ struct HomeView: View {
                         enabled: compactLayoutEnabled,
                         progress: effectiveCompactProgress
                     ),
-                leading: 16,
+                leading: 12,
                 bottom: 4,
-                trailing: 16
+                trailing: 12
             )
         )
     }
 
     private var segmentedControlInset: some View {
         segmentedControl
-            .padding(.top, 4)
+            .padding(.top, 8)
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
             .background(Color.clear)

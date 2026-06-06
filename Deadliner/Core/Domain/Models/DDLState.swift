@@ -28,6 +28,18 @@ enum DDLState: String, Codable, Sendable {
     var isAbandonedLike: Bool {
         self == .abandoned || self == .abandonedArchived
     }
+
+    var isMainListVisible: Bool {
+        self == .active || self == .completed || self == .abandoned
+    }
+
+    var isActionable: Bool {
+        self == .active
+    }
+
+    var canManualArchive: Bool {
+        self == .completed || self == .abandoned
+    }
 }
 
 enum DDLStateTransitionError: Error {

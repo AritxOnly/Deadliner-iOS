@@ -40,6 +40,10 @@ struct DDLItem: Identifiable, Equatable, Sendable {
     var isArchived: Bool {
         state.isArchivedLike
     }
+    
+    var isAbandoned: Bool {
+        state.isAbandonedLike
+    }
 
     // 可选：给 UI/Repo 用的便捷字段
     var progress: Double {

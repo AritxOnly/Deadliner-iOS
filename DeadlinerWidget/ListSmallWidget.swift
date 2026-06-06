@@ -10,7 +10,6 @@ struct DeadlinerListWidget: Widget {
         }
         .configurationDisplayName("任务列表")
         .description("用紧凑列表查看最近几项截止任务。")
-        .contentMarginsDisabled()
         .supportedFamilies([.systemSmall])
     }
 }

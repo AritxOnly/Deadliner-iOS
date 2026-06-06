@@ -466,11 +466,25 @@ final class HomeViewModel: ObservableObject {
 
     // MARK: - Helpers
     private func sortTasksInPlace() {
-        tasks.sort { lhs, rhs in
-            if lhs.isCompleted != rhs.isCompleted {
-                return !lhs.isCompleted && rhs.isCompleted
+        tasks = sortedTasks(tasks)
+    }
+
+    private func sortedTasks(_ items: [DDLItem]) -> [DDLItem] {
+        items.sorted { lhs, rhs in
+            if lhs.state.isActionable != rhs.state.isActionable {
+                return lhs.state.isActionable && !rhs.state.isActionable
             }
-            return lhs.endTime < rhs.endTime
+            if lhs.isStared != rhs.isStared {
+                return lhs.isStared && !rhs.isStared
+            }
+
+            let leftEnd = DeadlineDateParser.safeParseOptional(lhs.endTime) ?? .distantFuture
+            let rightEnd = DeadlineDateParser.safeParseOptional(rhs.endTime) ?? .distantFuture
+            if leftEnd != rightEnd {
+                return leftEnd < rightEnd
+            }
+
+            return lhs.id < rhs.id
         }
     }
 
@@ -522,7 +536,8 @@ final class HomeViewModel: ObservableObject {
         isReloading = true
         defer { isReloading = false }
         do {
-            let sortedList = try await repo.getDDLsByType(.task)
+            let fetchedList = try await repo.getDDLsByType(.task)
+            let sortedList = sortedTasks(fetchedList)
             if !force && sortedList == self.tasks {
                 // skip
             } else {

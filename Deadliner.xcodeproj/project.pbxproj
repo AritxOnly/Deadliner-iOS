@@ -644,7 +644,7 @@
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 6Z4232N2L9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Deadliner待办日历";
+				INFOPLIST_KEY_CFBundleDisplayName = Deadliner;
 				INFOPLIST_KEY_CFBundleURLTypes = "({CFBundleURLName=top.aritxonly.deadliner;CFBundleURLSchemes=(deadliner);})";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
@@ -691,7 +691,7 @@
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 6Z4232N2L9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Deadliner待办日历";
+				INFOPLIST_KEY_CFBundleDisplayName = Deadliner;
 				INFOPLIST_KEY_CFBundleURLTypes = "({CFBundleURLName=top.aritxonly.deadliner;CFBundleURLSchemes=(deadliner);})";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";

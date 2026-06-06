@@ -2,10 +2,12 @@ import SwiftUI
 import WidgetKit
 
 struct SmallHomeWidgetView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let entry: DeadlinerEntry
 
     private var statusStyle: SmallWidgetStatusStyle {
-        SmallWidgetStatusStyle.from(entry.task)
+        SmallWidgetStatusStyle.from(entry.task, colorScheme: colorScheme)
     }
 
     private var titleText: String {
@@ -14,6 +16,15 @@ struct SmallHomeWidgetView: View {
 
     private var timeValueText: String {
         entry.task.map(approximateRemainingTimeText(task:)) ?? "已清空"
+    }
+
+    private var timeValueColor: Color {
+        switch statusStyle.status {
+        case .passed, .near:
+            return statusStyle.indicator.opacity(0.96)
+        case .completed, .undergo:
+            return .primary
+        }
     }
 
     private var countBadgeText: String {
@@ -33,7 +44,7 @@ struct SmallHomeWidgetView: View {
 
         switch statusStyle.status {
         case .passed:
-            return "已逾期"
+            return "截止已过"
         case .near:
             return "紧急"
         case .completed:
@@ -59,7 +70,7 @@ struct SmallHomeWidgetView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(timeValueText)
                         .font(.system(size: 14, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(timeValueColor)
                         .minimumScaleFactor(0.9)
                         .lineLimit(1)
 
@@ -72,12 +83,12 @@ struct SmallHomeWidgetView: View {
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 5)
-                        .background(.black.opacity(0.12), in: Capsule())
+                        .background(statusStyle.badgeFill, in: Capsule())
                         .overlay {
                             Capsule()
-                                .stroke(.white.opacity(0.18), lineWidth: 1)
+                                .stroke(statusStyle.badgeStroke, lineWidth: 1)
                         }
-                        .foregroundStyle(.primary.opacity(0.92))
+                        .foregroundStyle(statusStyle.primaryText.opacity(0.94))
                         .padding(.top, 4)
                 }
             }
@@ -85,10 +96,10 @@ struct SmallHomeWidgetView: View {
 
             ZStack {
                 Capsule(style: .continuous)
-                    .fill(.black.opacity(0.10))
+                    .fill(statusStyle.trackFill)
                     .overlay {
                         Capsule(style: .continuous)
-                            .stroke(.white.opacity(0.32), lineWidth: 1)
+                            .stroke(statusStyle.trackStroke, lineWidth: 1)
                     }
 
                 GeometryReader { geo in
@@ -125,11 +136,13 @@ struct SmallHomeWidgetView: View {
         .padding(16)
         .containerBackground(for: .widget) {
             ZStack {
-                statusStyle.background
+                statusStyle.baseBackground
+
+                statusStyle.tintBackground
 
                 LinearGradient(
                     colors: [
-                        .white.opacity(0.10),
+                        statusStyle.surfaceGlow,
                         .clear
                     ],
                     startPoint: .topLeading,
@@ -137,12 +150,12 @@ struct SmallHomeWidgetView: View {
                 )
 
                 Circle()
-                    .fill(.white.opacity(0.08))
+                    .fill(.white.opacity(colorScheme == .dark ? 0.06 : 0.08))
                     .frame(width: 126, height: 126)
                     .offset(x: 72, y: -58)
 
                 Circle()
-                    .fill(statusStyle.indicator.opacity(0.08))
+                    .fill(statusStyle.indicator.opacity(colorScheme == .dark ? 0.12 : 0.08))
                     .frame(width: 166, height: 166)
                     .offset(x: 88, y: 78)
             }
@@ -154,7 +167,7 @@ private func approximateRemainingTimeText(task: DDLItem) -> String {
     guard let endDate = DeadlineDateParser.safeParseOptional(task.endTime) else { return "时间未知" }
 
     let diff = endDate.timeIntervalSinceNow
-    if diff <= 0 { return "约 0 分" }
+    if diff <= 0 { return "已逾期" }
 
     let minutes = Int(diff / 60)
     let hours = Int(diff / 3600)
@@ -179,15 +192,47 @@ private enum SmallWidgetStatus {
 private struct SmallWidgetStatusStyle {
     let status: SmallWidgetStatus
     let indicator: Color
-    let background: Color
+    let baseBackground: Color
+    let tintBackground: Color
+    let surfaceGlow: Color
+    let badgeFill: Color
+    let badgeStroke: Color
+    let trackFill: Color
+    let trackStroke: Color
+    let primaryText: Color
     let progress: CGFloat
 
-    static func from(_ task: DDLItem?) -> SmallWidgetStatusStyle {
+    static func from(_ task: DDLItem?, colorScheme: ColorScheme) -> SmallWidgetStatusStyle {
+        let isDark = colorScheme == .dark
+
+        func makeStyle(
+            status: SmallWidgetStatus,
+            indicator: Color,
+            lightTint: Color,
+            darkTint: Color,
+            progress: CGFloat
+        ) -> SmallWidgetStatusStyle {
+            .init(
+                status: status,
+                indicator: indicator,
+                baseBackground: isDark ? Color(red: 0.035, green: 0.04, blue: 0.05) : Color(red: 0.995, green: 0.995, blue: 0.998),
+                tintBackground: isDark ? darkTint : lightTint,
+                surfaceGlow: isDark ? .white.opacity(0.04) : .white.opacity(0.08),
+                badgeFill: isDark ? .white.opacity(0.08) : .black.opacity(0.12),
+                badgeStroke: isDark ? .white.opacity(0.14) : .white.opacity(0.18),
+                trackFill: isDark ? .white.opacity(0.06) : .black.opacity(0.10),
+                trackStroke: isDark ? .white.opacity(0.14) : .white.opacity(0.32),
+                primaryText: isDark ? .white.opacity(0.95) : .primary.opacity(0.96),
+                progress: progress
+            )
+        }
+
         guard let task else {
-            return .init(
+            return makeStyle(
                 status: .completed,
                 indicator: .green.opacity(0.72),
-                background: .green.opacity(0.16),
+                lightTint: .green.opacity(0.10),
+                darkTint: .green.opacity(0.15),
                 progress: 1
             )
         }
@@ -195,40 +240,45 @@ private struct SmallWidgetStatusStyle {
         let progress = CGFloat(calculateProgress(task: task))
 
         guard let endDate = DeadlineDateParser.safeParseOptional(task.endTime) else {
-            return .init(
+            return makeStyle(
                 status: .undergo,
                 indicator: .accentColor.opacity(0.74),
-                background: Color.accentColor.opacity(0.20),
+                lightTint: Color.accentColor.opacity(0.10),
+                darkTint: Color.accentColor.opacity(0.15),
                 progress: progress
             )
         }
 
         if task.isCompleted {
-            return .init(
+            return makeStyle(
                 status: .completed,
                 indicator: .green.opacity(0.72),
-                background: .green.opacity(0.16),
+                lightTint: .green.opacity(0.10),
+                darkTint: .green.opacity(0.15),
                 progress: 1
             )
         } else if endDate.timeIntervalSinceNow <= 0 {
-            return .init(
+            return makeStyle(
                 status: .passed,
                 indicator: .red.opacity(0.84),
-                background: .red.opacity(0.20),
+                lightTint: .red.opacity(0.12),
+                darkTint: .red.opacity(0.18),
                 progress: 1
             )
         } else if endDate.timeIntervalSinceNow < 24 * 3600 {
-            return .init(
+            return makeStyle(
                 status: .near,
                 indicator: .orange.opacity(0.86),
-                background: .orange.opacity(0.20),
+                lightTint: .orange.opacity(0.12),
+                darkTint: .orange.opacity(0.18),
                 progress: progress
             )
         } else {
-            return .init(
+            return makeStyle(
                 status: .undergo,
                 indicator: .accentColor.opacity(0.76),
-                background: Color.accentColor.opacity(0.20),
+                lightTint: Color.accentColor.opacity(0.10),
+                darkTint: Color.accentColor.opacity(0.15),
                 progress: progress
             )
         }

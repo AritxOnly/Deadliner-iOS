@@ -138,7 +138,7 @@ struct ArchiveView: View {
 
     private var segmentedControlInset: some View {
         segmentedControl
-            .padding(.top, 4)
+            .padding(.top, 8)
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
             .background(Color.clear)

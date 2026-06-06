@@ -15,7 +15,6 @@ struct RichHomeTabView: View {
     @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
     @AppStorage(RichCompactLayout.settingKey) private var compactLayoutEnabled: Bool = false
     @State private var selectionMode = false
-    @State private var homeScrollOffset: CGFloat = 0
     let onSettingsTapped: () -> Void
 
     var body: some View {
@@ -24,13 +23,15 @@ struct RichHomeTabView: View {
                 query: $query,
                 taskSegment: $taskSegment,
                 onScrollProgressChange: { overlayProgress = $0 },
-                onScrollOffsetChange: { homeScrollOffset = $0 },
                 onSelectionModeChange: { selectionMode = $0 },
                 compactLayoutProgress: compactLayoutEnabled && !selectionMode ? overlayProgress : nil
             )
             .richCompactNavigationTitle(
-                homeSystemNavigationTitle,
+                "清单",
                 inlineWhenCompact: selectionMode
+            )
+            .navigationLargeTitleOverride(
+                !selectionMode ? "Deadliner" : nil
             )
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -58,6 +59,7 @@ struct RichHomeTabView: View {
                     }
                     .accessibilityLabel("用户与设置")
                     .accessibilityHint("打开用户面板与设置")
+                    .padding(.trailing, compactLayoutEnabled ? -8 : 0)
                 }
                 .sharedBackgroundVisibility(.hidden)
             }
@@ -71,11 +73,6 @@ struct RichHomeTabView: View {
             }
             .toolbarBackground(.hidden, for: .navigationBar)
         }
-    }
-
-    private var homeSystemNavigationTitle: String {
-        guard compactLayoutEnabled, !selectionMode else { return "清单" }
-        return homeScrollOffset > 10 ? "清单" : "Deadliner"
     }
 }
 
