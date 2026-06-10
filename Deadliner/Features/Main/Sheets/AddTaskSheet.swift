@@ -123,6 +123,7 @@ struct AddEntrySheetView: View {
                 }
             }
         }
+        .deadlinerScrollEdgeEffect()
     }
 
     private var currentSaveEnabled: Bool {

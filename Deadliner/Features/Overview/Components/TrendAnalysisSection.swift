@@ -58,6 +58,7 @@ private struct ContributionHeatmapCard: View {
                     }
                     .padding(.vertical, 4)
                 }
+                .deadlinerScrollEdgeEffect()
                 
                 HStack(spacing: 4) {
                     Text("少")

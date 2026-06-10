@@ -145,6 +145,7 @@ struct HabitEditorSheetView: View {
                 }
             }
         }
+        .deadlinerScrollEdgeEffect()
     }
 
     private var editorContent: some View {

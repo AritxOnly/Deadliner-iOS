@@ -117,6 +117,7 @@ struct TaskEditorSheetView: View {
                 }
             }
         }
+        .deadlinerScrollEdgeEffect()
     }
 
     private var editorContent: some View {

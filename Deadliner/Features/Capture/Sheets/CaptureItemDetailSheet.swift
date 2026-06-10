@@ -104,6 +104,7 @@ struct CaptureItemDetailSheet: View {
                 }
             }
         }
+        .deadlinerScrollEdgeEffect()
     }
 
     private func saveIfNeeded() {

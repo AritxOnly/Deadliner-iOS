@@ -111,7 +111,7 @@ struct SearchResultsView: View {
             .glassEffect()
             .textCase(nil)
             .padding(.top, compactHeaderTopPadding)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 12)
         }
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)

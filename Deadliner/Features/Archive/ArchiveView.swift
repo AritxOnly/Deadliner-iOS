@@ -67,6 +67,7 @@ struct ArchiveView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .deadlinerScrollEdgeEffect()
         .background(Color.clear)
         .safeAreaInset(edge: .top, spacing: 0) {
             if compactLayoutEnabled {
@@ -129,9 +130,9 @@ struct ArchiveView: View {
                     enabled: compactLayoutEnabled,
                     progress: effectiveCompactProgress
                 ),
-                leading: 16,
+                leading: 12,
                 bottom: 4,
-                trailing: 16
+                trailing: 12
             )
         )
     }

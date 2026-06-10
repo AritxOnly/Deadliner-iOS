@@ -1,8 +1,23 @@
 import Foundation
 
+private let urgentTaskWindow: TimeInterval = 24 * 3600
+
 func isWithin12Hours(task: DDLItem) -> Bool {
     guard let endDate = DeadlineDateParser.safeParseOptional(task.endTime) else { return false }
     return endDate.timeIntervalSinceNow < 12 * 3600
+}
+
+func isNearTask(task: DDLItem) -> Bool {
+    guard let endDate = DeadlineDateParser.safeParseOptional(task.endTime) else { return false }
+    let remaining = endDate.timeIntervalSinceNow
+    return remaining > 0 && remaining <= urgentTaskWindow
+}
+
+func hoursUntilDeadline(task: DDLItem) -> Int? {
+    guard let endDate = DeadlineDateParser.safeParseOptional(task.endTime) else { return nil }
+    let diff = endDate.timeIntervalSinceNow
+    guard diff > 0 else { return nil }
+    return max(1, Int(ceil(diff / 3600)))
 }
 
 func remainingTimeStr(task: DDLItem, overdueText: String = "0m") -> String {

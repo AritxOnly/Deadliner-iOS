@@ -32,6 +32,7 @@ struct DeadlinerApp: App {
         AIStdStreamCapture.shared.startIfNeeded()
         AILog.log("[Session] New launch session started")
         SyncDebugLog.log("[Session] New launch session started")
+        PhoneWatchSyncBridge.shared.start()
     }
 
     var body: some Scene {
@@ -62,6 +63,7 @@ struct DeadlinerApp: App {
                     
                     // 刷新习惯提醒
                     HabitRepository.shared.scheduleReminderRefresh()
+                    await PhoneWatchSyncBridge.shared.pushLatestSnapshot(reason: "launchTask")
                 }
                 .onAppear {
                     // 启动时也跑一次（有时不会立刻触发 scenePhase 变化）
@@ -71,6 +73,7 @@ struct DeadlinerApp: App {
                             try await TaskRepository.shared.initializeIfNeeded(container: sharedModelContainer)
                             try await DeadlinerCoreBridge.shared.initializeIfNeeded()
                             HabitRepository.shared.scheduleReminderRefresh()
+                            await PhoneWatchSyncBridge.shared.pushLatestSnapshot(reason: "onAppear")
                         } catch {
                             AILog.log("Core init failed on appear: \(error.localizedDescription)")
                             SyncDebugLog.log("Core init failed on appear: \(error.localizedDescription)")
@@ -88,6 +91,7 @@ struct DeadlinerApp: App {
                             try await TaskRepository.shared.initializeIfNeeded(container: sharedModelContainer)
                             try await DeadlinerCoreBridge.shared.initializeIfNeeded()
                             HabitRepository.shared.scheduleReminderRefresh()
+                            await PhoneWatchSyncBridge.shared.pushLatestSnapshot(reason: "sceneActive")
                         } catch {
                             AILog.log("Core init failed on active: \(error.localizedDescription)")
                             SyncDebugLog.log("Core init failed on active: \(error.localizedDescription)")

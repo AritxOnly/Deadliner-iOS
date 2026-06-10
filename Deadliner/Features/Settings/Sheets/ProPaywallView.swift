@@ -70,6 +70,7 @@ struct ProPaywallView: View {
             await storeManager.updatePurchasedProducts()
             await storeManager.fetchProducts()
         }
+        .deadlinerScrollEdgeEffect()
     }
 
     private var paywallContent: some View {
@@ -106,6 +107,7 @@ struct ProPaywallView: View {
                 }
                 .padding(.bottom, 22)
             }
+            .deadlinerScrollEdgeEffect()
 
             VStack(spacing: 10) {
                 if effectiveTier == .free {

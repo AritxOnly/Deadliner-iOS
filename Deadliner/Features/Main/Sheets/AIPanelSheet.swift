@@ -32,6 +32,7 @@ struct DeadlinerAIPanel: View {
                 panelContent
             }
         }
+        .deadlinerScrollEdgeEffect()
     }
 
     init(

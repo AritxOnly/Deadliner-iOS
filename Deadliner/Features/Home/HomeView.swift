@@ -248,6 +248,7 @@ struct HomeView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .deadlinerScrollEdgeEffect()
         .safeAreaInset(edge: .top, spacing: 0) {
             if compactLayoutEnabled {
                 segmentedControlInset
@@ -269,6 +270,7 @@ struct HomeView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .deadlinerScrollEdgeEffect()
 
             Divider()
 
@@ -284,6 +286,7 @@ struct HomeView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .deadlinerScrollEdgeEffect()
         }
     }
 
@@ -474,22 +477,44 @@ struct HomeView: View {
     }
 
     private var segmentedControl: some View {
-        HStack {
-            Picker("Task Segment", selection: $taskSegment) {
-                ForEach(TaskSegment.allCases) { segment in
-                    Text(segment.rawValue).tag(segment)
-                }
+//        HStack {
+//            Picker("Task Segment", selection: $taskSegment) {
+//                ForEach(TaskSegment.allCases) { segment in
+//                    Text(segment.rawValue).tag(segment)
+//                }
+//            }
+//            .pickerStyle(.segmented)
+//            .textCase(nil)
+//            .padding(EdgeInsets(top: 0, leading: 0, bottom: 1, trailing: 0))
+//        }
+//        .glassEffect()
+//        .clipShape(Capsule())
+//        .padding(
+//            EdgeInsets(
+//                top: selectionMode
+//                    ? 0
+//                    : RichCompactLayout.headerTopPadding(
+//                        enabled: compactLayoutEnabled,
+//                        progress: effectiveCompactProgress
+//                    ),
+//                leading: 12,
+//                bottom: 4,
+//                trailing: 12
+//            )
+//        )
+        
+        Picker("Task Segment", selection: $taskSegment) {
+            ForEach(TaskSegment.allCases) { segment in
+                Text(segment.rawValue).tag(segment)
             }
-            .pickerStyle(.segmented)
-            .textCase(nil)
-            .padding(EdgeInsets(top: 0, leading: 0, bottom: 1, trailing: 0))
         }
+        .pickerStyle(.segmented)
+        .textCase(nil)
         .glassEffect()
-        .clipShape(Capsule())
         .padding(
             EdgeInsets(
                 top: selectionMode
-                    ? 0
+                    ? -4
                     : RichCompactLayout.headerTopPadding(
                         enabled: compactLayoutEnabled,
                         progress: effectiveCompactProgress

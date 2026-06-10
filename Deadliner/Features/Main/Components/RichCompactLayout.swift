@@ -23,9 +23,14 @@ enum RichCompactLayout {
     }
 
     static func headerTopPadding(enabled: Bool, progress: CGFloat) -> CGFloat {
-        guard enabled else { return 0 }
+        guard enabled else { return -4 }
         return expandedHeaderTopPadding * (1 - collapseProgress(for: progress))
     }
+}
+
+enum RichTabBarTitles {
+    static let settingKey = "settings.home.rich.tab_bar_titles_visible"
+    static let defaultValue = true
 }
 
 private struct RichCompactNavigationTitleModifier: ViewModifier {

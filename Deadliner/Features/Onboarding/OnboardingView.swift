@@ -33,6 +33,7 @@ struct AppRootView: View {
             shouldPresentOnboarding = !hasSeenOnboarding || showOnboardingOnNextLaunch
             launchDecisionMade = true
         }
+        .deadlinerScrollEdgeEffect()
     }
 }
 

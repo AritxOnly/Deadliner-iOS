@@ -12,6 +12,7 @@
 		C0D3A1043A19000100D34EAA /* ffi_uniffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A1053A19000100D34EAA /* ffi_uniffi.swift */; };
 		C0D3A1093A19000100D34EAA /* ToolCallExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A10A3A19000100D34EAA /* ToolCallExecutor.swift */; };
 		E52763CF2F42F09F002162DF /* DeadlinerDefault.icon in Resources */ = {isa = PBXBuildFile; fileRef = E52763CE2F42F09F002162DF /* DeadlinerDefault.icon */; };
+		E52763D12F42F125002162DF /* DeadlinerDefault.icon in Resources */ = {isa = PBXBuildFile; fileRef = E52763CE2F42F09F002162DF /* DeadlinerDefault.icon */; };
 		E53876182F5A5AC200E5D81A /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E53876172F5A5AC200E5D81A /* WidgetKit.framework */; };
 		E538761A2F5A5AC200E5D81A /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E53876192F5A5AC200E5D81A /* SwiftUI.framework */; };
 		E538762B2F5A5AC300E5D81A /* DeadlinerWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E53876162F5A5AC200E5D81A /* DeadlinerWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -25,6 +26,7 @@
 		E5B68B692F4B493500E603F3 /* DeadlinerBlackGold.icon in Resources */ = {isa = PBXBuildFile; fileRef = E5B68B672F4B493500E603F3 /* DeadlinerBlackGold.icon */; };
 		E5B68B6A2F4B493500E603F3 /* DeadlinerPixel.icon in Resources */ = {isa = PBXBuildFile; fileRef = E5B68B682F4B493500E603F3 /* DeadlinerPixel.icon */; };
 		E5C87EC12FA3B01F00419F89 /* DeadlinerMono.icon in Resources */ = {isa = PBXBuildFile; fileRef = E5C87EC02FA3B01F00419F89 /* DeadlinerMono.icon */; };
+		E5D56E562FD579A300859548 /* DeadlinerWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = E5D56E362FD579A000859548 /* DeadlinerWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -49,6 +51,27 @@
 			remoteGlobalIDString = E53876152F5A5AC200E5D81A;
 			remoteInfo = DeadlinerWidgetExtension;
 		};
+		E5D56E432FD579A300859548 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E52762DA2F3F6189002162DF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E5D56E352FD579A000859548;
+			remoteInfo = "DeadlinerWatch Watch App";
+		};
+		E5D56E4D2FD579A300859548 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E52762DA2F3F6189002162DF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E5D56E352FD579A000859548;
+			remoteInfo = "DeadlinerWatch Watch App";
+		};
+		E5D56E542FD579A300859548 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E52762DA2F3F6189002162DF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E5D56E352FD579A000859548;
+			remoteInfo = "DeadlinerWatch Watch App";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -61,6 +84,17 @@
 				E538762B2F5A5AC300E5D81A /* DeadlinerWidgetExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E5D56E5A2FD579A300859548 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				E5D56E562FD579A300859548 /* DeadlinerWatch Watch App.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -88,6 +122,9 @@
 		E5B68B672F4B493500E603F3 /* DeadlinerBlackGold.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = DeadlinerBlackGold.icon; sourceTree = "<group>"; };
 		E5B68B682F4B493500E603F3 /* DeadlinerPixel.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = DeadlinerPixel.icon; sourceTree = "<group>"; };
 		E5C87EC02FA3B01F00419F89 /* DeadlinerMono.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = DeadlinerMono.icon; sourceTree = "<group>"; };
+		E5D56E362FD579A000859548 /* DeadlinerWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "DeadlinerWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		E5D56E422FD579A300859548 /* DeadlinerWatch Watch AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "DeadlinerWatch Watch AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		E5D56E4C2FD579A300859548 /* DeadlinerWatch Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "DeadlinerWatch Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -114,6 +151,20 @@
 			);
 			target = E53876152F5A5AC200E5D81A /* DeadlinerWidgetExtension */;
 		};
+		E5D56E612FD579A300859548 /* Exceptions for "Deadliner" folder in "DeadlinerWatch Watch App" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Core/Domain/Enums/DeadlineEnums.swift,
+				Core/Domain/Models/DDLState.swift,
+				Core/Persistence/SharedModelContainer.swift,
+				Core/Shared/DateParsing/DateExtension.swift,
+				Core/Shared/DateParsing/DeadlineDateParser.swift,
+				Core/Shared/WatchSync/WatchBoardSyncModels.swift,
+				Data/Persistence/Entities.swift,
+				Shared/UI/AppNotifications.swift,
+			);
+			target = E5D56E352FD579A000859548 /* DeadlinerWatch Watch App */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -121,6 +172,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				E53876342F5A5C6F00E5D81A /* Exceptions for "Deadliner" folder in "DeadlinerWidgetExtension" target */,
+				E5D56E612FD579A300859548 /* Exceptions for "Deadliner" folder in "DeadlinerWatch Watch App" target */,
 			);
 			path = Deadliner;
 			sourceTree = "<group>";
@@ -141,6 +193,21 @@
 				E538762C2F5A5AC300E5D81A /* Exceptions for "DeadlinerWidget" folder in "DeadlinerWidgetExtension" target */,
 			);
 			path = DeadlinerWidget;
+			sourceTree = "<group>";
+		};
+		E5D56E372FD579A000859548 /* DeadlinerWatch Watch App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "DeadlinerWatch Watch App";
+			sourceTree = "<group>";
+		};
+		E5D56E452FD579A300859548 /* DeadlinerWatch Watch AppTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "DeadlinerWatch Watch AppTests";
+			sourceTree = "<group>";
+		};
+		E5D56E4F2FD579A300859548 /* DeadlinerWatch Watch AppUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "DeadlinerWatch Watch AppUITests";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -176,6 +243,27 @@
 				E53876402F5A5AC200E5D81A /* AppIntents.framework in Frameworks */,
 				E538761A2F5A5AC200E5D81A /* SwiftUI.framework in Frameworks */,
 				E53876182F5A5AC200E5D81A /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E5D56E332FD579A000859548 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E5D56E3F2FD579A300859548 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E5D56E492FD579A300859548 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -217,6 +305,9 @@
 				E52762F42F3F618B002162DF /* DeadlinerTests */,
 				E52762FE2F3F618B002162DF /* DeadlinerUITests */,
 				E538761B2F5A5AC200E5D81A /* DeadlinerWidget */,
+				E5D56E372FD579A000859548 /* DeadlinerWatch Watch App */,
+				E5D56E452FD579A300859548 /* DeadlinerWatch Watch AppTests */,
+				E5D56E4F2FD579A300859548 /* DeadlinerWatch Watch AppUITests */,
 				E52762E32F3F6189002162DF /* Products */,
 				E574E6E72F5C23B200AF1661 /* Icons */,
 				E53876042F54411200E5D81A /* Frameworks */,
@@ -232,6 +323,9 @@
 				E52762F12F3F618B002162DF /* DeadlinerTests.xctest */,
 				E52762FB2F3F618B002162DF /* DeadlinerUITests.xctest */,
 				E53876162F5A5AC200E5D81A /* DeadlinerWidgetExtension.appex */,
+				E5D56E362FD579A000859548 /* DeadlinerWatch Watch App.app */,
+				E5D56E422FD579A300859548 /* DeadlinerWatch Watch AppTests.xctest */,
+				E5D56E4C2FD579A300859548 /* DeadlinerWatch Watch AppUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -281,11 +375,13 @@
 				E52762DF2F3F6189002162DF /* Frameworks */,
 				E52762E02F3F6189002162DF /* Resources */,
 				E53876302F5A5AC300E5D81A /* Embed Foundation Extensions */,
+				E5D56E5A2FD579A300859548 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				E538762A2F5A5AC300E5D81A /* PBXTargetDependency */,
+				E5D56E552FD579A300859548 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				E52762E42F3F6189002162DF /* Deadliner */,
@@ -366,6 +462,74 @@
 			productReference = E53876162F5A5AC200E5D81A /* DeadlinerWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		E5D56E352FD579A000859548 /* DeadlinerWatch Watch App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E5D56E572FD579A300859548 /* Build configuration list for PBXNativeTarget "DeadlinerWatch Watch App" */;
+			buildPhases = (
+				E5D56E322FD579A000859548 /* Sources */,
+				E5D56E332FD579A000859548 /* Frameworks */,
+				E5D56E342FD579A000859548 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				E5D56E372FD579A000859548 /* DeadlinerWatch Watch App */,
+			);
+			name = "DeadlinerWatch Watch App";
+			packageProductDependencies = (
+			);
+			productName = "DeadlinerWatch Watch App";
+			productReference = E5D56E362FD579A000859548 /* DeadlinerWatch Watch App.app */;
+			productType = "com.apple.product-type.application";
+		};
+		E5D56E412FD579A300859548 /* DeadlinerWatch Watch AppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E5D56E5B2FD579A300859548 /* Build configuration list for PBXNativeTarget "DeadlinerWatch Watch AppTests" */;
+			buildPhases = (
+				E5D56E3E2FD579A300859548 /* Sources */,
+				E5D56E3F2FD579A300859548 /* Frameworks */,
+				E5D56E402FD579A300859548 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E5D56E442FD579A300859548 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				E5D56E452FD579A300859548 /* DeadlinerWatch Watch AppTests */,
+			);
+			name = "DeadlinerWatch Watch AppTests";
+			packageProductDependencies = (
+			);
+			productName = "DeadlinerWatch Watch AppTests";
+			productReference = E5D56E422FD579A300859548 /* DeadlinerWatch Watch AppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		E5D56E4B2FD579A300859548 /* DeadlinerWatch Watch AppUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E5D56E5E2FD579A300859548 /* Build configuration list for PBXNativeTarget "DeadlinerWatch Watch AppUITests" */;
+			buildPhases = (
+				E5D56E482FD579A300859548 /* Sources */,
+				E5D56E492FD579A300859548 /* Frameworks */,
+				E5D56E4A2FD579A300859548 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E5D56E4E2FD579A300859548 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				E5D56E4F2FD579A300859548 /* DeadlinerWatch Watch AppUITests */,
+			);
+			name = "DeadlinerWatch Watch AppUITests";
+			packageProductDependencies = (
+			);
+			productName = "DeadlinerWatch Watch AppUITests";
+			productReference = E5D56E4C2FD579A300859548 /* DeadlinerWatch Watch AppUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -373,7 +537,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2630;
+				LastSwiftUpdateCheck = 2650;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					E52762E12F3F6189002162DF = {
@@ -389,6 +553,17 @@
 					};
 					E53876152F5A5AC200E5D81A = {
 						CreatedOnToolsVersion = 26.3;
+					};
+					E5D56E352FD579A000859548 = {
+						CreatedOnToolsVersion = 26.5;
+					};
+					E5D56E412FD579A300859548 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = E5D56E352FD579A000859548;
+					};
+					E5D56E4B2FD579A300859548 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = E5D56E352FD579A000859548;
 					};
 				};
 			};
@@ -413,6 +588,9 @@
 				E52762F02F3F618B002162DF /* DeadlinerTests */,
 				E52762FA2F3F618B002162DF /* DeadlinerUITests */,
 				E53876152F5A5AC200E5D81A /* DeadlinerWidgetExtension */,
+				E5D56E352FD579A000859548 /* DeadlinerWatch Watch App */,
+				E5D56E412FD579A300859548 /* DeadlinerWatch Watch AppTests */,
+				E5D56E4B2FD579A300859548 /* DeadlinerWatch Watch AppUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -455,6 +633,28 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E5D56E342FD579A000859548 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E52763D12F42F125002162DF /* DeadlinerDefault.icon in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E5D56E402FD579A300859548 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E5D56E4A2FD579A300859548 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -489,6 +689,27 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E5D56E322FD579A000859548 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E5D56E3E2FD579A300859548 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E5D56E482FD579A300859548 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -506,6 +727,21 @@
 			isa = PBXTargetDependency;
 			target = E53876152F5A5AC200E5D81A /* DeadlinerWidgetExtension */;
 			targetProxy = E53876292F5A5AC300E5D81A /* PBXContainerItemProxy */;
+		};
+		E5D56E442FD579A300859548 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E5D56E352FD579A000859548 /* DeadlinerWatch Watch App */;
+			targetProxy = E5D56E432FD579A300859548 /* PBXContainerItemProxy */;
+		};
+		E5D56E4E2FD579A300859548 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E5D56E352FD579A000859548 /* DeadlinerWatch Watch App */;
+			targetProxy = E5D56E4D2FD579A300859548 /* PBXContainerItemProxy */;
+		};
+		E5D56E552FD579A300859548 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E5D56E352FD579A000859548 /* DeadlinerWatch Watch App */;
+			targetProxy = E5D56E542FD579A300859548 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -659,7 +895,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.1.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = top.aritxonly.deadliner;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -706,7 +942,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.1.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = top.aritxonly.deadliner;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -823,7 +1059,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = top.aritxonly.deadliner.DeadlinerWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -859,7 +1095,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.2;
+				MARKETING_VERSION = 1.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = top.aritxonly.deadliner.DeadlinerWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -871,6 +1107,170 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		E5D56E582FD579A300859548 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = DeadlinerDefault;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = "DeadlinerWatch Watch App/DeadlinerWatch.entitlements";
+				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=watchos*]" = 6Z4232N2L9;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Deadliner;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = top.aritxonly.deadliner;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = top.aritxonly.deadliner.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=watchos*]" = "artix watchos";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Debug;
+		};
+		E5D56E592FD579A300859548 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = DeadlinerDefault;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = "DeadlinerWatch Watch App/DeadlinerWatch.entitlements";
+				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=watchos*]" = 6Z4232N2L9;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Deadliner;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = top.aritxonly.deadliner;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = top.aritxonly.deadliner.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=watchos*]" = "artix watchos";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Release;
+		};
+		E5D56E5C2FD579A300859548 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "top.aritxonly.DeadlinerWatch-Watch-AppTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DeadlinerWatch Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/DeadlinerWatch Watch App";
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Debug;
+		};
+		E5D56E5D2FD579A300859548 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "top.aritxonly.DeadlinerWatch-Watch-AppTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DeadlinerWatch Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/DeadlinerWatch Watch App";
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Release;
+		};
+		E5D56E5F2FD579A300859548 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "top.aritxonly.DeadlinerWatch-Watch-AppUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_TARGET_NAME = "DeadlinerWatch Watch App";
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Debug;
+		};
+		E5D56E602FD579A300859548 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "top.aritxonly.DeadlinerWatch-Watch-AppUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_TARGET_NAME = "DeadlinerWatch Watch App";
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = Release;
 		};
@@ -918,6 +1318,33 @@
 			buildConfigurations = (
 				E538762E2F5A5AC300E5D81A /* Debug */,
 				E538762F2F5A5AC300E5D81A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E5D56E572FD579A300859548 /* Build configuration list for PBXNativeTarget "DeadlinerWatch Watch App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E5D56E582FD579A300859548 /* Debug */,
+				E5D56E592FD579A300859548 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E5D56E5B2FD579A300859548 /* Build configuration list for PBXNativeTarget "DeadlinerWatch Watch AppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E5D56E5C2FD579A300859548 /* Debug */,
+				E5D56E5D2FD579A300859548 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E5D56E5E2FD579A300859548 /* Build configuration list for PBXNativeTarget "DeadlinerWatch Watch AppUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E5D56E5F2FD579A300859548 /* Debug */,
+				E5D56E602FD579A300859548 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

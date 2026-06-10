@@ -13,12 +13,15 @@ final class CaptureStore: ObservableObject {
     @Published private(set) var items: [CaptureInboxItem] = []
 
     private let defaults: UserDefaults
+    private let legacyDefaults: UserDefaults
     private let storageKey = "capture.inbox.items"
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
+    init(defaults: UserDefaults? = nil) {
+        self.legacyDefaults = .standard
+        self.defaults = defaults ?? UserDefaults(suiteName: SharedModelContainer.appGroupId) ?? .standard
+        migrateLegacyStorageIfNeeded()
         load()
     }
 
@@ -85,5 +88,14 @@ final class CaptureStore: ObservableObject {
         } catch {
             print("CaptureStore persist failed: \(error)")
         }
+    }
+
+    private func migrateLegacyStorageIfNeeded() {
+        guard defaults !== legacyDefaults else { return }
+        guard defaults.data(forKey: storageKey) == nil,
+              let legacyData = legacyDefaults.data(forKey: storageKey) else {
+            return
+        }
+        defaults.set(legacyData, forKey: storageKey)
     }
 }

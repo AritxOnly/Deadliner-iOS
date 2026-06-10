@@ -24,4 +24,13 @@ extension View {
     func optionalTint(_ color: Color?) -> some View {
         modifier(OptionalTintModifier(color: color))
     }
+
+    @ViewBuilder
+    func deadlinerScrollEdgeEffect() -> some View {
+        if #available(iOS 26.0, macOS 26.0, tvOS 26.0, watchOS 26.0, *) {
+            scrollEdgeEffectStyle(.soft, for: .all)
+        } else {
+            self
+        }
+    }
 }

@@ -33,6 +33,7 @@ enum HomeStyleOption: String, CaseIterable, Identifiable {
 struct HomeStyleSettingsView: View {
     @AppStorage("settings.home.style") private var homeStyleRawValue: String = HomeStyleOption.rich.rawValue
     @AppStorage(RichCompactLayout.settingKey) private var richCompactLayoutEnabled: Bool = false
+    @AppStorage(RichTabBarTitles.settingKey) private var richTabBarTitlesVisible: Bool = RichTabBarTitles.defaultValue
 
     var body: some View {
         List {
@@ -69,9 +70,16 @@ struct HomeStyleSettingsView: View {
                     Text("开启后，丰富模式会使用标题与内容左对齐的紧凑导航样式；关闭后保持当前布局。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+
+                    Toggle("显示底栏标题", isOn: $richTabBarTitlesVisible)
+
+                    Text("关闭后，丰富模式下的 TabView 底栏将只显示图标；开启后会同时显示图标和标题。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
+        .deadlinerScrollEdgeEffect()
         .navigationTitle("主页风格")
         .navigationBarTitleDisplayMode(.inline)
     }

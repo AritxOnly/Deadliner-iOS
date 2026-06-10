@@ -116,6 +116,7 @@ struct TaskDetailSheetView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
             }
+            .deadlinerScrollEdgeEffect()
             .overlay(alignment: .bottomTrailing) {
                 floatingActionButton
                     .opacity(isExpanded ? 1 : 0)
@@ -153,6 +154,7 @@ struct TaskDetailSheetView: View {
                 }
             }
         }
+        .deadlinerScrollEdgeEffect()
         .onAppear {
             animateProgressIn()
             loadPlanIfNeeded()

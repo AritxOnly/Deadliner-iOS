@@ -58,6 +58,7 @@ struct CaptureInboxView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .deadlinerScrollEdgeEffect()
         .background(.clear)
         .toolbar {
             captureToolbar

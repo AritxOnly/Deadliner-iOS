@@ -31,6 +31,7 @@ private enum RichMainTab: String, Hashable {
 
 struct RichMainView: View {
     @EnvironmentObject private var themeStore: ThemeStore
+    @AppStorage(RichTabBarTitles.settingKey) private var richTabBarTitlesVisible: Bool = RichTabBarTitles.defaultValue
 
     @State private var selectedTab: RichMainTab = .home
     @State private var homeTaskSegment: TaskSegment = .tasks
@@ -57,45 +58,61 @@ struct RichMainView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             TabView(selection: $selectedTab) {
-                Tab("清单", systemImage: "checklist", value: RichMainTab.home) {
-                    RichHomeTabView(
-                        query: $homeQuery,
-                        taskSegment: $homeTaskSegment,
-                        overlayProgress: $navGradientProgress,
-                        onSettingsTapped: {
-                            showSettingsSheet = true
-                        }
-                    )
-                    .id(homeResetToken)
-                }
+                if richTabBarTitlesVisible {
+                    Tab("清单", systemImage: "checklist", value: RichMainTab.home) {
+                        homeTabContent
+                    }
 
-                Tab("概览", systemImage: "chart.pie", value: RichMainTab.overview) {
-                    RichOverviewTabView(
-                        overlayProgress: $navGradientProgress
-                    )
-                    .id(overviewResetToken)
-                }
+                    Tab("概览", systemImage: "chart.pie", value: RichMainTab.overview) {
+                        overviewTabContent
+                    }
 
-                Tab("灵感", systemImage: "pencil.and.outline", value: RichMainTab.inspiration) {
-                    RichInspirationTabView(
-                        overlayProgress: $navGradientProgress
-                    )
-                    .id(inspirationResetToken)
-                }
-                
-                Tab("AI", image: "lifi.logo.v1", value: RichMainTab.ai) {
-                    RichAITabView(
-                        overlayProgress: $navGradientProgress
-                    )
-                    .id(aiResetToken)
-                }
+                    Tab("灵感", systemImage: "pencil.and.outline", value: RichMainTab.inspiration) {
+                        inspirationTabContent
+                    }
 
-                Tab("搜索", systemImage: "magnifyingglass", value: RichMainTab.search, role: .search) {
-                    RichSearchTabView(
-                        query: $searchQuery,
-                        overlayProgress: $navGradientProgress
-                    )
-                    .id(searchResetToken)
+                    Tab("AI", image: "lifi.logo.v1", value: RichMainTab.ai) {
+                        aiTabContent
+                    }
+
+                    Tab("搜索", systemImage: "magnifyingglass", value: RichMainTab.search, role: .search) {
+                        searchTabContent
+                    }
+                } else {
+                    Tab(value: RichMainTab.home) {
+                        homeTabContent
+                    } label: {
+                        Image(systemName: "checklist")
+                            .accessibilityLabel("清单")
+                    }
+
+                    Tab(value: RichMainTab.overview) {
+                        overviewTabContent
+                    } label: {
+                        Image(systemName: "chart.pie")
+                            .accessibilityLabel("概览")
+                    }
+
+                    Tab(value: RichMainTab.inspiration) {
+                        inspirationTabContent
+                    } label: {
+                        Image(systemName: "pencil.and.outline")
+                            .accessibilityLabel("灵感")
+                    }
+
+                    Tab(value: RichMainTab.ai) {
+                        aiTabContent
+                    } label: {
+                        Image("lifi.logo.v1")
+                            .accessibilityLabel("AI")
+                    }
+
+                    Tab(value: RichMainTab.search, role: .search) {
+                        searchTabContent
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .accessibilityLabel("搜索")
+                    }
                 }
             }
 
@@ -130,18 +147,59 @@ struct RichMainView: View {
         }
         .onAppear {
             consumePendingWidgetLaunch()
-            applyTabBarSelectedTint()
+            applyTabBarAppearance()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             consumePendingWidgetLaunch()
-            applyTabBarSelectedTint()
+            applyTabBarAppearance()
         }
         .onOpenURL { url in
             handleIncomingURL(url)
         }
         .onChange(of: themeStore.accentOption) { _, _ in
-            applyTabBarSelectedTint()
+            applyTabBarAppearance()
         }
+    }
+
+    private var homeTabContent: some View {
+        RichHomeTabView(
+            query: $homeQuery,
+            taskSegment: $homeTaskSegment,
+            overlayProgress: $navGradientProgress,
+            onSettingsTapped: {
+                showSettingsSheet = true
+            }
+        )
+        .id(homeResetToken)
+    }
+
+    private var overviewTabContent: some View {
+        RichOverviewTabView(
+            overlayProgress: $navGradientProgress
+        )
+        .id(overviewResetToken)
+    }
+
+    private var inspirationTabContent: some View {
+        RichInspirationTabView(
+            overlayProgress: $navGradientProgress
+        )
+        .id(inspirationResetToken)
+    }
+
+    private var aiTabContent: some View {
+        RichAITabView(
+            overlayProgress: $navGradientProgress
+        )
+        .id(aiResetToken)
+    }
+
+    private var searchTabContent: some View {
+        RichSearchTabView(
+            query: $searchQuery,
+            overlayProgress: $navGradientProgress
+        )
+        .id(searchResetToken)
     }
 
     private var floatingAddButton: some View {
@@ -234,7 +292,7 @@ struct RichMainView: View {
         }
     }
 
-    private func applyTabBarSelectedTint() {
+    private func applyTabBarAppearance() {
         let selectedColor = UIColor(themeStore.accentColor)
         let appearance = UITabBarAppearance()
         appearance.configureWithDefaultBackground()

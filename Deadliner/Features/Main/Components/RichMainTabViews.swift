@@ -35,31 +35,7 @@ struct RichHomeTabView: View {
             )
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        onSettingsTapped()
-                    } label: {
-                        Group {
-                            if let avatar = AvatarManager.shared.avatarImage {
-                                avatar
-                                    .resizable()
-                                    .renderingMode(.original)
-                            } else {
-                                Image(systemName: "person.crop.circle")
-                                    .resizable()
-                                    .renderingMode(.original)
-                                    .symbolRenderingMode(.hierarchical)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .scaledToFill()
-                        .frame(width: 42, height: 42)
-                        .clipShape(Circle())
-                        .overlay(Circle().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5))
-                        .contentShape(Circle())
-                    }
-                    .accessibilityLabel("用户与设置")
-                    .accessibilityHint("打开用户面板与设置")
-                    .padding(.trailing, compactLayoutEnabled ? -8 : 0)
+                    settingsButton
                 }
                 .sharedBackgroundVisibility(.hidden)
             }
@@ -73,6 +49,34 @@ struct RichHomeTabView: View {
             }
             .toolbarBackground(.hidden, for: .navigationBar)
         }
+    }
+
+    private var settingsButton: some View {
+        Button {
+            onSettingsTapped()
+        } label: {
+            Group {
+                if let avatar = AvatarManager.shared.avatarImage {
+                    avatar
+                        .resizable()
+                        .renderingMode(.original)
+                } else {
+                    Image(systemName: "person.crop.circle")
+                        .resizable()
+                        .renderingMode(.original)
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .scaledToFill()
+            .frame(width: 42, height: 42)
+            .clipShape(Circle())
+            .overlay(Circle().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5))
+            .contentShape(Circle())
+        }
+        .accessibilityLabel("用户与设置")
+        .accessibilityHint("打开用户面板与设置")
+        .padding(.trailing, compactLayoutEnabled ? -8 : 0)
     }
 }
 

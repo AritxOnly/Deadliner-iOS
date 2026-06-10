@@ -18,6 +18,9 @@ struct DeadlinerEntry: TimelineEntry {
     let topTasks: [DDLItem]
     let remainingCount: Int
     let totalActiveCount: Int
+    let habitRemainingCount: Int
+    let habitTotalCount: Int
     let urgentCount: Int
+    let nearestUrgentHours: Int?
     let contributionStats: [WidgetContributionDay]
 }

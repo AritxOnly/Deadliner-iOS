@@ -40,6 +40,7 @@ struct MemoryManageSheet: View {
                 fragmentsSection
                 actionsSection
             }
+            .deadlinerScrollEdgeEffect()
             .navigationTitle("记忆管理")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -69,6 +70,7 @@ struct MemoryManageSheet: View {
                 Text("这会清空用户画像和所有碎片记忆，且不可恢复。")
             }
         }
+        .deadlinerScrollEdgeEffect()
     }
 }
 

@@ -62,6 +62,7 @@ struct SearchCategoryDetailView: View {
         .listStyle(.plain)
         .listSectionSpacing(.compact)
         .environment(\.defaultMinListRowHeight, 1)
+        .deadlinerScrollEdgeEffect()
         .navigationTitle(category.title)
         .navigationBarTitleDisplayMode(.large)
         .toolbarBackground(.hidden, for: .navigationBar)

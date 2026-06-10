@@ -89,6 +89,7 @@ struct OverviewView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .deadlinerScrollEdgeEffect()
         .safeAreaInset(edge: .top, spacing: 0) {
             if compactLayoutEnabled {
                 segmentedControlInset
@@ -110,6 +111,7 @@ struct OverviewView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .deadlinerScrollEdgeEffect()
 
             Divider()
 
@@ -125,6 +127,7 @@ struct OverviewView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .deadlinerScrollEdgeEffect()
 
             Divider()
 
@@ -140,6 +143,7 @@ struct OverviewView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .deadlinerScrollEdgeEffect()
         }
     }
 
@@ -200,18 +204,38 @@ struct OverviewView: View {
     }
 
     private var segmentedControl: some View {
-        HStack {
-            Picker("", selection: $selectedTabIndex) {
-                Text("总览").tag(0)
-                Text("趋势").tag(1)
-                Text("上月").tag(2)
-            }
-            .pickerStyle(.segmented)
-            .textCase(nil)
-            .padding(EdgeInsets(top: 0, leading: 0, bottom: 1, trailing: 0))
+//        HStack {
+//            Picker("", selection: $selectedTabIndex) {
+//                Text("总览").tag(0)
+//                Text("趋势").tag(1)
+//                Text("上月").tag(2)
+//            }
+//            .pickerStyle(.segmented)
+//            .textCase(nil)
+//            .padding(EdgeInsets(top: 0, leading: 0, bottom: 1, trailing: 0))
+//        }
+//        .glassEffect()
+//        .clipShape(Capsule())
+//        .padding(
+//            EdgeInsets(
+//                top: RichCompactLayout.headerTopPadding(
+//                    enabled: compactLayoutEnabled,
+//                    progress: effectiveCompactProgress
+//                ),
+//                leading: 12,
+//                bottom: 4,
+//                trailing: 12
+//            )
+//        )
+        
+        Picker("", selection: $selectedTabIndex) {
+            Text("总览").tag(0)
+            Text("趋势").tag(1)
+            Text("上月").tag(2)
         }
+        .pickerStyle(.segmented)
+        .textCase(nil)
         .glassEffect()
-        .clipShape(Capsule())
         .padding(
             EdgeInsets(
                 top: RichCompactLayout.headerTopPadding(

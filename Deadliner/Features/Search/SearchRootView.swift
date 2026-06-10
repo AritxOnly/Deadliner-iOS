@@ -144,6 +144,7 @@ struct RichSearchTabView: View {
             }
             .modifier(SearchListStyleModifier(useInsetGrouped: isBrowsingHome))
             .scrollContentBackground(.hidden)
+            .deadlinerScrollEdgeEffect()
             .animation(.smooth(duration: 0.22, extraBounce: 0), value: isBrowsingHome)
             .richCompactNavigationTitle("搜索")
             .searchable(text: $query, prompt: searchPrompt)

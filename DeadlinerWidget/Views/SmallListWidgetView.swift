@@ -209,7 +209,7 @@ private struct HarmonyCompactTaskRow: View {
         case .near:
             return .orange.opacity(0.86)
         case .normal:
-            return style.brand
+            return style.normalIndicator
         }
     }
 
@@ -318,6 +318,7 @@ private struct SmallListWidgetStyle {
     let brand: Color
     let badgeFill: Color
     let badgeStroke: Color
+    let normalIndicator: Color
     let rowBaseFill: Color
     let rowFill: Color
     let rowHighlight: Color
@@ -347,13 +348,14 @@ private struct SmallListWidgetStyle {
         let secondaryText = isDark ? Color.white.opacity(0.68) : Color.primary.opacity(0.52)
         let badgeFill = isDark ? Color.white.opacity(0.042) : .black.opacity(0.06)
         let badgeStroke = isDark ? Color.white.opacity(0.09) : Color.white.opacity(0.16)
-        let rowBaseFill = isDark ? Color(red: 0.055, green: 0.075, blue: 0.13) : Color.white.opacity(0.84)
-        let rowStroke = isDark ? Color(red: 0.24, green: 0.33, blue: 0.52).opacity(0.42) : Color.white.opacity(0.74)
+        let normalIndicator = isDark ? Color.accentColor.opacity(0.88) : Color.accentColor.opacity(0.90)
+        let rowBaseFill = isDark ? Color.white.opacity(0.07) : Color.white.opacity(0.84)
+        let rowStroke = isDark ? Color.white.opacity(0.08) : Color.white.opacity(0.74)
         let backgroundHighlight = isDark ? Color.white.opacity(0.026) : Color.white.opacity(0.32)
         let backgroundGlow = isDark ? Color.white.opacity(0.007) : Color.white.opacity(0.12)
         let baseBackground = isDark ? Color(red: 0.006, green: 0.008, blue: 0.012) : Color.white
         let normalRowHighlight = isDark
-            ? Color(red: 0.46, green: 0.60, blue: 0.92).opacity(0.16)
+            ? .white.opacity(0.03)
             : Color.white.opacity(0.42)
 
         if entry.remainingCount == 0 {
@@ -367,8 +369,9 @@ private struct SmallListWidgetStyle {
                 brand: isDark ? .green.opacity(0.92) : .green.opacity(0.82),
                 badgeFill: badgeFill,
                 badgeStroke: badgeStroke,
+                normalIndicator: normalIndicator,
                 rowBaseFill: rowBaseFill,
-                rowFill: isDark ? .green.opacity(0.028) : .green.opacity(0.03),
+                rowFill: isDark ? .white.opacity(0.015) : .green.opacity(0.03),
                 rowHighlight: normalRowHighlight,
                 rowStroke: rowStroke,
                 primaryText: primaryText,
@@ -387,6 +390,7 @@ private struct SmallListWidgetStyle {
                 brand: isDark ? Color.white.opacity(0.94) : Color.accentColor.opacity(0.84),
                 badgeFill: badgeFill,
                 badgeStroke: badgeStroke,
+                normalIndicator: normalIndicator,
                 rowBaseFill: rowBaseFill,
                 rowFill: isDark ? .red.opacity(0.03) : .red.opacity(0.03),
                 rowHighlight: normalRowHighlight,
@@ -407,6 +411,7 @@ private struct SmallListWidgetStyle {
                 brand: isDark ? Color.white.opacity(0.94) : Color.accentColor.opacity(0.84),
                 badgeFill: badgeFill,
                 badgeStroke: badgeStroke,
+                normalIndicator: normalIndicator,
                 rowBaseFill: rowBaseFill,
                 rowFill: isDark ? .orange.opacity(0.03) : .orange.opacity(0.03),
                 rowHighlight: normalRowHighlight,
@@ -427,8 +432,9 @@ private struct SmallListWidgetStyle {
             brand: isDark ? Color.white.opacity(0.94) : accent.opacity(0.90),
             badgeFill: badgeFill,
             badgeStroke: badgeStroke,
+            normalIndicator: normalIndicator,
             rowBaseFill: rowBaseFill,
-            rowFill: isDark ? accent.opacity(0.075) : accent.opacity(0.028),
+            rowFill: isDark ? .white.opacity(0.015) : accent.opacity(0.028),
             rowHighlight: normalRowHighlight,
             rowStroke: rowStroke,
             primaryText: primaryText,
