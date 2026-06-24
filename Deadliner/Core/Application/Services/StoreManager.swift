@@ -19,7 +19,15 @@ private enum StoreReleaseGate {
 final class StoreManager: ObservableObject {
     private enum EntitlementRefreshReason {
         case passive
-        case postSync
+        case postSyncSettling
+        case postSyncFinal
+    }
+
+    enum RestorePurchasesResult {
+        case restored
+        case noRestorablePurchases
+        case cancelled
+        case failed(message: String)
     }
 
     static let shared = StoreManager()
@@ -112,17 +120,41 @@ final class StoreManager: ObservableObject {
     }
     
     /// 恢复购买
-    func restorePurchases() async {
+    func restorePurchases() async -> RestorePurchasesResult {
         if StoreReleaseGate.disableInAppPurchaseForCurrentRelease {
             userTier = .geek
             purchasedProductIDs.insert(geekProductID)
             log("restore bypassed by release gate")
-            return
+            return .restored
         }
 
         log("start restore purchases")
-        try? await AppStore.sync()
-        await updatePurchasedProducts(reason: .postSync)
+        do {
+            try await AppStore.sync()
+        } catch {
+            let message = restoreErrorMessage(for: error)
+            log("restore purchases sync failed: \(message)")
+            if message == Self.restoreCancelledMessage {
+                return .cancelled
+            }
+            return .failed(message: message)
+        }
+
+        let refreshReasons: [EntitlementRefreshReason] = [.postSyncSettling, .postSyncSettling, .postSyncFinal]
+        for (index, reason) in refreshReasons.enumerated() {
+            if index > 0 {
+                try? await Task.sleep(nanoseconds: 350_000_000)
+            }
+
+            let purchasedIDs = await updatePurchasedProducts(reason: reason)
+            if purchasedIDs.contains(geekProductID) {
+                log("restore purchases found entitlement on attempt \(index + 1)")
+                return .restored
+            }
+        }
+
+        log("restore purchases completed without restorable entitlements")
+        return .noRestorablePurchases
     }
 
     /// App 启动/回前台时调用：
@@ -137,12 +169,13 @@ final class StoreManager: ObservableObject {
         await updatePurchasedProducts(reason: .passive)
     }
 
-    private func updatePurchasedProducts(reason: EntitlementRefreshReason) async {
+    @discardableResult
+    private func updatePurchasedProducts(reason: EntitlementRefreshReason) async -> Set<String> {
         if StoreReleaseGate.disableInAppPurchaseForCurrentRelease {
             userTier = .geek
             purchasedProductIDs = [geekProductID]
             hasGeekEntitlementCache = true
-            return
+            return purchasedProductIDs
         }
 
         var purchasedIDs = Set<String>()
@@ -157,16 +190,20 @@ final class StoreManager: ObservableObject {
         
         // 稳定性策略：
         // - 读取到有效权益时，立即升级并缓存
-        // - 读取为空时，只有 postSync（成功 AppStore.sync 之后）才允许降级
-        //   被动刷新（启动/回前台/监听）不做降级，避免弱网或临时抖动导致误判
+        // - 被动刷新读取为空时不做降级，避免弱网或临时抖动导致误判
+        // - 恢复购买后的前几次轮询先等待 StoreKit 权益稳定，最终轮询才允许降级
         if purchasedIDs.contains(geekProductID) {
             userTier = .geek
             hasGeekEntitlementCache = true
         } else {
             switch reason {
-            case .postSync:
+            case .postSyncFinal:
                 userTier = .free
                 hasGeekEntitlementCache = false
+            case .postSyncSettling:
+                if !hasGeekEntitlementCache {
+                    userTier = .free
+                }
             case .passive:
                 if !hasGeekEntitlementCache {
                     userTier = .free
@@ -175,6 +212,7 @@ final class StoreManager: ObservableObject {
         }
         let entitlements = purchasedIDs.sorted().joined(separator: ", ")
         log("current entitlements: [\(entitlements)] reason=\(String(describing: reason)) cache=\(hasGeekEntitlementCache) => userTier=\(userTier.rawValue)")
+        return purchasedIDs
     }
     
     private func handleTransaction(result: VerificationResult<StoreKit.Transaction>) async {
@@ -191,6 +229,25 @@ final class StoreManager: ObservableObject {
         case .verified(let safe):
             return safe
         }
+    }
+
+    private static let restoreCancelledMessage = "你已取消恢复购买。"
+
+    private func restoreErrorMessage(for error: Error) -> String {
+        if error is CancellationError {
+            return Self.restoreCancelledMessage
+        }
+
+        let nsError = error as NSError
+        if nsError.domain == SKErrorDomain, nsError.code == SKError.Code.paymentCancelled.rawValue {
+            return Self.restoreCancelledMessage
+        }
+
+        let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        if message.isEmpty || message == "(null)" {
+            return "暂时无法连接 App Store，请稍后重试。"
+        }
+        return message
     }
 
 }

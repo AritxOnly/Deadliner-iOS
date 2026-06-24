@@ -10,9 +10,11 @@ import SwiftUI
 struct RichSearchTabView: View {
     @Binding var query: String
     @Binding var overlayProgress: CGFloat
+    let focusRequestToken: Int
 
     @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
     @AppStorage(RichCompactLayout.settingKey) private var compactLayoutEnabled: Bool = false
+    @FocusState private var isSearchFieldFocused: Bool
     @State private var scope: SearchScope = .all
     @StateObject private var captureStore = CaptureStore()
     @State private var activeTasks: [DDLItem] = []
@@ -148,6 +150,7 @@ struct RichSearchTabView: View {
             .animation(.smooth(duration: 0.22, extraBounce: 0), value: isBrowsingHome)
             .richCompactNavigationTitle("搜索")
             .searchable(text: $query, prompt: searchPrompt)
+            .searchFocused($isSearchFieldFocused)
             .navigationDestination(for: SearchBrowseCategory.self) { category in
                 SearchCategoryDetailView(
                     category: category,
@@ -189,6 +192,10 @@ struct RichSearchTabView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .captureInboxChanged)) { _ in
                 captureStore.reload()
+            }
+            .onChange(of: focusRequestToken) { _, _ in
+                guard #available(iOS 27.0, *) else { return }
+                isSearchFieldFocused = true
             }
             .sheet(item: $selectedTaskForEdit) { item in
                 EditTaskSheetView(repository: TaskRepository.shared, item: item)

@@ -163,7 +163,7 @@ struct IconSettingsView: View {
             }
 
         }
-        .deadlinerScrollEdgeEffect()
+        .deadlinerScrollEdgeEffect(forceImmersive: false)
         .navigationTitle("自定义图标")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showPaywall) {

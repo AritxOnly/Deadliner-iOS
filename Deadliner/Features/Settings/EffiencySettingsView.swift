@@ -47,6 +47,7 @@ struct EfficiencySettingsView: View {
                 }
             }
         }
+        .deadlinerScrollEdgeEffect(forceImmersive: false)
         .navigationTitle("科学记忆")
         .navigationBarTitleDisplayMode(.inline)
         .optionalTint(themeStore.switchTint)

@@ -35,7 +35,7 @@ struct UserPanelSheet: View {
                 Label("退出登录", systemImage: "rectangle.portrait.and.arrow.right")
             }
         }
-        .deadlinerScrollEdgeEffect()
+        .deadlinerScrollEdgeEffect(forceImmersive: false)
         .navigationTitle("个人面板")
         .navigationBarTitleDisplayMode(.inline)
     }

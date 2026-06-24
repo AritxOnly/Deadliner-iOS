@@ -70,7 +70,7 @@ struct ProPaywallView: View {
             await storeManager.updatePurchasedProducts()
             await storeManager.fetchProducts()
         }
-        .deadlinerScrollEdgeEffect()
+        .deadlinerScrollEdgeEffect(forceImmersive: false)
     }
 
     private var paywallContent: some View {
@@ -107,7 +107,7 @@ struct ProPaywallView: View {
                 }
                 .padding(.bottom, 22)
             }
-            .deadlinerScrollEdgeEffect()
+            .deadlinerScrollEdgeEffect(forceImmersive: false)
 
             VStack(spacing: 10) {
                 if effectiveTier == .free {
@@ -365,13 +365,19 @@ struct ProPaywallView: View {
         isRestoring = true
 
         Task {
-            await storeManager.restorePurchases()
-            await storeManager.updatePurchasedProducts()
+            let result = await storeManager.restorePurchases()
             await MainActor.run {
                 isRestoring = false
-                restoreResultMessage = effectiveTier == .free
-                    ? "已完成恢复校验，当前未找到可恢复的会员权益。"
-                    : "恢复成功，当前会员权益已同步。"
+                switch result {
+                case .restored:
+                    restoreResultMessage = "恢复成功，当前会员权益已同步。"
+                case .noRestorablePurchases:
+                    restoreResultMessage = "已完成恢复校验，当前未找到可恢复的会员权益。"
+                case .cancelled:
+                    restoreResultMessage = "你已取消恢复购买。"
+                case .failed(let message):
+                    restoreResultMessage = "恢复购买未完成：\(message)"
+                }
                 showRestoreResult = true
             }
         }

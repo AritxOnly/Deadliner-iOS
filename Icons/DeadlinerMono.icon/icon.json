@@ -1,5 +1,8 @@
 {
   "color-space-for-untagged-svg-colors" : "display-p3",
+  "features" : [
+    "refractivity"
+  ],
   "fill-specializations" : [
     {
       "value" : {
@@ -32,7 +35,7 @@
           "value" : "normal"
         }
       ],
-      "blur-material" : 0.5,
+      "blur-material" : null,
       "hidden" : false,
       "layers" : [
         {
@@ -103,6 +106,11 @@
       "lighting" : "individual",
       "name" : "Pencil",
       "opacity" : 1,
+      "refractivity" : {
+        "depth" : 0.13,
+        "enabled" : true,
+        "strength" : 0.08
+      },
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 0.75
@@ -148,7 +156,25 @@
               0
             ]
           }
-        },
+        }
+      ],
+      "name" : "Calendar",
+      "refractivity" : {
+        "depth" : 0.04,
+        "enabled" : true,
+        "strength" : 0.3
+      },
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.1
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "layers" : [
         {
           "fill-specializations" : [
             {
@@ -177,26 +203,13 @@
             }
           ],
           "position" : {
-            "scale" : 1.05,
+            "scale" : 1.1,
             "translation-in-points" : [
               0,
-              5
+              0
             ]
           }
-        }
-      ],
-      "name" : "Calendar",
-      "shadow" : {
-        "kind" : "neutral",
-        "opacity" : 0.1
-      },
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
-      }
-    },
-    {
-      "layers" : [
+        },
         {
           "fill-specializations" : [
             {
@@ -236,14 +249,19 @@
         }
       ],
       "name" : "Bg",
+      "refractivity" : {
+        "depth" : 0,
+        "enabled" : true,
+        "strength" : 0.27
+      },
       "shadow" : {
         "kind" : "layer-color",
-        "opacity" : 0.1
+        "opacity" : 1.2
       },
       "specular" : true,
       "translucency" : {
         "enabled" : true,
-        "value" : 0.2
+        "value" : 0.5
       }
     }
   ],

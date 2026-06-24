@@ -1,5 +1,8 @@
 {
   "color-space-for-untagged-svg-colors" : "display-p3",
+  "features" : [
+    "refractivity"
+  ],
   "fill-specializations" : [
     {
       "value" : {
@@ -26,11 +29,13 @@
   ],
   "groups" : [
     {
-      "blur-material" : 0.5,
+      "blur-material" : null,
       "layers" : [
         {
+          "blend-mode" : "normal",
           "image-name" : "Details_pencil_summer 2.png",
           "name" : "Details_pencil_summer 2",
+          "opacity" : 0.95,
           "position" : {
             "scale" : 0.95,
             "translation-in-points" : [
@@ -40,11 +45,19 @@
           }
         }
       ],
+      "lighting" : "individual",
       "name" : "Pencil",
+      "opacity" : 1,
+      "refractivity" : {
+        "depth" : 0.11,
+        "enabled" : true,
+        "strength" : 0.08
+      },
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 0.1
       },
+      "specular" : true,
       "translucency" : {
         "enabled" : true,
         "value" : 0.25
@@ -55,6 +68,7 @@
         {
           "image-name" : "Base2 2.png",
           "name" : "Base2 2",
+          "opacity" : 0.78,
           "position" : {
             "scale" : 1.05,
             "translation-in-points" : [
@@ -62,33 +76,46 @@
               0
             ]
           }
-        },
-        {
-          "glass" : false,
-          "image-name" : "Base3.png",
-          "name" : "Base3",
-          "position" : {
-            "scale" : 1.05,
-            "translation-in-points" : [
-              0,
-              5
-            ]
-          }
         }
       ],
+      "lighting" : "individual",
       "name" : "Calendar",
+      "opacity" : 1,
+      "refractivity" : {
+        "depth" : 0.04,
+        "enabled" : true,
+        "strength" : 0.3
+      },
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 0.1
       },
+      "specular" : true,
       "translucency" : {
         "enabled" : true,
         "value" : 0.5
       }
     },
     {
+      "blur-material" : null,
       "layers" : [
         {
+          "fill" : {
+            "solid" : "display-p3:0.20750,0.46596,0.82454,1.00000"
+          },
+          "glass" : false,
+          "image-name" : "Base3.png",
+          "name" : "Base3",
+          "position" : {
+            "scale" : 1.1,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "glass" : true,
           "image-name" : "Base1 2.png",
           "name" : "Base1 2",
           "position" : {
@@ -101,14 +128,31 @@
         }
       ],
       "name" : "Bg",
+      "refractivity" : {
+        "depth" : 0,
+        "enabled" : true,
+        "strength" : 0.27
+      },
       "shadow" : {
         "kind" : "layer-color",
-        "opacity" : 0.1
+        "opacity" : 1.2
       },
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.2
-      }
+      "specular" : true,
+      "translucency-specializations" : [
+        {
+          "value" : {
+            "enabled" : true,
+            "value" : 0.5
+          }
+        },
+        {
+          "appearance" : "dark",
+          "value" : {
+            "enabled" : true,
+            "value" : 0.2
+          }
+        }
+      ]
     }
   ],
   "supported-platforms" : {

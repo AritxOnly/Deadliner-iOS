@@ -1,5 +1,8 @@
 {
   "color-space-for-untagged-svg-colors" : "display-p3",
+  "features" : [
+    "refractivity"
+  ],
   "fill-specializations" : [
     {
       "value" : {
@@ -26,11 +29,17 @@
   ],
   "groups" : [
     {
-      "blur-material" : 0.5,
+      "blur-material" : null,
       "layers" : [
         {
           "image-name" : "Details_pencil_spring 2.png",
           "name" : "Details_pencil_spring 2",
+          "opacity-specializations" : [
+            {
+              "appearance" : "dark",
+              "value" : 0.95
+            }
+          ],
           "position" : {
             "scale" : 0.95,
             "translation-in-points" : [
@@ -41,6 +50,11 @@
         }
       ],
       "name" : "Pencil",
+      "refractivity" : {
+        "depth" : 0.06765625,
+        "enabled" : true,
+        "strength" : 0.0998828125
+      },
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 0.1
@@ -54,8 +68,10 @@
       "blur-material" : 0.5,
       "layers" : [
         {
+          "blend-mode" : "normal",
           "image-name" : "Details_spring 2.png",
           "name" : "Details_spring 2",
+          "opacity" : 1,
           "position" : {
             "scale" : 1.05,
             "translation-in-points" : [
@@ -66,6 +82,11 @@
         }
       ],
       "name" : "Details",
+      "refractivity" : {
+        "depth" : 0.065390625,
+        "enabled" : true,
+        "strength" : 0.1649609375
+      },
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 0.5
@@ -81,6 +102,7 @@
         {
           "image-name" : "Base1_spring 2.png",
           "name" : "Base1_spring 2",
+          "opacity" : 0.78,
           "position" : {
             "scale" : 1.05,
             "translation-in-points" : [
@@ -88,24 +110,17 @@
               0
             ]
           }
-        },
-        {
-          "glass" : false,
-          "image-name" : "Base2_spring 2.png",
-          "name" : "Base2_spring 2",
-          "position" : {
-            "scale" : 1,
-            "translation-in-points" : [
-              0,
-              5
-            ]
-          }
         }
       ],
       "name" : "Calendar",
+      "refractivity" : {
+        "depth" : 0.04,
+        "enabled" : true,
+        "strength" : 0.3
+      },
       "shadow" : {
         "kind" : "neutral",
-        "opacity" : 0.5
+        "opacity" : 0.1
       },
       "translucency" : {
         "enabled" : true,
@@ -114,6 +129,21 @@
     },
     {
       "layers" : [
+        {
+          "fill" : {
+            "solid" : "display-p3:0.22768,0.49782,0.87233,1.00000"
+          },
+          "glass" : false,
+          "image-name" : "Base2_spring 2.png",
+          "name" : "Base2_spring 2",
+          "position" : {
+            "scale" : 1.1,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
+        },
         {
           "image-name" : "Base_spring 2.png",
           "name" : "Base_spring 2",
@@ -127,15 +157,31 @@
         }
       ],
       "name" : "Bg",
+      "refractivity" : {
+        "depth" : 0,
+        "enabled" : true,
+        "strength" : 0.27
+      },
       "shadow" : {
         "kind" : "layer-color",
-        "opacity" : 0.1
+        "opacity" : 1.2
       },
       "specular" : true,
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.1
-      }
+      "translucency-specializations" : [
+        {
+          "value" : {
+            "enabled" : true,
+            "value" : 0.2
+          }
+        },
+        {
+          "appearance" : "dark",
+          "value" : {
+            "enabled" : true,
+            "value" : 0.2
+          }
+        }
+      ]
     }
   ],
   "supported-platforms" : {

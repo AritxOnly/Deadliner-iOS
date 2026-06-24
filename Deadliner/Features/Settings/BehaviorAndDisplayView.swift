@@ -9,6 +9,8 @@ import SwiftUI
 
 struct BehaviorAndDisplayView: View {
     @EnvironmentObject private var themeStore: ThemeStore
+    @AppStorage(ScrollEdgeEffectPreference.useSystemImmersiveKey)
+    private var useSystemImmersive: Bool = ScrollEdgeEffectPreference.defaultUseSystemImmersive
 
     @State private var autoArchiveDays = 7
     @State private var tombstoneRetentionDays = 30
@@ -22,6 +24,11 @@ struct BehaviorAndDisplayView: View {
         Form {
             Section("界面显示") {
                 Toggle("主界面正向进度条", isOn: $progressDir)
+                Toggle("使用系统沉浸", isOn: $useSystemImmersive)
+
+                Text("打开后，未强制沉浸的页面会改用系统推荐的 automatic 滚动边缘效果。当前先用于灵感页。")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
             }
             
             Section("任务归档与清理") {
@@ -56,6 +63,7 @@ struct BehaviorAndDisplayView: View {
                     .foregroundColor(.secondary)
             }
         }
+        .deadlinerScrollEdgeEffect(forceImmersive: false)
         .navigationTitle("行为与交互")
         .navigationBarTitleDisplayMode(.inline)
         .optionalTint(themeStore.switchTint)

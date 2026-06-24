@@ -15,6 +15,8 @@ struct RichHomeTabView: View {
     @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
     @AppStorage(RichCompactLayout.settingKey) private var compactLayoutEnabled: Bool = false
     @State private var selectionMode = false
+    let showsAIToolbarItem: Bool
+    let onAITapped: () -> Void
     let onSettingsTapped: () -> Void
 
     var body: some View {
@@ -34,6 +36,12 @@ struct RichHomeTabView: View {
                 !selectionMode ? "Deadliner" : nil
             )
             .toolbar {
+                if showsAIToolbarItem && !selectionMode {
+                    ToolbarItem(placement: .topBarLeading) {
+                        aiButton
+                    }
+                }
+
                 ToolbarItem(placement: .topBarTrailing) {
                     settingsButton
                 }
@@ -77,6 +85,16 @@ struct RichHomeTabView: View {
         .accessibilityLabel("用户与设置")
         .accessibilityHint("打开用户面板与设置")
         .padding(.trailing, compactLayoutEnabled ? -8 : 0)
+    }
+
+    private var aiButton: some View {
+        Button {
+            onAITapped()
+        } label: {
+            Image("lifi.logo.v1")
+        }
+        .accessibilityLabel("Lifi AI")
+        .accessibilityHint("打开 Lifi AI")
     }
 }
 

@@ -33,6 +33,16 @@ enum RichTabBarTitles {
     static let defaultValue = true
 }
 
+enum SeperateSearchBar {
+    static let settingKey = "settings.home.rich.seperate_search_bar"
+    static let defaultValue = true
+}
+
+enum RichSeparateAIPage {
+    static let settingKey = "settings.home.rich.separate_ai_page"
+    static let defaultValue = true
+}
+
 private struct RichCompactNavigationTitleModifier: ViewModifier {
     @AppStorage(RichCompactLayout.settingKey) private var compactLayoutEnabled = false
 

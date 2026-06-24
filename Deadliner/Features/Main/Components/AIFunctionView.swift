@@ -136,14 +136,6 @@ struct AIFunctionView: View {
         }
         .navigationTitle(isExpanded ? "Lifi AI" : "")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("收起") {
-                    isInputFocused = false
-                }
-            }
-        }
         // 根据是否展开自动调整 Sheet 高度
         .modifier(AIFunctionDetentsModifier(
             useSheetDetents: useSheetDetents,

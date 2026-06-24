@@ -7,6 +7,11 @@
 
 import SwiftUI
 
+enum ScrollEdgeEffectPreference {
+    static let useSystemImmersiveKey = "settings.display.use_system_immersive"
+    static let defaultUseSystemImmersive = false
+}
+
 private struct OptionalTintModifier: ViewModifier {
     let color: Color?
 
@@ -26,11 +31,27 @@ extension View {
     }
 
     @ViewBuilder
-    func deadlinerScrollEdgeEffect() -> some View {
+    func deadlinerScrollEdgeEffect(forceImmersive: Bool = true) -> some View {
         if #available(iOS 26.0, macOS 26.0, tvOS 26.0, watchOS 26.0, *) {
-            scrollEdgeEffectStyle(.soft, for: .all)
+            modifier(DeadlinerScrollEdgeEffectModifier(forceImmersive: forceImmersive))
         } else {
             self
+        }
+    }
+}
+
+private struct DeadlinerScrollEdgeEffectModifier: ViewModifier {
+    let forceImmersive: Bool
+
+    @AppStorage(ScrollEdgeEffectPreference.useSystemImmersiveKey)
+    private var useSystemImmersive: Bool = ScrollEdgeEffectPreference.defaultUseSystemImmersive
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if forceImmersive || !useSystemImmersive {
+            content.scrollEdgeEffectStyle(.soft, for: .all)
+        } else {
+            content.scrollEdgeEffectStyle(.automatic, for: .all)
         }
     }
 }

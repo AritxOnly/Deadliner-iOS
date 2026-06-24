@@ -154,6 +154,7 @@ struct AccountAndSyncView: View {
                 Text("问题出现后，导出 `deadliner-sync.log` 并反馈。")
             }
         }
+        .deadlinerScrollEdgeEffect(forceImmersive: false)
         .navigationTitle("账号与云同步")
         .navigationBarTitleDisplayMode(.inline)
         .optionalTint(themeStore.switchTint)

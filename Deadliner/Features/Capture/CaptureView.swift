@@ -42,23 +42,16 @@ struct CaptureInboxView: View {
             if visibleItems.isEmpty {
                 emptyRow
             } else {
-                Section {
-                    ForEach(visibleItems) { item in
-                        noteRow(item)
-                    }
-                } header: {
-                    CaptureSectionHeader(
-                        title: "最近灵感",
-                        subtitle: selectionMode
-                            ? "选中多条后可以批量删除，或合并整理成一个任务 / 习惯。"
-                            : "先保留它的原始样子，之后再决定要不要变成任务或习惯。"
-                    )
+                notesHeaderRow
+
+                ForEach(visibleItems) { item in
+                    noteRow(item)
                 }
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .deadlinerScrollEdgeEffect()
+        .deadlinerScrollEdgeEffect(forceImmersive: false)
         .background(.clear)
         .toolbar {
             captureToolbar
@@ -162,6 +155,18 @@ struct CaptureInboxView: View {
         .padding(.vertical, 40)
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
+    }
+
+    private var notesHeaderRow: some View {
+        CaptureSectionHeader(
+            title: "最近灵感",
+            subtitle: selectionMode
+                ? "选中多条后可以批量删除，或合并整理成一个任务 / 习惯。"
+                : "先保留它的原始样子，之后再决定要不要变成任务或习惯。"
+        )
+        .listRowInsets(EdgeInsets(top: 10, leading: 0, bottom: 6, trailing: 0))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
     }
 
     @ToolbarContentBuilder

@@ -80,6 +80,7 @@ struct ThemeSettingsView: View {
             }
 
         }
+        .deadlinerScrollEdgeEffect(forceImmersive: false)
         .navigationTitle("App 主题")
         .navigationBarTitleDisplayMode(.inline)
         .optionalTint(themeStore.switchTint)
