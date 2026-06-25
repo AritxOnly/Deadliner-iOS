@@ -111,7 +111,7 @@ struct OverviewView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .deadlinerScrollEdgeEffect()
+            .deadlinerScrollEdgeEffect(forceImmersive: true)
 
             Divider()
 
@@ -127,7 +127,7 @@ struct OverviewView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .deadlinerScrollEdgeEffect()
+            .deadlinerScrollEdgeEffect(forceImmersive: true)
 
             Divider()
 
@@ -143,7 +143,7 @@ struct OverviewView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .deadlinerScrollEdgeEffect()
+            .deadlinerScrollEdgeEffect(forceImmersive: true)
         }
     }
 

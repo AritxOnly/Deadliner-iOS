@@ -51,16 +51,12 @@ private struct SemanticTopAtmosphereOverlay: View {
         let topOverflow: CGFloat = 52
         let baseAlpha: CGFloat = colorScheme == .dark ? 0.82 : 1.0
         let topAlpha: CGFloat = max(0, baseAlpha - 0.52 * p)
-        let gradientTopOpacity: CGFloat = colorScheme == .dark ? 0.34 : 0.40
-        let gradientBottomOpacity: CGFloat = colorScheme == .dark ? 0.20 : 0.24
-        let orbOpacity: CGFloat = colorScheme == .dark ? 1.08 : 1.18
-        let bloomOpacity: CGFloat = colorScheme == .dark ? 1.10 : 1.22
 
         ZStack(alignment: .top) {
             LinearGradient(
                 colors: [
-                    palette.top.opacity(gradientTopOpacity),
-                    palette.bottom.opacity(gradientBottomOpacity),
+                    palette.top.opacity(0.30),
+                    palette.bottom.opacity(0.16),
                     Color.clear
                 ],
                 startPoint: .top,
@@ -74,7 +70,6 @@ private struct SemanticTopAtmosphereOverlay: View {
                 startRadius: 30,
                 endRadius: max(height * 0.82, 1)
             )
-            .opacity(orbOpacity)
             .frame(height: max(height - 40, 0))
             .offset(x: -60, y: -20)
 
@@ -84,7 +79,6 @@ private struct SemanticTopAtmosphereOverlay: View {
                 startRadius: 20,
                 endRadius: max(height * 0.54, 1)
             )
-            .opacity(bloomOpacity)
             .frame(height: max(height - 80, 0))
             .offset(x: 36, y: 6)
         }

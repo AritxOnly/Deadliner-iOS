@@ -1,0 +1,151 @@
+{
+  "" : {
+    "const-values" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetExtension-primary.swiftconstvalues",
+    "dependencies" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetExtension-primary.d",
+    "diagnostics" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetExtension-primary.dia",
+    "emit-module-dependencies" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetExtension-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetExtension-primary-emit-module.dia",
+    "pch" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetExtension-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetExtension-primary.swiftdeps"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/Deadliner/App/Integration/Controls/OpenAddEntryIntent.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/OpenAddEntryIntent.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/OpenAddEntryIntent.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/OpenAddEntryIntent.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/Deadliner/Core/Domain/Enums/DeadlineEnums.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlineEnums.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlineEnums.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlineEnums.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/Deadliner/Core/Domain/Models/DDLItem.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DDLItem.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DDLItem.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DDLItem.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/Deadliner/Core/Domain/Models/DDLState.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DDLState.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DDLState.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DDLState.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/Deadliner/Core/Domain/Models/InnerTodo.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/InnerTodo.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/InnerTodo.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/InnerTodo.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/Deadliner/Core/Persistence/SharedModelContainer.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/SharedModelContainer.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/SharedModelContainer.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/SharedModelContainer.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/Deadliner/Core/Shared/DateParsing/DeadlineDateParser.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlineDateParser.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlineDateParser.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlineDateParser.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/Deadliner/Data/Persistence/Entities.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/Entities.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/Entities.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/Entities.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/Deadliner/Data/Persistence/Mappers/DDLItemEntity+Mapping.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DDLItemEntity+Mapping.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DDLItemEntity+Mapping.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DDLItemEntity+Mapping.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/Deadliner/Shared/UI/Components/LinearProgressView.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/LinearProgressView.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/LinearProgressView.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/LinearProgressView.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/AppIntent.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/AppIntent.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/AppIntent.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/AppIntent.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/DeadlinerWidget.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidget.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidget.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidget.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/DeadlinerWidgetBundle.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetBundle.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetBundle.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetBundle.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/DeadlinerWidgetControl.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetControl.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetControl.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetControl.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/DeadlinerWidgetLiveActivity.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetLiveActivity.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetLiveActivity.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetLiveActivity.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/ListSmallWidget.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/ListSmallWidget.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/ListSmallWidget.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/ListSmallWidget.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/Models/DDLItem+WidgetMock.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DDLItem+WidgetMock.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DDLItem+WidgetMock.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DDLItem+WidgetMock.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/Models/DeadlinerEntry.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerEntry.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerEntry.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerEntry.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/Providers/DeadlinerWidgetProvider.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetProvider.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetProvider.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetProvider.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/Utilities/DeadlinerWidgetHelpers.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetHelpers.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetHelpers.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetHelpers.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/Views/CompactTaskRow.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/CompactTaskRow.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/CompactTaskRow.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/CompactTaskRow.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/Views/DeadlinerWidgetEntryView.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetEntryView.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetEntryView.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/DeadlinerWidgetEntryView.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/Views/LockScreenCircularWidgetView.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/LockScreenCircularWidgetView.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/LockScreenCircularWidgetView.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/LockScreenCircularWidgetView.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/Views/LockScreenRectangularWidgetView.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/LockScreenRectangularWidgetView.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/LockScreenRectangularWidgetView.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/LockScreenRectangularWidgetView.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/Views/MediumHomeWidgetView.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/MediumHomeWidgetView.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/MediumHomeWidgetView.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/MediumHomeWidgetView.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/Views/SmallHomeWidgetView.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/SmallHomeWidgetView.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/SmallHomeWidgetView.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/SmallHomeWidgetView.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/Views/SmallListWidgetView.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/SmallListWidgetView.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/SmallListWidgetView.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/SmallListWidgetView.o"
+  },
+  "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "index-unit-output-path" : "/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/aritxonly/Codes/iOS/Deadliner/build/Deadliner.build/Release-iphoneos/DeadlinerWidgetExtension.build/Objects-normal/arm64/GeneratedAssetSymbols.o"
+  }
+}

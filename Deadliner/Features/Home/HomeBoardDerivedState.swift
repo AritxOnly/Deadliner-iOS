@@ -8,6 +8,23 @@
 import Foundation
 import CoreGraphics
 
+struct HomeTaskRowState: Identifiable {
+    let index: Int
+    let item: DDLItem
+    let status: DDLStatus
+    let remainingTimeText: String
+    let progress: CGFloat
+
+    var id: String { "task-\(item.id)" }
+}
+
+struct HomeHabitRowState: Identifiable {
+    let index: Int
+    let item: HabitWithDailyStatus
+
+    var id: String { "habit-\(item.habit.id)" }
+}
+
 enum HomeTaskPresentation {
     static func status(for item: DDLItem, now: Date = Date()) -> DDLStatus {
         if item.state.isAbandonedLike { return .abandoned }
@@ -62,96 +79,100 @@ enum HomeTaskPresentation {
 struct HomeBoardDerivedState {
     let query: String
     let taskSegment: TaskSegment
-    let tasks: [DDLItem]
-    let displayHabits: [HabitWithDailyStatus]
     let selection: HomeBoardSelectionState
     let compactLayoutProgress: CGFloat?
     let scrollProgress: CGFloat
     let todayHabitCompletionRatio: Double
+    let filteredTasks: [DDLItem]
+    let displayHabits: [HabitWithDailyStatus]
+    let selectedTasks: [DDLItem]
+    let selectedHabits: [Habit]
+    let selectedCount: Int
+    let openTasks: [DDLItem]
+    let completedTaskCount: Int
+    let nearTaskCount: Int
+    let overdueTaskCount: Int
+    let completedHabitCount: Int
+    let taskRows: [HomeTaskRowState]
+    let habitRows: [HomeHabitRowState]
+    let dashboardListTitle: String
+    let dashboardListSubtitle: String
+    let dashboardHeader: ExperimentalDashboardHeader
+    let currentAtmosphereTone: ImmersiveSurfaceTone
+    let validTaskIDs: Set<Int64>
+    let validHabitIDs: Set<Int64>
 
-    private let now = Date()
+    init(
+        query: String,
+        taskSegment: TaskSegment,
+        tasks: [DDLItem],
+        displayHabits: [HabitWithDailyStatus],
+        selection: HomeBoardSelectionState,
+        compactLayoutProgress: CGFloat?,
+        scrollProgress: CGFloat,
+        todayHabitCompletionRatio: Double,
+        progressDir: Bool
+    ) {
+        self.query = query
+        self.taskSegment = taskSegment
+        self.selection = selection
+        self.compactLayoutProgress = compactLayoutProgress
+        self.scrollProgress = scrollProgress
+        self.todayHabitCompletionRatio = todayHabitCompletionRatio
 
-    var compactLayoutEnabled: Bool {
-        compactLayoutProgress != nil
-    }
-
-    var effectiveCompactProgress: CGFloat {
-        compactLayoutProgress ?? scrollProgress
-    }
-
-    var filteredTasks: [DDLItem] {
+        let now = Date()
         let visibleTasks = tasks.filter(\.state.isMainListVisible)
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !trimmedQuery.isEmpty else { return visibleTasks }
-        return visibleTasks.filter {
-            $0.name.localizedCaseInsensitiveContains(trimmedQuery) ||
-            $0.note.localizedCaseInsensitiveContains(trimmedQuery) ||
-            $0.endTime.localizedCaseInsensitiveContains(trimmedQuery)
+        let filteredTasks: [DDLItem]
+        if trimmedQuery.isEmpty {
+            filteredTasks = visibleTasks
+        } else {
+            filteredTasks = visibleTasks.filter {
+                $0.name.localizedCaseInsensitiveContains(trimmedQuery) ||
+                $0.note.localizedCaseInsensitiveContains(trimmedQuery) ||
+                $0.endTime.localizedCaseInsensitiveContains(trimmedQuery)
+            }
         }
-    }
+        self.filteredTasks = filteredTasks
+        self.displayHabits = displayHabits
+        let selectedTasks = filteredTasks.filter { selection.containsTask($0.id) }
+        let selectedHabits = displayHabits.map(\.habit).filter { selection.containsHabit($0.id) }
+        let selectedCount = taskSegment == .tasks ? selectedTasks.count : selectedHabits.count
+        let openTasks = filteredTasks.filter { !$0.isCompleted && !$0.state.isAbandonedLike }
+        let completedTaskCount = filteredTasks.filter(\.isCompleted).count
+        let nearTaskCount = openTasks.filter { HomeTaskPresentation.status(for: $0, now: now) == .near }.count
+        let overdueTaskCount = openTasks.filter { HomeTaskPresentation.status(for: $0, now: now) == .passed }.count
+        let completedHabitCount = displayHabits.filter(\.isCompleted).count
 
-    var selectedTasks: [DDLItem] {
-        filteredTasks.filter { selection.containsTask($0.id) }
-    }
-
-    var selectedHabits: [Habit] {
-        displayHabits.map(\.habit).filter { selection.containsHabit($0.id) }
-    }
-
-    var selectedCount: Int {
-        taskSegment == .tasks ? selectedTasks.count : selectedHabits.count
-    }
-
-    var openTasks: [DDLItem] {
-        filteredTasks.filter { !$0.isCompleted && !$0.state.isAbandonedLike }
-    }
-
-    var completedTaskCount: Int {
-        filteredTasks.filter(\.isCompleted).count
-    }
-
-    var nearTaskCount: Int {
-        openTasks.filter { HomeTaskPresentation.status(for: $0, now: now) == .near }.count
-    }
-
-    var overdueTaskCount: Int {
-        openTasks.filter { HomeTaskPresentation.status(for: $0, now: now) == .passed }.count
-    }
-
-    var completedHabitCount: Int {
-        displayHabits.filter(\.isCompleted).count
-    }
-
-    var taskRows: [(index: Int, id: String, item: DDLItem)] {
-        Array(filteredTasks.enumerated()).map { entry in
-            (index: entry.offset, id: "task-\(entry.element.id)", item: entry.element)
+        self.selectedTasks = selectedTasks
+        self.selectedHabits = selectedHabits
+        self.selectedCount = selectedCount
+        self.openTasks = openTasks
+        self.completedTaskCount = completedTaskCount
+        self.nearTaskCount = nearTaskCount
+        self.overdueTaskCount = overdueTaskCount
+        self.completedHabitCount = completedHabitCount
+        self.taskRows = filteredTasks.enumerated().map { entry in
+            let item = entry.element
+            return HomeTaskRowState(
+                index: entry.offset,
+                item: item,
+                status: HomeTaskPresentation.status(for: item, now: now),
+                remainingTimeText: HomeTaskPresentation.remainingTimeText(for: item, now: now),
+                progress: HomeTaskPresentation.progress(for: item, progressDir: progressDir, now: now)
+            )
         }
-    }
-
-    var habitRows: [(index: Int, id: String, item: HabitWithDailyStatus)] {
-        Array(displayHabits.enumerated()).map { entry in
-            (index: entry.offset, id: "habit-\(entry.element.habit.id)", item: entry.element)
+        self.habitRows = displayHabits.enumerated().map { entry in
+            HomeHabitRowState(index: entry.offset, item: entry.element)
         }
-    }
 
-    var dashboardListTitle: String {
-        taskSegment == .tasks ? "任务列表" : "习惯列表"
-    }
-
-    var dashboardListSubtitle: String {
         if taskSegment == .tasks {
-            return openTasks.isEmpty
+            dashboardListTitle = "任务列表"
+            dashboardListSubtitle = openTasks.isEmpty
                 ? "今天的任务已经收完了，当前没有待推进任务"
                 : "列表保持在首屏，打开就能直接开始处理"
-        }
-        return displayHabits.isEmpty ? "当前没有可见习惯" : "保留进度概览，但把主要空间还给列表"
-    }
 
-    var dashboardHeader: ExperimentalDashboardHeader {
-        if taskSegment == .tasks {
             let summaryText: String
-
             if overdueTaskCount > 0 {
                 summaryText = "今天要先清掉最危险的几项。"
             } else if nearTaskCount > 0 {
@@ -162,7 +183,10 @@ struct HomeBoardDerivedState {
                 summaryText = ""
             }
 
-            return ExperimentalDashboardHeader(
+            let tone: ImmersiveSurfaceTone = overdueTaskCount > 0
+                ? .danger
+                : (nearTaskCount > 0 ? .warning : (openTasks.isEmpty ? .success : .accent))
+            dashboardHeader = ExperimentalDashboardHeader(
                 eyebrow: "TODAY BOARD",
                 title: "任务焦点",
                 subtitle: summaryText,
@@ -175,43 +199,42 @@ struct HomeBoardDerivedState {
                     ExperimentalDashboardMetric(id: "near", title: "临期", value: "\(nearTaskCount)"),
                     ExperimentalDashboardMetric(id: "done", title: "已完成", value: "\(completedTaskCount)")
                 ],
-                tone: overdueTaskCount > 0
-                    ? .danger
-                    : (nearTaskCount > 0
-                        ? .warning
-                        : (openTasks.isEmpty ? .success : .accent))
+                tone: tone
             )
+            currentAtmosphereTone = tone
+        } else {
+            let totalHabits = displayHabits.count
+            let progress = todayHabitCompletionRatio
+            let progressPercent = Int((progress * 100).rounded())
+            let summaryText = totalHabits == 0
+                ? "今天还没有可见习惯，先把列表空间留出来。"
+                : ""
+
+            dashboardListTitle = "习惯列表"
+            dashboardListSubtitle = displayHabits.isEmpty ? "当前没有可见习惯" : "保留进度概览，但把主要空间还给列表"
+            dashboardHeader = ExperimentalDashboardHeader(
+                eyebrow: "HABIT TRACKER",
+                title: "今日节奏",
+                subtitle: summaryText,
+                summaryLabel: "今日完成",
+                summaryValue: "\(progressPercent)%",
+                summaryDetail: "已打卡 \(completedHabitCount) / \(totalHabits)",
+                summaryProgress: progress,
+                metrics: [],
+                tone: totalHabits > 0 && progress >= 1 ? .success : .accent
+            )
+            currentAtmosphereTone = totalHabits > 0 && progress >= 1 ? .success : .accent
         }
 
-        let totalHabits = displayHabits.count
-        let progress = todayHabitCompletionRatio
-        let progressPercent = Int((progress * 100).rounded())
-        let summaryText = totalHabits == 0
-            ? "今天还没有可见习惯，先把列表空间留出来。"
-            : ""
-
-        return ExperimentalDashboardHeader(
-            eyebrow: "HABIT TRACKER",
-            title: "今日节奏",
-            subtitle: summaryText,
-            summaryLabel: "今日完成",
-            summaryValue: "\(progressPercent)%",
-            summaryDetail: "已打卡 \(completedHabitCount) / \(totalHabits)",
-            summaryProgress: progress,
-            metrics: [],
-            tone: totalHabits > 0 && progress >= 1 ? .success : .accent
-        )
+        validTaskIDs = Set(filteredTasks.map(\.id))
+        validHabitIDs = Set(displayHabits.map { $0.habit.id })
     }
 
-    var currentAtmosphereTone: ImmersiveSurfaceTone {
-        dashboardHeader.tone
+    var compactLayoutEnabled: Bool {
+        compactLayoutProgress != nil
     }
 
-    var validTaskIDs: Set<Int64> {
-        Set(filteredTasks.map(\.id))
-    }
-
-    var validHabitIDs: Set<Int64> {
-        Set(displayHabits.map { $0.habit.id })
+    var effectiveCompactProgress: CGFloat {
+        compactLayoutProgress ?? scrollProgress
     }
 }

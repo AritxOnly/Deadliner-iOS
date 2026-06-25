@@ -1,0 +1,16 @@
+{
+  "" : {
+    "const-values" : "/Users/aritxonly/Library/Developer/Xcode/DerivedData/Deadliner-bhsmbbajmghmshgyadwhuffuiysx/SourcePackages/checkouts/lottie-spm/build/Lottie.build/Release-iphoneos/_LottieStub.build/Objects-normal/arm64/_LottieStub-primary.swiftconstvalues",
+    "dependencies" : "/Users/aritxonly/Library/Developer/Xcode/DerivedData/Deadliner-bhsmbbajmghmshgyadwhuffuiysx/SourcePackages/checkouts/lottie-spm/build/Lottie.build/Release-iphoneos/_LottieStub.build/Objects-normal/arm64/_LottieStub-primary.d",
+    "diagnostics" : "/Users/aritxonly/Library/Developer/Xcode/DerivedData/Deadliner-bhsmbbajmghmshgyadwhuffuiysx/SourcePackages/checkouts/lottie-spm/build/Lottie.build/Release-iphoneos/_LottieStub.build/Objects-normal/arm64/_LottieStub-primary.dia",
+    "emit-module-dependencies" : "/Users/aritxonly/Library/Developer/Xcode/DerivedData/Deadliner-bhsmbbajmghmshgyadwhuffuiysx/SourcePackages/checkouts/lottie-spm/build/Lottie.build/Release-iphoneos/_LottieStub.build/Objects-normal/arm64/_LottieStub-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/aritxonly/Library/Developer/Xcode/DerivedData/Deadliner-bhsmbbajmghmshgyadwhuffuiysx/SourcePackages/checkouts/lottie-spm/build/Lottie.build/Release-iphoneos/_LottieStub.build/Objects-normal/arm64/_LottieStub-primary-emit-module.dia",
+    "pch" : "/Users/aritxonly/Library/Developer/Xcode/DerivedData/Deadliner-bhsmbbajmghmshgyadwhuffuiysx/SourcePackages/checkouts/lottie-spm/build/Lottie.build/Release-iphoneos/_LottieStub.build/Objects-normal/arm64/_LottieStub-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/aritxonly/Library/Developer/Xcode/DerivedData/Deadliner-bhsmbbajmghmshgyadwhuffuiysx/SourcePackages/checkouts/lottie-spm/build/Lottie.build/Release-iphoneos/_LottieStub.build/Objects-normal/arm64/_LottieStub-primary.swiftdeps"
+  },
+  "/Users/aritxonly/Library/Developer/Xcode/DerivedData/Deadliner-bhsmbbajmghmshgyadwhuffuiysx/SourcePackages/checkouts/lottie-spm/Sources/_LottieStub/Stub.swift" : {
+    "index-unit-output-path" : "/Lottie.build/Release-iphoneos/_LottieStub.build/Objects-normal/arm64/Stub.o",
+    "llvm-bc" : "/Users/aritxonly/Library/Developer/Xcode/DerivedData/Deadliner-bhsmbbajmghmshgyadwhuffuiysx/SourcePackages/checkouts/lottie-spm/build/Lottie.build/Release-iphoneos/_LottieStub.build/Objects-normal/arm64/Stub.bc",
+    "object" : "/Users/aritxonly/Library/Developer/Xcode/DerivedData/Deadliner-bhsmbbajmghmshgyadwhuffuiysx/SourcePackages/checkouts/lottie-spm/build/Lottie.build/Release-iphoneos/_LottieStub.build/Objects-normal/arm64/Stub.o"
+  }
+}

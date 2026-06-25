@@ -59,11 +59,18 @@ struct FocusMainView: View {
                     topTrailingToolbar
                     bottomToolbar
                 }
-                .deadlinerTopAtmosphereSceneBackground(
-                    progress: navGradientProgress,
-                    isAIConfigured: isAIConfigured,
-                    semanticTone: moduleAtmosphereTone
-                )
+                .background {
+                    ZStack(alignment: .top) {
+                        Color(uiColor: .systemGroupedBackground)
+                            .ignoresSafeArea()
+
+                        DeadlinerTopAtmosphereBackdrop(
+                            progress: navGradientProgress,
+                            isAIConfigured: isAIConfigured,
+                            semanticTone: moduleAtmosphereTone
+                        )
+                    }
+                }
                 .toolbarBackground(.hidden, for: .navigationBar)
                 .sheet(isPresented: $showAISheet) {
                     DeadlinerAIPanel()
@@ -180,9 +187,12 @@ struct FocusMainView: View {
                 ForEach(MainModule.allCases) { m in
                     Button {
                         withAnimation(.smooth(duration: 0.32, extraBounce: 0)) {
-                            resetScroll(for: m)
-                            module = m
-                            query = ""
+                            if module == m {
+                                resetScroll(for: m)
+                            } else {
+                                module = m
+                                query = ""
+                            }
                         }
                     } label: {
                         Label(m.title, systemImage: m.systemImage)

@@ -75,7 +75,8 @@ struct HomeBoardCoreView: View {
             selection: selection,
             compactLayoutProgress: compactLayoutProgress,
             scrollProgress: scrollProgress,
-            todayHabitCompletionRatio: vm.getTodayCompletionRatio()
+            todayHabitCompletionRatio: vm.getTodayCompletionRatio(),
+            progressDir: vm.progressDir
         )
     }
 
@@ -99,10 +100,6 @@ struct HomeBoardCoreView: View {
         viewState.selectedCount
     }
 
-    private var currentAtmosphereTone: ImmersiveSurfaceTone {
-        viewState.currentAtmosphereTone
-    }
-
     private var errorAlertPresented: Binding<Bool> {
         Binding(
             get: { vm.errorText != nil },
@@ -113,16 +110,17 @@ struct HomeBoardCoreView: View {
     }
     
     var body: some View {
+        let state = viewState
         GeometryReader { proxy in
             let isWide = proxy.size.width >= 840
             
             Group {
                 if experimentalLayoutActive {
-                    experimentalDashboardLayout
+                    experimentalDashboardLayout(state: state)
                 } else if isWide {
-                    twoColumnLayout
+                    twoColumnLayout(state: state)
                 } else {
-                    classicSingleColumnLayout
+                    classicSingleColumnLayout(state: state)
                 }
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: listAnimToken)
@@ -177,10 +175,10 @@ struct HomeBoardCoreView: View {
         .onAppear {
             vm.searchQuery = query
             onSelectionModeChange?(selection.isActive)
-            onAtmosphereToneChange?(currentAtmosphereTone)
+            onAtmosphereToneChange?(state.currentAtmosphereTone)
             tryOpenPendingTaskDetailIfNeeded()
         }
-        .onChange(of: currentAtmosphereTone) { _, newValue in
+        .onChange(of: state.currentAtmosphereTone) { _, newValue in
             onAtmosphereToneChange?(newValue)
         }
         .onReceive(NotificationCenter.default.publisher(for: .ddlOpenTaskDetail)) { notification in
@@ -268,17 +266,17 @@ struct HomeBoardCoreView: View {
         }
     }
 
-    private var classicSingleColumnLayout: some View {
+    private func classicSingleColumnLayout(state: HomeBoardDerivedState) -> some View {
         List {
             Section {
                 if taskSegment == .tasks {
-                    tasksSectionContent
+                    tasksSectionContent(state: state)
                 } else {
-                    habitsSectionContent
+                    habitsSectionContent(state: state)
                 }
             } header: {
-                if !viewState.compactLayoutEnabled {
-                    segmentedControl
+                if !state.compactLayoutEnabled {
+                    segmentedControl(state: state)
                 }
             }
         }
@@ -286,19 +284,19 @@ struct HomeBoardCoreView: View {
         .scrollContentBackground(.hidden)
         .deadlinerScrollEdgeEffect()
         .safeAreaInset(edge: .top, spacing: 0) {
-            if viewState.compactLayoutEnabled {
-                segmentedControlInset
+            if state.compactLayoutEnabled {
+                segmentedControlInset(state: state)
             }
         }
     }
 
     @ViewBuilder
-    private var experimentalDashboardLayout: some View {
+    private func experimentalDashboardLayout(state: HomeBoardDerivedState) -> some View {
         ExperimentalHomeDashboardView(
             segment: taskSegment,
-            dashboard: viewState.dashboardHeader,
-            listTitle: viewState.dashboardListTitle,
-            listSubtitle: viewState.dashboardListSubtitle,
+            dashboard: state.dashboardHeader,
+            listTitle: state.dashboardListTitle,
+            listSubtitle: state.dashboardListSubtitle,
             onSelectSegment: { taskSegment = $0 }
         ) {
             if taskSegment == .tasks {
@@ -308,18 +306,18 @@ struct HomeBoardCoreView: View {
             }
         } listContent: {
             if taskSegment == .tasks {
-                tasksSectionContent
+                tasksSectionContent(state: state)
             } else {
-                habitCardsContent
+                habitCardsContent(state: state)
             }
         }
     }
 
-    private var twoColumnLayout: some View {
+    private func twoColumnLayout(state: HomeBoardDerivedState) -> some View {
         HStack(spacing: 0) {
             List {
                 Section {
-                    tasksSectionContent
+                    tasksSectionContent(state: state)
                 } header: {
                     Text("任务")
                         .font(.headline)
@@ -329,13 +327,13 @@ struct HomeBoardCoreView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .deadlinerScrollEdgeEffect()
+            .deadlinerScrollEdgeEffect(forceImmersive: true)
 
             Divider()
 
             List {
                 Section {
-                    habitsSectionContent
+                    habitsSectionContent(state: state)
                 } header: {
                     Text("习惯")
                         .font(.headline)
@@ -345,18 +343,18 @@ struct HomeBoardCoreView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .deadlinerScrollEdgeEffect()
+            .deadlinerScrollEdgeEffect(forceImmersive: true)
         }
     }
 
     @ViewBuilder
-    private var tasksSectionContent: some View {
+    private func tasksSectionContent(state: HomeBoardDerivedState) -> some View {
         if vm.isLoading && vm.tasks.isEmpty {
             ProgressView("加载中...")
                 .frame(maxWidth: .infinity, alignment: .center)
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
-        } else if viewState.filteredTasks.isEmpty {
+        } else if state.filteredTasks.isEmpty {
             if isStagingRebuild {
                 ProgressView()
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -366,15 +364,15 @@ struct HomeBoardCoreView: View {
                 emptyView(text: "暂无任务", icon: "checklist")
             }
         } else {
-            ForEach(viewState.taskRows, id: \.id) { row in
+            ForEach(state.taskRows) { row in
                 FloatUpRow(index: row.index, maxLoad: 15, enable: true, animateToken: enterAnimToken) {
                     DDLItemCardSwipeable(
                         title: row.item.name,
-                        remainingTimeAlt: HomeTaskPresentation.remainingTimeText(for: row.item),
+                        remainingTimeAlt: row.remainingTimeText,
                         note: row.item.note,
-                        progress: HomeTaskPresentation.progress(for: row.item, progressDir: vm.progressDir),
+                        progress: row.progress,
                         isStarred: row.item.isStared,
-                        status: HomeTaskPresentation.status(for: row.item),
+                        status: row.status,
                         selectionMode: selectionMode,
                         selected: selection.containsTask(row.item.id),
                         onTap: {
@@ -435,15 +433,14 @@ struct HomeBoardCoreView: View {
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                 }
-                .id(row.id)
             }
         }
     }
 
     @ViewBuilder
-    private var habitsSectionContent: some View {
+    private func habitsSectionContent(state: HomeBoardDerivedState) -> some View {
         habitOverviewRows
-        habitCardsContent
+        habitCardsContent(state: state)
     }
 
     @ViewBuilder
@@ -476,12 +473,12 @@ struct HomeBoardCoreView: View {
     }
 
     @ViewBuilder
-    private var habitCardsContent: some View {
+    private func habitCardsContent(state: HomeBoardDerivedState) -> some View {
         if vm.displayHabits.isEmpty {
             emptyView(text: "暂无待打卡习惯", icon: "leaf")
                 .padding(.top, 40)
         } else {
-            ForEach(viewState.habitRows, id: \.id) { row in
+            ForEach(state.habitRows) { row in
                 FloatUpRow(index: row.index + 1, maxLoad: 15, enable: true, animateToken: enterAnimToken) {
                     let ebState = vm.getEbbinghausState(habit: row.item.habit, targetDate: vm.selectedDate)
                     HabitItemCard(
@@ -544,12 +541,11 @@ struct HomeBoardCoreView: View {
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                 }
-                .id(row.id)
             }
         }
     }
 
-    private var segmentedControl: some View {
+    private func segmentedControl(state: HomeBoardDerivedState) -> some View {
 //        HStack {
 //            Picker("Task Segment", selection: $taskSegment) {
 //                ForEach(TaskSegment.allCases) { segment in
@@ -589,8 +585,8 @@ struct HomeBoardCoreView: View {
                 top: selectionMode
                     ? -4
                     : RichCompactLayout.headerTopPadding(
-                        enabled: viewState.compactLayoutEnabled,
-                        progress: viewState.effectiveCompactProgress
+                        enabled: state.compactLayoutEnabled,
+                        progress: state.effectiveCompactProgress
                     ),
                 leading: 12,
                 bottom: 4,
@@ -599,8 +595,8 @@ struct HomeBoardCoreView: View {
         )
     }
 
-    private var segmentedControlInset: some View {
-        segmentedControl
+    private func segmentedControlInset(state: HomeBoardDerivedState) -> some View {
+        segmentedControl(state: state)
             .padding(.top, 8)
             .padding(.horizontal, 16)
             .padding(.bottom, 12)

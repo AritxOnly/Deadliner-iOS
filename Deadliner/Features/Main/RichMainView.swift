@@ -165,7 +165,6 @@ struct RichMainView: View {
             if newTab != .search {
                 searchUsesLocalAtmosphere = false
             }
-            resetScroll(for: newTab)
         }
         .onChange(of: separateAIPageEnabled) { _, newValue in
             if !newValue, selectedTab == .ai {
@@ -213,7 +212,6 @@ struct RichMainView: View {
         .onChange(of: themeStore.accentOption) { _, _ in
             applyTabBarAppearance()
         }
-        .deadlinerContainerSystemBackground()
     }
 
     private var homeTabContent: some View {
@@ -453,8 +451,11 @@ struct RichMainView: View {
 
     private func handleTabReselect(_ tab: RichMainTab) {
         guard #available(iOS 27.0, *) else { return }
-        guard tab == .search else { return }
-        searchFocusRequestToken += 1
+        if tab == .search {
+            searchFocusRequestToken += 1
+        } else {
+            resetScroll(for: tab)
+        }
     }
 
 }

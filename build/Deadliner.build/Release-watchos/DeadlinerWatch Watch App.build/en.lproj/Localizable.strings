@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>watch.board.action.archive</key>
+	<string>Archive</string>
+	<key>watch.board.action.clear-today</key>
+	<string>Clear Today</string>
+	<key>watch.board.action.delete</key>
+	<string>Delete</string>
+	<key>watch.board.action.give-up</key>
+	<string>Give Up</string>
+	<key>watch.board.action.postpone-day</key>
+	<string>Postpone 1 Day</string>
+	<key>watch.board.page.habits.count-caption</key>
+	<string>remaining / total</string>
+	<key>watch.board.page.habits.empty-body</key>
+	<string>The watch only shows habits that matter today.</string>
+	<key>watch.board.page.habits.empty-title</key>
+	<string>No habits due</string>
+	<key>watch.board.page.habits.title</key>
+	<string>Habits</string>
+	<key>watch.board.page.ideas.count-caption</key>
+	<string>recent / total</string>
+	<key>watch.board.page.ideas.empty-body</key>
+	<string>Recent inspirations from your phone appear here.</string>
+	<key>watch.board.page.ideas.empty-title</key>
+	<string>No ideas yet</string>
+	<key>watch.board.page.ideas.title</key>
+	<string>Ideas</string>
+	<key>watch.board.page.tasks.count-caption</key>
+	<string>active / total</string>
+	<key>watch.board.page.tasks.empty-body</key>
+	<string>The board only keeps the tasks you still need to care about.</string>
+	<key>watch.board.page.tasks.empty-title</key>
+	<string>Nothing active</string>
+	<key>watch.board.page.tasks.title</key>
+	<string>Tasks</string>
+	<key>watch.board.period.daily</key>
+	<string>Daily</string>
+	<key>watch.board.period.ebbinghaus</key>
+	<string>Review</string>
+	<key>watch.board.period.monthly</key>
+	<string>Monthly</string>
+	<key>watch.board.period.once</key>
+	<string>Once</string>
+	<key>watch.board.period.weekly</key>
+	<string>Weekly</string>
+	<key>watch.board.row.no-due-date</key>
+	<string>No due</string>
+	<key>watch.board.row.overdue</key>
+	<string>Overdue</string>
+</dict>
+</plist>

@@ -91,7 +91,7 @@ struct ImageCropper: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
         }
-        .deadlinerScrollEdgeEffect()
+        .deadlinerScrollEdgeEffect(forceImmersive: true)
     }
     
     private func cropAndFinish() {

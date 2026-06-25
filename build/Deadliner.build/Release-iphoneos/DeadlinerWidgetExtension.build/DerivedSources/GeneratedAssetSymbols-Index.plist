@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>colors</key>
+	<array/>
+	<key>images</key>
+	<array/>
+	<key>symbols</key>
+	<array>
+		<dict>
+			<key>catalogPath</key>
+			<string>/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/Assets.xcassets</string>
+			<key>objcSymbol</key>
+			<string>ACImageNameCreateTasks</string>
+			<key>relativePath</key>
+			<string>./create.tasks.symbolset</string>
+			<key>swiftSymbol</key>
+			<string>createTasks</string>
+		</dict>
+		<dict>
+			<key>catalogPath</key>
+			<string>/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/Assets.xcassets</string>
+			<key>objcSymbol</key>
+			<string>ACImageNameHasNearTasks</string>
+			<key>relativePath</key>
+			<string>./has.near.tasks.symbolset</string>
+			<key>swiftSymbol</key>
+			<string>hasNearTasks</string>
+		</dict>
+		<dict>
+			<key>catalogPath</key>
+			<string>/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/Assets.xcassets</string>
+			<key>objcSymbol</key>
+			<string>ACImageNameHasTasks</string>
+			<key>relativePath</key>
+			<string>./has.tasks.symbolset</string>
+			<key>swiftSymbol</key>
+			<string>hasTasks</string>
+		</dict>
+		<dict>
+			<key>catalogPath</key>
+			<string>/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/Assets.xcassets</string>
+			<key>objcSymbol</key>
+			<string>ACImageNameLifiLogoV1</string>
+			<key>relativePath</key>
+			<string>./lifi.logo.v1.symbolset</string>
+			<key>swiftSymbol</key>
+			<string>lifiLogoV1</string>
+		</dict>
+		<dict>
+			<key>catalogPath</key>
+			<string>/Users/aritxonly/Codes/iOS/Deadliner/DeadlinerWidget/Assets.xcassets</string>
+			<key>objcSymbol</key>
+			<string>ACImageNameNoMoreTasks</string>
+			<key>relativePath</key>
+			<string>./no.more.tasks.symbolset</string>
+			<key>swiftSymbol</key>
+			<string>noMoreTasks</string>
+		</dict>
+	</array>
+</dict>
+</plist>

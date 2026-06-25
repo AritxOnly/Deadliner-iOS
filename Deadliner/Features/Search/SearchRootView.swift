@@ -104,74 +104,85 @@ struct RichSearchTabView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                List {
-                    if isLoading {
-                        ProgressView("搜索索引加载中...")
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                            .padding(.top, 24)
-                    } else if isBrowsingHome {
-                        SearchBrowseHomeView(usesLocalAtmosphere: $usesLocalAtmosphere)
-                            .transition(
-                                .asymmetric(
-                                    insertion: .opacity,
-                                    removal: .opacity.combined(with: .move(edge: .top))
-                                )
-                            )
-                    } else {
-                        SearchResultsView(
-                            scope: $scope,
-                            compactHeaderTopPadding: RichCompactLayout.headerTopPadding(
-                                enabled: compactLayoutEnabled,
-                                progress: overlayProgress
-                            ),
-                            query: query,
-                            inspirations: captureStore.items,
-                            activeTasks: activeTasks,
-                            activeHabits: activeHabits,
-                            archivedTasks: archivedTasks,
-                            archivedHabits: archivedHabits,
-                            habitStatusMap: habitStatusMap,
-                            taskActions: taskActions,
-                            habitActions: habitActions,
-                            inspirationActions: inspirationActions
-                        )
+            List {
+                if isLoading {
+                    ProgressView("搜索索引加载中...")
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .padding(.top, 24)
+                } else if isBrowsingHome {
+                    SearchBrowseHomeView(usesLocalAtmosphere: $usesLocalAtmosphere)
                         .transition(
                             .asymmetric(
-                                insertion: .opacity.combined(with: .move(edge: .bottom)),
-                                removal: .opacity
+                                insertion: .opacity,
+                                removal: .opacity.combined(with: .move(edge: .top))
                             )
                         )
-                    }
-                }
-                .modifier(SearchListStyleModifier(useInsetGrouped: isBrowsingHome))
-                .scrollContentBackground(.hidden)
-                .deadlinerScrollEdgeEffect()
-                .animation(.smooth(duration: 0.22, extraBounce: 0), value: isBrowsingHome)
-                .richCompactNavigationTitle("搜索")
-                .searchable(text: $query, prompt: searchPrompt)
-                .searchFocused($isSearchFieldFocused)
-                .navigationDestination(for: SearchBrowseCategory.self) { category in
-                    SearchCategoryDetailView(
-                        category: category,
-                        activeTasks: SearchViewSupport.tasks(
-                            for: category,
-                            activeTasks: activeTasks,
-                            archivedTasks: archivedTasks
+                } else {
+                    SearchResultsView(
+                        scope: $scope,
+                        compactHeaderTopPadding: RichCompactLayout.headerTopPadding(
+                            enabled: compactLayoutEnabled,
+                            progress: overlayProgress
                         ),
-                        activeHabits: SearchViewSupport.habits(for: category, activeHabits: activeHabits),
-                        archivedTasks: SearchViewSupport.archivedTasks(for: category, archivedTasks: archivedTasks),
-                        archivedHabits: SearchViewSupport.archivedHabits(for: category, archivedHabits: archivedHabits),
+                        query: query,
+                        inspirations: captureStore.items,
+                        activeTasks: activeTasks,
+                        activeHabits: activeHabits,
+                        archivedTasks: archivedTasks,
+                        archivedHabits: archivedHabits,
                         habitStatusMap: habitStatusMap,
                         taskActions: taskActions,
                         habitActions: habitActions,
-                        usesLocalAtmosphere: $usesLocalAtmosphere
+                        inspirationActions: inspirationActions
+                    )
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .move(edge: .bottom)),
+                            removal: .opacity
+                        )
                     )
                 }
             }
+            .modifier(SearchListStyleModifier(useInsetGrouped: isBrowsingHome))
+            .scrollContentBackground(.hidden)
+            .deadlinerScrollEdgeEffect()
+            .animation(.smooth(duration: 0.22, extraBounce: 0), value: isBrowsingHome)
+            .richCompactNavigationTitle("搜索")
+            .searchable(text: $query, prompt: searchPrompt)
+            .searchFocused($isSearchFieldFocused)
+            .navigationDestination(for: SearchBrowseCategory.self) { category in
+                SearchCategoryDetailView(
+                    category: category,
+                    activeTasks: SearchViewSupport.tasks(
+                        for: category,
+                        activeTasks: activeTasks,
+                        archivedTasks: archivedTasks
+                    ),
+                    activeHabits: SearchViewSupport.habits(for: category, activeHabits: activeHabits),
+                    archivedTasks: SearchViewSupport.archivedTasks(for: category, archivedTasks: archivedTasks),
+                    archivedHabits: SearchViewSupport.archivedHabits(for: category, archivedHabits: archivedHabits),
+                    habitStatusMap: habitStatusMap,
+                    taskActions: taskActions,
+                    habitActions: habitActions,
+                    usesLocalAtmosphere: $usesLocalAtmosphere
+                )
+            }
             .toolbarBackground(.hidden, for: .navigationBar)
+            .background {
+                ZStack(alignment: .top) {
+                    Color(uiColor: .systemGroupedBackground)
+                        .ignoresSafeArea()
+
+                    DeadlinerTopAtmosphereBackdrop(
+                        progress: overlayProgress,
+                        isAIConfigured: isAIConfigured,
+                        semanticTone: .calm
+                    )
+                    .opacity(usesLocalAtmosphere ? 0 : 1)
+                }
+            }
             .task {
                 await reload()
             }
@@ -268,12 +279,6 @@ struct RichSearchTabView: View {
                     Text("任务将被标记为已放弃。")
                 }
             }
-            .deadlinerTopAtmosphereSceneBackground(
-                progress: overlayProgress,
-                isAIConfigured: isAIConfigured,
-                semanticTone: .calm,
-                overlayOpacity: usesLocalAtmosphere ? 0 : 1
-            )
         }
     }
 
@@ -315,21 +320,39 @@ struct RichSearchTabView: View {
     }
 
     private func reload() async {
-        isLoading = true
-        defer { isLoading = false }
+        await MainActor.run {
+            isLoading = true
+        }
 
         do {
             async let tasks = taskRepo.getDDLsByType(.task)
             async let habits = habitRepo.getAllHabits()
             let (allTasks, allHabits) = try await (tasks, habits)
 
-            activeTasks = allTasks.filter { !$0.isArchived }
-            archivedTasks = allTasks.filter { $0.isArchived }
-            activeHabits = allHabits.filter { $0.status != .archived }
-            archivedHabits = allHabits.filter { $0.status == .archived }
-            habitStatusMap = await buildHabitStatuses(for: activeHabits)
+            let activeTasks = allTasks.filter { !$0.isArchived }
+            let archivedTasks = allTasks.filter { $0.isArchived }
+            let activeHabits = allHabits.filter { $0.status != .archived }
+            let archivedHabits = allHabits.filter { $0.status == .archived }
+
+            await MainActor.run {
+                self.activeTasks = activeTasks
+                self.archivedTasks = archivedTasks
+                self.activeHabits = activeHabits
+                self.archivedHabits = archivedHabits
+                self.habitStatusMap = [:]
+                self.isLoading = false
+            }
+
+            let statuses = await buildHabitStatuses(for: activeHabits)
+            await MainActor.run {
+                guard self.activeHabits.map(\.id) == activeHabits.map(\.id) else { return }
+                self.habitStatusMap = statuses
+            }
         } catch {
             print("RichSearchTab reload failed: \(error)")
+            await MainActor.run {
+                isLoading = false
+            }
         }
     }
 
