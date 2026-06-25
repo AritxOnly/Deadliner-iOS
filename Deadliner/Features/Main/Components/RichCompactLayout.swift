@@ -43,6 +43,28 @@ enum RichSeparateAIPage {
     static let defaultValue = true
 }
 
+enum DashboardHomeLayout {
+    static let settingKey = "settings.home.rich.experimental_dashboard"
+    static let defaultValue = false
+}
+
+enum ExperimentalHomeAtmosphereStyle: String, CaseIterable, Identifiable {
+    case floatingGlow
+    case semanticTint
+
+    static let settingKey = "settings.home.rich.experimental_dashboard.atmosphere"
+    static let defaultValue: ExperimentalHomeAtmosphereStyle = .semanticTint
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .floatingGlow: return "浮光 Overlay"
+        case .semanticTint: return "沉浸语义色"
+        }
+    }
+}
+
 private struct RichCompactNavigationTitleModifier: ViewModifier {
     @AppStorage(RichCompactLayout.settingKey) private var compactLayoutEnabled = false
 

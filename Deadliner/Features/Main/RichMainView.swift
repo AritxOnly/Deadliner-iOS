@@ -31,12 +31,15 @@ private enum RichMainTab: String, Hashable {
 
 struct RichMainView: View {
     @EnvironmentObject private var themeStore: ThemeStore
+    @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
     @AppStorage(RichTabBarTitles.settingKey) private var richTabBarTitlesVisible: Bool = RichTabBarTitles.defaultValue
     @AppStorage(SeperateSearchBar.settingKey) private var seperateSearchBarVisible: Bool = SeperateSearchBar.defaultValue
     @AppStorage(RichSeparateAIPage.settingKey) private var separateAIPageEnabled: Bool = RichSeparateAIPage.defaultValue
+    @AppStorage(DashboardHomeLayout.settingKey) private var dashboardHomeLayoutEnabled: Bool = DashboardHomeLayout.defaultValue
 
     @State private var selectedTab: RichMainTab = .home
     @State private var homeTaskSegment: TaskSegment = .tasks
+    @State private var homeAtmosphereTone: ImmersiveSurfaceTone = .accent
     @State private var homeQuery: String = ""
 
     @State private var searchQuery: String = ""
@@ -53,6 +56,7 @@ struct RichMainView: View {
     @State private var aiResetToken = 0
     @State private var searchResetToken = 0
     @State private var searchFocusRequestToken = 0
+    @State private var searchUsesLocalAtmosphere = false
 
     private let repo: TaskRepository = TaskRepository.shared
     private let widgetLaunchDefaults = UserDefaults(suiteName: "group.top.aritxonly.deadliner.group")
@@ -61,9 +65,12 @@ struct RichMainView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
+            Color(uiColor: .systemGroupedBackground)
+                .ignoresSafeArea()
+
             TabView(selection: $selectedTab) {
                 if richTabBarTitlesVisible {
-                    Tab("清单", systemImage: "checklist", value: RichMainTab.home) {
+                    Tab(homeTabTitle, systemImage: homeTabSystemImage, value: RichMainTab.home) {
                         homeTabContent
                     }
 
@@ -94,8 +101,8 @@ struct RichMainView: View {
                     Tab(value: RichMainTab.home) {
                         homeTabContent
                     } label: {
-                        Image(systemName: "checklist")
-                            .accessibilityLabel("清单")
+                        Image(systemName: homeTabSystemImage)
+                            .accessibilityLabel(homeTabTitle)
                     }
 
                     Tab(value: RichMainTab.overview) {
@@ -155,6 +162,9 @@ struct RichMainView: View {
         .animation(.smooth(duration: 0.28, extraBounce: 0), value: selectedTab)
         .onChange(of: selectedTab) { _, newTab in
             navGradientProgress = 0
+            if newTab != .search {
+                searchUsesLocalAtmosphere = false
+            }
             resetScroll(for: newTab)
         }
         .onChange(of: separateAIPageEnabled) { _, newValue in
@@ -186,6 +196,7 @@ struct RichMainView: View {
                     .navigationTitle("用户与设置")
                     .navigationBarTitleDisplayMode(.large)
             }
+            .deadlinerContainerSystemBackground()
             .presentationDetents([.large])
         }
         .onAppear {
@@ -202,6 +213,7 @@ struct RichMainView: View {
         .onChange(of: themeStore.accentOption) { _, _ in
             applyTabBarAppearance()
         }
+        .deadlinerContainerSystemBackground()
     }
 
     private var homeTabContent: some View {
@@ -209,6 +221,8 @@ struct RichMainView: View {
             query: $homeQuery,
             taskSegment: $homeTaskSegment,
             overlayProgress: $navGradientProgress,
+            atmosphereTone: homeAtmosphereTone,
+            onAtmosphereToneChange: { homeAtmosphereTone = $0 },
             showsAIToolbarItem: !separateAIPageEnabled,
             onAITapped: {
                 showAISheet = true
@@ -245,7 +259,8 @@ struct RichMainView: View {
         RichSearchTabView(
             query: $searchQuery,
             overlayProgress: $navGradientProgress,
-            focusRequestToken: searchFocusRequestToken
+            focusRequestToken: searchFocusRequestToken,
+            usesLocalAtmosphere: $searchUsesLocalAtmosphere
         )
         .id(searchResetToken)
     }
@@ -257,6 +272,19 @@ struct RichMainView: View {
         }
         tabs.append(.search)
         return tabs
+    }
+
+    private var homeTabSystemImage: String {
+        dashboardHomeLayoutEnabled ? todayCalendarSystemImage : "checklist"
+    }
+
+    private var homeTabTitle: String {
+        dashboardHomeLayoutEnabled ? "今日" : "清单"
+    }
+
+    private var todayCalendarSystemImage: String {
+        let day = Calendar.current.component(.day, from: Date())
+        return (1...31).contains(day) ? "\(day).calendar" : "calendar"
     }
 
     private var floatingAddButton: some View {

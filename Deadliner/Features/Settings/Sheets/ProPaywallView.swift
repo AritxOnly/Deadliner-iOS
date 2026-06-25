@@ -71,6 +71,7 @@ struct ProPaywallView: View {
             await storeManager.fetchProducts()
         }
         .deadlinerScrollEdgeEffect(forceImmersive: false)
+        .deadlinerContainerSystemBackground()
     }
 
     private var paywallContent: some View {
@@ -108,6 +109,7 @@ struct ProPaywallView: View {
                 .padding(.bottom, 22)
             }
             .deadlinerScrollEdgeEffect(forceImmersive: false)
+            .deadlinerContainerSystemBackground()
 
             VStack(spacing: 10) {
                 if effectiveTier == .free {

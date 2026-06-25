@@ -11,9 +11,12 @@ struct RichHomeTabView: View {
     @Binding var query: String
     @Binding var taskSegment: TaskSegment
     @Binding var overlayProgress: CGFloat
+    let atmosphereTone: ImmersiveSurfaceTone
+    let onAtmosphereToneChange: (ImmersiveSurfaceTone) -> Void
 
     @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
     @AppStorage(RichCompactLayout.settingKey) private var compactLayoutEnabled: Bool = false
+    @AppStorage(DashboardHomeLayout.settingKey) private var dashboardHomeLayoutEnabled: Bool = DashboardHomeLayout.defaultValue
     @State private var selectionMode = false
     let showsAIToolbarItem: Bool
     let onAITapped: () -> Void
@@ -21,15 +24,9 @@ struct RichHomeTabView: View {
 
     var body: some View {
         NavigationStack {
-            HomeView(
-                query: $query,
-                taskSegment: $taskSegment,
-                onScrollProgressChange: { overlayProgress = $0 },
-                onSelectionModeChange: { selectionMode = $0 },
-                compactLayoutProgress: compactLayoutEnabled && !selectionMode ? overlayProgress : nil
-            )
+            homeContent
             .richCompactNavigationTitle(
-                "清单",
+                homeNavigationTitle,
                 inlineWhenCompact: selectionMode
             )
             .navigationLargeTitleOverride(
@@ -47,15 +44,36 @@ struct RichHomeTabView: View {
                 }
                 .sharedBackgroundVisibility(.hidden)
             }
-            .background {
-                ZStack(alignment: .top) {
-                    Color(uiColor: .systemGroupedBackground)
-                        .ignoresSafeArea()
-
-                    TopBarGradientOverlay(progress: overlayProgress, isAIConfigured: isAIConfigured)
-                }
-            }
             .toolbarBackground(.hidden, for: .navigationBar)
+            .deadlinerTopAtmosphereSceneBackground(
+                progress: overlayProgress,
+                isAIConfigured: isAIConfigured,
+                semanticTone: atmosphereTone
+            )
+        }
+        .deadlinerNavigationBarMinimizeOnScrollDown()
+    }
+
+    @ViewBuilder
+    private var homeContent: some View {
+        if dashboardHomeLayoutEnabled {
+            DashboardHomeView(
+                query: $query,
+                taskSegment: $taskSegment,
+                onScrollProgressChange: { overlayProgress = $0 },
+                onSelectionModeChange: { selectionMode = $0 },
+                onAtmosphereToneChange: onAtmosphereToneChange,
+                compactLayoutProgress: compactLayoutEnabled && !selectionMode ? overlayProgress : nil
+            )
+        } else {
+            HomeView(
+                query: $query,
+                taskSegment: $taskSegment,
+                onScrollProgressChange: { overlayProgress = $0 },
+                onSelectionModeChange: { selectionMode = $0 },
+                onAtmosphereToneChange: onAtmosphereToneChange,
+                compactLayoutProgress: compactLayoutEnabled && !selectionMode ? overlayProgress : nil
+            )
         }
     }
 
@@ -96,6 +114,10 @@ struct RichHomeTabView: View {
         .accessibilityLabel("Lifi AI")
         .accessibilityHint("打开 Lifi AI")
     }
+
+    private var homeNavigationTitle: String {
+        dashboardHomeLayoutEnabled ? "今日" : "清单"
+    }
 }
 
 struct RichArchiveTabView: View {
@@ -124,15 +146,12 @@ struct RichArchiveTabView: View {
                         .accessibilityLabel("删除所有归档")
                     }
                 }
-                .background {
-                    ZStack(alignment: .top) {
-                        Color(uiColor: .systemGroupedBackground)
-                            .ignoresSafeArea()
-
-                        TopBarGradientOverlay(progress: overlayProgress, isAIConfigured: isAIConfigured)
-                    }
-                }
                 .toolbarBackground(.hidden, for: .navigationBar)
+                .deadlinerTopAtmosphereSceneBackground(
+                    progress: overlayProgress,
+                    isAIConfigured: isAIConfigured,
+                    semanticTone: .neutral
+                )
         }
     }
 }
@@ -176,17 +195,14 @@ struct RichOverviewTabView: View {
                         .tint(.primary)
                     }
                 }
-                .background {
-                    ZStack(alignment: .top) {
-                        Color(uiColor: .systemGroupedBackground)
-                            .ignoresSafeArea()
-
-                        TopBarGradientOverlay(progress: overlayProgress, isAIConfigured: isAIConfigured)
-                    }
-                }
                 .sheet(isPresented: $showPaywall) {
                     ProPaywallView()
                 }
+                .deadlinerTopAtmosphereSceneBackground(
+                    progress: overlayProgress,
+                    isAIConfigured: isAIConfigured,
+                    semanticTone: .calm
+                )
         }
     }
 
@@ -237,20 +253,18 @@ struct RichInspirationTabView: View {
                     inlineWhenCompact: selectionMode
                 )
                 .toolbarBackground(.hidden, for: .navigationBar)
-                .background {
-                    ZStack(alignment: .top) {
-                        Color(uiColor: .systemGroupedBackground)
-                            .ignoresSafeArea()
-
-                        TopBarGradientOverlay(progress: overlayProgress, isAIConfigured: isAIConfigured)
-                    }
-                }
+                .deadlinerTopAtmosphereSceneBackground(
+                    progress: overlayProgress,
+                    isAIConfigured: isAIConfigured,
+                    semanticTone: .calm
+                )
         }
     }
 }
 
 struct RichAITabView: View {
     @Binding var overlayProgress: CGFloat
+
     @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
 
     var body: some View {
@@ -263,14 +277,11 @@ struct RichAITabView: View {
                 onScrollProgressChange: { overlayProgress = $0 }
             )
             .toolbarBackground(.hidden, for: .navigationBar)
-            .background {
-                ZStack(alignment: .top) {
-                    Color(uiColor: .systemGroupedBackground)
-                        .ignoresSafeArea()
-
-                    TopBarGradientOverlay(progress: overlayProgress, isAIConfigured: isAIConfigured)
-                }
-            }
+            .deadlinerTopAtmosphereSceneBackground(
+                progress: overlayProgress,
+                isAIConfigured: isAIConfigured,
+                semanticTone: .accent
+            )
         }
     }
 }

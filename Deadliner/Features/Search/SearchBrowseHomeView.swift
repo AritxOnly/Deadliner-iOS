@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct SearchBrowseHomeView: View {
+    @Binding var usesLocalAtmosphere: Bool
     private let browseCategories: [SearchBrowseCategory] = [.today, .upcoming, .starred, .archived]
     private let typeCategories: [SearchBrowseCategory] = [.tasks, .habits]
 
@@ -31,7 +32,7 @@ struct SearchBrowseHomeView: View {
         Group {
             if category == .archived {
                 NavigationLink {
-                    SearchArchiveContainerView()
+                    SearchArchiveContainerView(usesLocalAtmosphere: $usesLocalAtmosphere)
                 } label: {
                     browseRowLabel(category)
                 }

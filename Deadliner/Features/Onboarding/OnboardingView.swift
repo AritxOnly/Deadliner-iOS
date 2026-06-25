@@ -34,6 +34,7 @@ struct AppRootView: View {
             launchDecisionMade = true
         }
         .deadlinerScrollEdgeEffect()
+        .deadlinerContainerSystemBackground()
     }
 }
 

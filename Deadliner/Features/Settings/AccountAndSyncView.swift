@@ -155,6 +155,7 @@ struct AccountAndSyncView: View {
             }
         }
         .deadlinerScrollEdgeEffect(forceImmersive: false)
+        .deadlinerContainerSystemBackground()
         .navigationTitle("账号与云同步")
         .navigationBarTitleDisplayMode(.inline)
         .optionalTint(themeStore.switchTint)

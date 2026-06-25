@@ -186,6 +186,88 @@ struct AIGlowPalette {
             )
         }
     }
+
+    static func accentOnly(for color: Color) -> AIGlowPalette {
+        .init(
+            blue: color.adjusted(saturationBy: 0.04, brightnessBy: 0.02),
+            pink: color
+                .vividBlend(with: .pink, ratio: 0.18)
+                .adjusted(saturationBy: 0.04, brightnessBy: 0.04),
+            amber: color
+                .vividBlend(with: .orange, ratio: 0.22)
+                .adjusted(saturationBy: -0.02, brightnessBy: 0.10)
+        )
+    }
+}
+
+enum ImmersiveSurfaceTone: String, Sendable {
+    case accent
+    case success
+    case warning
+    case danger
+    case calm
+    case neutral
+}
+
+struct ImmersiveSurfacePalette {
+    let top: Color
+    let bottom: Color
+    let bloom: Color
+    let orb: Color
+    let veil: Color
+
+    static func semantic(tone: ImmersiveSurfaceTone, accent: Color) -> ImmersiveSurfacePalette {
+        switch tone {
+        case .accent:
+            return .init(
+                top: accent.opacity(0.52),
+                bottom: accent.opacity(0.22),
+                bloom: accent.opacity(0.24),
+                orb: .white.opacity(0.10),
+                veil: Color(uiColor: .secondarySystemBackground).opacity(0.06)
+            )
+        case .success:
+            return .init(
+                top: Color.green.opacity(0.52),
+                bottom: accent.opacity(0.14),
+                bloom: Color.green.opacity(0.18),
+                orb: Color.mint.opacity(0.14),
+                veil: Color(uiColor: .secondarySystemBackground).opacity(0.05)
+            )
+        case .warning:
+            return .init(
+                top: Color.orange.opacity(0.54),
+                bottom: accent.opacity(0.16),
+                bloom: Color.orange.opacity(0.20),
+                orb: Color.yellow.opacity(0.14),
+                veil: Color(uiColor: .secondarySystemBackground).opacity(0.05)
+            )
+        case .danger:
+            return .init(
+                top: Color.red.opacity(0.56),
+                bottom: Color.orange.opacity(0.18),
+                bloom: Color.red.opacity(0.22),
+                orb: Color.pink.opacity(0.12),
+                veil: Color(uiColor: .secondarySystemBackground).opacity(0.05)
+            )
+        case .calm:
+            return .init(
+                top: accent.opacity(0.34),
+                bottom: Color.mint.opacity(0.12),
+                bloom: Color.white.opacity(0.12),
+                orb: Color.cyan.opacity(0.10),
+                veil: Color(uiColor: .secondarySystemBackground).opacity(0.05)
+            )
+        case .neutral:
+            return .init(
+                top: Color.gray.opacity(0.36),
+                bottom: Color.secondary.opacity(0.14),
+                bloom: Color.white.opacity(0.10),
+                orb: Color.gray.opacity(0.10),
+                veil: Color(uiColor: .secondarySystemBackground).opacity(0.05)
+            )
+        }
+    }
 }
 
 enum ThemeDefaults {

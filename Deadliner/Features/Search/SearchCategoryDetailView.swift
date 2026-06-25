@@ -8,7 +8,6 @@
 import SwiftUI
 
 struct SearchCategoryDetailView: View {
-    @EnvironmentObject private var themeStore: ThemeStore
     let category: SearchBrowseCategory
     let activeTasks: [DDLItem]
     let activeHabits: [Habit]
@@ -17,6 +16,7 @@ struct SearchCategoryDetailView: View {
     let habitStatusMap: [Int64: HabitWithDailyStatus]
     let taskActions: SearchTaskActions
     let habitActions: SearchHabitActions
+    @Binding var usesLocalAtmosphere: Bool
     @State private var overlayProgress: CGFloat = 0
 
     private var hasContent: Bool {
@@ -62,21 +62,21 @@ struct SearchCategoryDetailView: View {
         .listStyle(.plain)
         .listSectionSpacing(.compact)
         .environment(\.defaultMinListRowHeight, 1)
+        .scrollContentBackground(.hidden)
         .deadlinerScrollEdgeEffect()
+        .deadlinerTopAtmosphereSceneBackground(
+            progress: overlayProgress,
+            isAIConfigured: false,
+            semanticTone: category.atmosphereTone
+        )
         .navigationTitle(category.title)
         .navigationBarTitleDisplayMode(.large)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .background {
-            ZStack(alignment: .top) {
-                Color(uiColor: .systemGroupedBackground)
-                    .ignoresSafeArea()
-
-                SearchCategoryTopOverlay(
-                    progress: overlayProgress,
-                    palette: category.overlayPalette,
-                    isEnabled: themeStore.overlayEnabled
-                )
-            }
+        .onAppear {
+            usesLocalAtmosphere = true
+        }
+        .onDisappear {
+            usesLocalAtmosphere = false
         }
         .onScrollGeometryChange(for: CGFloat.self) { geo in
             max(0, geo.contentOffset.y + geo.contentInsets.top)
@@ -238,111 +238,20 @@ struct SearchCategoryDetailView: View {
 }
 
 extension SearchBrowseCategory {
-    var overlayPalette: AIGlowPalette {
+    var atmosphereTone: ImmersiveSurfaceTone {
         switch self {
         case .today:
-            return .accentOnly(for: .orange)
+            return .warning
         case .upcoming:
-            return .accentOnly(for: .red)
+            return .danger
         case .starred:
-            return .accentOnly(for: .yellow)
+            return .warning
         case .archived:
-            return .accentOnly(for: .gray)
+            return .neutral
         case .tasks:
-            return .accentOnly(for: .blue)
+            return .accent
         case .habits:
-            return .accentOnly(for: .green)
-        }
-    }
-}
-
-struct SearchCategoryTopOverlay: View {
-    let progress: CGFloat
-    let palette: AIGlowPalette
-    let isEnabled: Bool
-
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        let p = min(max(progress, 0), 1)
-        let height: CGFloat = max(0, 340 - 340 * p)
-        let baseAlpha: CGFloat = colorScheme == .dark ? 0.60 : 0.95
-        let topAlpha: CGFloat = max(0, baseAlpha - 0.50 * p)
-
-        ZStack {
-            if isEnabled {
-                SearchCategoryGlowView(palette: palette)
-            }
-        }
-        .frame(height: height)
-        .allowsHitTesting(false)
-        .mask(
-            LinearGradient(
-                stops: [
-                    .init(color: .black.opacity(topAlpha), location: 0.0),
-                    .init(color: .black.opacity(0.0), location: 1.0)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-        .ignoresSafeArea(edges: .top)
-        .animation(.easeOut(duration: 0.15), value: p)
-        .animation(.easeInOut(duration: 0.2), value: isEnabled)
-    }
-}
-
-private struct SearchCategoryGlowView: View {
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var isAnimating = false
-
-    let palette: AIGlowPalette
-
-    var body: some View {
-        GeometryReader { proxy in
-            let h = proxy.size.height
-            let mid = colorScheme == .dark ? 0.6 : 0.85
-
-            ZStack {
-                RadialGradient(
-                    colors: [palette.blue, palette.blue.opacity(mid), palette.blue.opacity(0)],
-                    center: UnitPoint(
-                        x: isAnimating ? 0.22 : 0.11,
-                        y: isAnimating ? 0.28 : 0.40
-                    ),
-                    startRadius: 0,
-                    endRadius: h * 1.2
-                )
-                .opacity(isAnimating ? 1.0 : 0.76)
-
-                RadialGradient(
-                    colors: [palette.pink, palette.pink.opacity(mid), palette.pink.opacity(0)],
-                    center: UnitPoint(
-                        x: isAnimating ? 0.78 : 0.90,
-                        y: isAnimating ? 0.42 : 0.29
-                    ),
-                    startRadius: 0,
-                    endRadius: h * 1.2
-                )
-                .opacity(isAnimating ? 0.82 : 1.0)
-
-                RadialGradient(
-                    colors: [palette.amber, palette.amber.opacity(mid), palette.amber.opacity(0)],
-                    center: UnitPoint(
-                        x: isAnimating ? 0.57 : 0.43,
-                        y: isAnimating ? 0.79 : 0.93
-                    ),
-                    startRadius: 0,
-                    endRadius: h * 1.1
-                )
-                .opacity(isAnimating ? 0.96 : 0.70)
-            }
-            .onAppear {
-                guard !isAnimating else { return }
-                withAnimation(.easeInOut(duration: 4.2).repeatForever(autoreverses: true)) {
-                    isAnimating = true
-                }
-            }
+            return .success
         }
     }
 }

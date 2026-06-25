@@ -48,6 +48,7 @@ struct EfficiencySettingsView: View {
             }
         }
         .deadlinerScrollEdgeEffect(forceImmersive: false)
+        .deadlinerContainerSystemBackground()
         .navigationTitle("科学记忆")
         .navigationBarTitleDisplayMode(.inline)
         .optionalTint(themeStore.switchTint)

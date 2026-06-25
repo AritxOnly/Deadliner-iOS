@@ -11,6 +11,7 @@ struct RichSearchTabView: View {
     @Binding var query: String
     @Binding var overlayProgress: CGFloat
     let focusRequestToken: Int
+    @Binding var usesLocalAtmosphere: Bool
 
     @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
     @AppStorage(RichCompactLayout.settingKey) private var compactLayoutEnabled: Bool = false
@@ -103,79 +104,74 @@ struct RichSearchTabView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                if isLoading {
-                    ProgressView("搜索索引加载中...")
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .padding(.top, 24)
-                } else if isBrowsingHome {
-                    SearchBrowseHomeView()
+            ZStack {
+                List {
+                    if isLoading {
+                        ProgressView("搜索索引加载中...")
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .padding(.top, 24)
+                    } else if isBrowsingHome {
+                        SearchBrowseHomeView(usesLocalAtmosphere: $usesLocalAtmosphere)
+                            .transition(
+                                .asymmetric(
+                                    insertion: .opacity,
+                                    removal: .opacity.combined(with: .move(edge: .top))
+                                )
+                            )
+                    } else {
+                        SearchResultsView(
+                            scope: $scope,
+                            compactHeaderTopPadding: RichCompactLayout.headerTopPadding(
+                                enabled: compactLayoutEnabled,
+                                progress: overlayProgress
+                            ),
+                            query: query,
+                            inspirations: captureStore.items,
+                            activeTasks: activeTasks,
+                            activeHabits: activeHabits,
+                            archivedTasks: archivedTasks,
+                            archivedHabits: archivedHabits,
+                            habitStatusMap: habitStatusMap,
+                            taskActions: taskActions,
+                            habitActions: habitActions,
+                            inspirationActions: inspirationActions
+                        )
                         .transition(
                             .asymmetric(
-                                insertion: .opacity,
-                                removal: .opacity.combined(with: .move(edge: .top))
+                                insertion: .opacity.combined(with: .move(edge: .bottom)),
+                                removal: .opacity
                             )
                         )
-                } else {
-                    SearchResultsView(
-                        scope: $scope,
-                        compactHeaderTopPadding: RichCompactLayout.headerTopPadding(
-                            enabled: compactLayoutEnabled,
-                            progress: overlayProgress
+                    }
+                }
+                .modifier(SearchListStyleModifier(useInsetGrouped: isBrowsingHome))
+                .scrollContentBackground(.hidden)
+                .deadlinerScrollEdgeEffect()
+                .animation(.smooth(duration: 0.22, extraBounce: 0), value: isBrowsingHome)
+                .richCompactNavigationTitle("搜索")
+                .searchable(text: $query, prompt: searchPrompt)
+                .searchFocused($isSearchFieldFocused)
+                .navigationDestination(for: SearchBrowseCategory.self) { category in
+                    SearchCategoryDetailView(
+                        category: category,
+                        activeTasks: SearchViewSupport.tasks(
+                            for: category,
+                            activeTasks: activeTasks,
+                            archivedTasks: archivedTasks
                         ),
-                        query: query,
-                        inspirations: captureStore.items,
-                        activeTasks: activeTasks,
-                        activeHabits: activeHabits,
-                        archivedTasks: archivedTasks,
-                        archivedHabits: archivedHabits,
+                        activeHabits: SearchViewSupport.habits(for: category, activeHabits: activeHabits),
+                        archivedTasks: SearchViewSupport.archivedTasks(for: category, archivedTasks: archivedTasks),
+                        archivedHabits: SearchViewSupport.archivedHabits(for: category, archivedHabits: archivedHabits),
                         habitStatusMap: habitStatusMap,
                         taskActions: taskActions,
                         habitActions: habitActions,
-                        inspirationActions: inspirationActions
-                    )
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity.combined(with: .move(edge: .bottom)),
-                            removal: .opacity
-                        )
+                        usesLocalAtmosphere: $usesLocalAtmosphere
                     )
                 }
-            }
-            .modifier(SearchListStyleModifier(useInsetGrouped: isBrowsingHome))
-            .scrollContentBackground(.hidden)
-            .deadlinerScrollEdgeEffect()
-            .animation(.smooth(duration: 0.22, extraBounce: 0), value: isBrowsingHome)
-            .richCompactNavigationTitle("搜索")
-            .searchable(text: $query, prompt: searchPrompt)
-            .searchFocused($isSearchFieldFocused)
-            .navigationDestination(for: SearchBrowseCategory.self) { category in
-                SearchCategoryDetailView(
-                    category: category,
-                    activeTasks: SearchViewSupport.tasks(
-                        for: category,
-                        activeTasks: activeTasks,
-                        archivedTasks: archivedTasks
-                    ),
-                    activeHabits: SearchViewSupport.habits(for: category, activeHabits: activeHabits),
-                    archivedTasks: SearchViewSupport.archivedTasks(for: category, archivedTasks: archivedTasks),
-                    archivedHabits: SearchViewSupport.archivedHabits(for: category, archivedHabits: archivedHabits),
-                    habitStatusMap: habitStatusMap,
-                    taskActions: taskActions,
-                    habitActions: habitActions
-                )
             }
             .toolbarBackground(.hidden, for: .navigationBar)
-            .background {
-                ZStack(alignment: .top) {
-                    Color(uiColor: .systemGroupedBackground)
-                        .ignoresSafeArea()
-
-                    TopBarGradientOverlay(progress: overlayProgress, isAIConfigured: isAIConfigured)
-                }
-            }
             .task {
                 await reload()
             }
@@ -196,6 +192,9 @@ struct RichSearchTabView: View {
             .onChange(of: focusRequestToken) { _, _ in
                 guard #available(iOS 27.0, *) else { return }
                 isSearchFieldFocused = true
+            }
+            .onAppear {
+                usesLocalAtmosphere = false
             }
             .sheet(item: $selectedTaskForEdit) { item in
                 EditTaskSheetView(repository: TaskRepository.shared, item: item)
@@ -269,6 +268,12 @@ struct RichSearchTabView: View {
                     Text("任务将被标记为已放弃。")
                 }
             }
+            .deadlinerTopAtmosphereSceneBackground(
+                progress: overlayProgress,
+                isAIConfigured: isAIConfigured,
+                semanticTone: .calm,
+                overlayOpacity: usesLocalAtmosphere ? 0 : 1
+            )
         }
     }
 

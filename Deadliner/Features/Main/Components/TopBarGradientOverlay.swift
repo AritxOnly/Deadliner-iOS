@@ -10,25 +10,38 @@ import SwiftUI
 struct TopBarGradientOverlay: View {
     let progress: CGFloat   // 0...1
     let isAIConfigured: Bool
+    let paletteOverride: AIGlowPalette?
 
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var themeStore: ThemeStore
+
+    init(progress: CGFloat, isAIConfigured: Bool) {
+        self.progress = progress
+        self.isAIConfigured = isAIConfigured
+        self.paletteOverride = nil
+    }
+
+    init(progress: CGFloat, palette: AIGlowPalette) {
+        self.progress = progress
+        self.isAIConfigured = false
+        self.paletteOverride = palette
+    }
 
     var body: some View {
         let p = min(max(progress, 0), 1)
 
         // 高度随滚动缩短
         let h: CGFloat = max(0, 340 - 340 * p)
+        let topOverflow: CGFloat = 52
 
         let baseAlpha: CGFloat = colorScheme == .dark ? 0.60 : 0.95
         let topAlpha: CGFloat = max(0, baseAlpha - 0.50 * p)
 
         ZStack {
-            if themeStore.overlayEnabled {
-                AIVibrantGlowView(palette: themeStore.overlayPalette(isAIConfigured: isAIConfigured))
-            }
+            AIVibrantGlowView(palette: resolvedPalette)
         }
-        .frame(height: h)
+        .frame(height: h + topOverflow)
+        .offset(y: -topOverflow * 0.6)
         .allowsHitTesting(false)
         .mask(
             LinearGradient(
@@ -43,7 +56,10 @@ struct TopBarGradientOverlay: View {
         .ignoresSafeArea(edges: .top)
         .animation(.easeOut(duration: 0.15), value: p)
         .animation(.easeInOut(duration: 0.2), value: isAIConfigured)
-        .animation(.easeInOut(duration: 0.2), value: themeStore.overlayEnabled)
+    }
+
+    private var resolvedPalette: AIGlowPalette {
+        paletteOverride ?? themeStore.overlayPalette(isAIConfigured: isAIConfigured)
     }
 }
 

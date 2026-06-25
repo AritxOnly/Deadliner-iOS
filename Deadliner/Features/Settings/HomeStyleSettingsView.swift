@@ -36,6 +36,7 @@ struct HomeStyleSettingsView: View {
     @AppStorage(RichTabBarTitles.settingKey) private var richTabBarTitlesVisible: Bool = RichTabBarTitles.defaultValue
     @AppStorage(SeperateSearchBar.settingKey) private var seperateSearchBar: Bool = SeperateSearchBar.defaultValue
     @AppStorage(RichSeparateAIPage.settingKey) private var separateAIPageEnabled: Bool = RichSeparateAIPage.defaultValue
+    @AppStorage(DashboardHomeLayout.settingKey) private var dashboardHomeLayoutEnabled: Bool = DashboardHomeLayout.defaultValue
 
     var body: some View {
         List {
@@ -65,6 +66,14 @@ struct HomeStyleSettingsView: View {
                 }
             }
 
+            Section("主页布局") {
+                Toggle("今日看板布局", isOn: $dashboardHomeLayoutEnabled)
+
+                Text("打开后，主页会切换为顶部看板 + 列表的布局；关闭后则使用之前的默认列表布局。聚焦模式和丰富模式都会跟随这个设置。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             if selectedOption == .rich {
                 Section("丰富模式") {
                     Toggle("紧凑布局", isOn: $richCompactLayoutEnabled)
@@ -88,6 +97,7 @@ struct HomeStyleSettingsView: View {
             }
         }
         .deadlinerScrollEdgeEffect(forceImmersive: false)
+        .deadlinerContainerSystemBackground()
         .navigationTitle("主页风格")
         .navigationBarTitleDisplayMode(.inline)
     }

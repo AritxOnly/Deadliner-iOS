@@ -64,6 +64,7 @@ struct BehaviorAndDisplayView: View {
             }
         }
         .deadlinerScrollEdgeEffect(forceImmersive: false)
+        .deadlinerContainerSystemBackground()
         .navigationTitle("行为与交互")
         .navigationBarTitleDisplayMode(.inline)
         .optionalTint(themeStore.switchTint)

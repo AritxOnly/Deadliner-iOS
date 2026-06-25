@@ -9,14 +9,40 @@ import SwiftUI
 import SwiftData
 import os
 
+enum HomeBoardPresentationStyle {
+    case classic
+    case dashboard
+}
+
 struct HomeView: View {
     @Binding var query: String
     @Binding var taskSegment: TaskSegment
     var onScrollProgressChange: ((CGFloat) -> Void)? = nil
     var onSelectionModeChange: ((Bool) -> Void)? = nil
+    var onAtmosphereToneChange: ((ImmersiveSurfaceTone) -> Void)? = nil
     var compactLayoutProgress: CGFloat? = nil
-    
-    @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
+
+    var body: some View {
+        HomeBoardCoreView(
+            query: $query,
+            taskSegment: $taskSegment,
+            onScrollProgressChange: onScrollProgressChange,
+            onSelectionModeChange: onSelectionModeChange,
+            onAtmosphereToneChange: onAtmosphereToneChange,
+            compactLayoutProgress: compactLayoutProgress,
+            presentationStyle: .classic
+        )
+    }
+}
+
+struct HomeBoardCoreView: View {
+    @Binding var query: String
+    @Binding var taskSegment: TaskSegment
+    var onScrollProgressChange: ((CGFloat) -> Void)? = nil
+    var onSelectionModeChange: ((Bool) -> Void)? = nil
+    var onAtmosphereToneChange: ((ImmersiveSurfaceTone) -> Void)? = nil
+    var compactLayoutProgress: CGFloat? = nil
+    let presentationStyle: HomeBoardPresentationStyle
 
     @StateObject private var vm = HomeViewModel()
     @State private var pendingDeleteItems: [DDLItem] = []
@@ -37,40 +63,44 @@ struct HomeView: View {
     @State private var detailSheetDetent: PresentationDetent = .medium
     @State private var pendingOpenTaskDetailId: Int64? = nil
     
-    @State private var selectionMode: Bool = false
-    @State private var selectedTaskIDs = Set<Int64>()
-    @State private var selectedHabitIDs = Set<Int64>()
+    @State private var selection = HomeBoardSelectionState()
     @State private var scrollProgress: CGFloat = 0
 
-    private var compactLayoutEnabled: Bool {
-        compactLayoutProgress != nil
+    private var viewState: HomeBoardDerivedState {
+        HomeBoardDerivedState(
+            query: query,
+            taskSegment: taskSegment,
+            tasks: vm.tasks,
+            displayHabits: vm.displayHabits,
+            selection: selection,
+            compactLayoutProgress: compactLayoutProgress,
+            scrollProgress: scrollProgress,
+            todayHabitCompletionRatio: vm.getTodayCompletionRatio()
+        )
     }
 
-    private var effectiveCompactProgress: CGFloat {
-        compactLayoutProgress ?? scrollProgress
+    private var experimentalLayoutActive: Bool {
+        presentationStyle == .dashboard
     }
 
-    private var filteredTasks: [DDLItem] {
-        let visibleTasks = vm.tasks.filter(\.state.isMainListVisible)
-        return query.isEmpty ? visibleTasks : visibleTasks.filter {
-            $0.name.localizedCaseInsensitiveContains(query) ||
-            $0.note.localizedCaseInsensitiveContains(query) ||
-            $0.endTime.localizedCaseInsensitiveContains(query)
-        }
+    private var selectionMode: Bool {
+        selection.isActive
     }
-    
+
     private var selectedTasks: [DDLItem] {
-        filteredTasks.filter { selectedTaskIDs.contains($0.id) }
+        viewState.selectedTasks
     }
-    
+
     private var selectedHabits: [Habit] {
-        vm.displayHabits
-            .map(\.habit)
-            .filter { selectedHabitIDs.contains($0.id) }
+        viewState.selectedHabits
     }
-    
+
     private var selectedCount: Int {
-        taskSegment == .tasks ? selectedTasks.count : selectedHabits.count
+        viewState.selectedCount
+    }
+
+    private var currentAtmosphereTone: ImmersiveSurfaceTone {
+        viewState.currentAtmosphereTone
     }
 
     private var errorAlertPresented: Binding<Bool> {
@@ -87,10 +117,12 @@ struct HomeView: View {
             let isWide = proxy.size.width >= 840
             
             Group {
-                if isWide {
+                if experimentalLayoutActive {
+                    experimentalDashboardLayout
+                } else if isWide {
                     twoColumnLayout
                 } else {
-                    singleColumnLayout
+                    classicSingleColumnLayout
                 }
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: listAnimToken)
@@ -139,13 +171,17 @@ struct HomeView: View {
         .onChange(of: taskSegment) { _, _ in
             clearSelection()
         }
-        .onChange(of: selectionMode) { _, newValue in
+        .onChange(of: selection.isActive) { _, newValue in
             onSelectionModeChange?(newValue)
         }
         .onAppear {
             vm.searchQuery = query
-            onSelectionModeChange?(selectionMode)
+            onSelectionModeChange?(selection.isActive)
+            onAtmosphereToneChange?(currentAtmosphereTone)
             tryOpenPendingTaskDetailIfNeeded()
+        }
+        .onChange(of: currentAtmosphereTone) { _, newValue in
+            onAtmosphereToneChange?(newValue)
         }
         .onReceive(NotificationCenter.default.publisher(for: .ddlOpenTaskDetail)) { notification in
             let rawId = notification.userInfo?["taskId"] as? Int64
@@ -232,7 +268,7 @@ struct HomeView: View {
         }
     }
 
-    private var singleColumnLayout: some View {
+    private var classicSingleColumnLayout: some View {
         List {
             Section {
                 if taskSegment == .tasks {
@@ -241,7 +277,7 @@ struct HomeView: View {
                     habitsSectionContent
                 }
             } header: {
-                if !compactLayoutEnabled {
+                if !viewState.compactLayoutEnabled {
                     segmentedControl
                 }
             }
@@ -250,8 +286,31 @@ struct HomeView: View {
         .scrollContentBackground(.hidden)
         .deadlinerScrollEdgeEffect()
         .safeAreaInset(edge: .top, spacing: 0) {
-            if compactLayoutEnabled {
+            if viewState.compactLayoutEnabled {
                 segmentedControlInset
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var experimentalDashboardLayout: some View {
+        ExperimentalHomeDashboardView(
+            segment: taskSegment,
+            dashboard: viewState.dashboardHeader,
+            listTitle: viewState.dashboardListTitle,
+            listSubtitle: viewState.dashboardListSubtitle,
+            onSelectSegment: { taskSegment = $0 }
+        ) {
+            if taskSegment == .tasks {
+                EmptyView()
+            } else {
+                habitWeekRow
+            }
+        } listContent: {
+            if taskSegment == .tasks {
+                tasksSectionContent
+            } else {
+                habitCardsContent
             }
         }
     }
@@ -297,7 +356,7 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
-        } else if filteredTasks.isEmpty {
+        } else if viewState.filteredTasks.isEmpty {
             if isStagingRebuild {
                 ProgressView()
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -307,36 +366,36 @@ struct HomeView: View {
                 emptyView(text: "暂无任务", icon: "checklist")
             }
         } else {
-            ForEach(Array(filteredTasks.enumerated()), id: \.element.id) { idx, item in
-                FloatUpRow(index: idx, maxLoad: 15, enable: true, animateToken: enterAnimToken) {
+            ForEach(viewState.taskRows, id: \.id) { row in
+                FloatUpRow(index: row.index, maxLoad: 15, enable: true, animateToken: enterAnimToken) {
                     DDLItemCardSwipeable(
-                        title: item.name,
-                        remainingTimeAlt: remainingTimeText(for: item),
-                        note: item.note,
-                        progress: progress(for: item),
-                        isStarred: item.isStared,
-                        status: status(for: item),
+                        title: row.item.name,
+                        remainingTimeAlt: HomeTaskPresentation.remainingTimeText(for: row.item),
+                        note: row.item.note,
+                        progress: HomeTaskPresentation.progress(for: row.item, progressDir: vm.progressDir),
+                        isStarred: row.item.isStared,
+                        status: HomeTaskPresentation.status(for: row.item),
                         selectionMode: selectionMode,
-                        selected: selectedTaskIDs.contains(item.id),
+                        selected: selection.containsTask(row.item.id),
                         onTap: {
                             detailSheetDetent = .medium
-                            detailSheetItem = item
+                            detailSheetItem = row.item
                         },
                         onLongPressSelect: {
                             if selectionMode {
-                                toggleTaskSelection(item.id)
+                                toggleTaskSelection(row.item.id)
                             } else {
-                                enterTaskSelection(with: item.id)
+                                enterTaskSelection(with: row.item.id)
                             }
                         },
                         onToggleSelect: {
-                            toggleTaskSelection(item.id)
+                            toggleTaskSelection(row.item.id)
                         },
                         onComplete: {
-                            let wasCompleted = item.isCompleted
+                            let wasCompleted = row.item.isCompleted
                             let isNowCompleted = withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                 listAnimToken += 1
-                                return vm.toggleCompleteLocal(item)
+                                return vm.toggleCompleteLocal(row.item)
                             }
 
                             if isNowCompleted { confetti.fire() }
@@ -350,47 +409,56 @@ struct HomeView: View {
                                     isStagingRebuild = false
                                 }
                             }
-                            Task { await vm.persistToggleComplete(original: item) }
+                            Task { await vm.persistToggleComplete(original: row.item) }
                         },
                         onDelete: {
-                            pendingDeleteItems = [item]
+                            pendingDeleteItems = [row.item]
                             pendingDeleteHabits = []
                             showDeleteConfirm = true
                         },
                         onGiveUp: {
-                            if item.state.isAbandonedLike {
-                                Task { await vm.toggleGiveUpItem(item: item) }
+                            if row.item.state.isAbandonedLike {
+                                Task { await vm.toggleGiveUpItem(item: row.item) }
                             } else {
-                                pendingGiveUpItem = item
+                                pendingGiveUpItem = row.item
                                 showGiveUpConfirm = true
                             }
                         },
                         onArchive: {
-                            Task { await vm.toggleArchiveItem(item: item) }
+                            Task { await vm.toggleArchiveItem(item: row.item) }
                         },
                         onEdit: {
-                            editSheetItem = item
+                            editSheetItem = row.item
                         }
                     )
                     .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                 }
-                .id(item.id) // 🟢 关键修复：确保 List 复用时识别出新行
+                .id(row.id)
             }
         }
     }
 
     @ViewBuilder
     private var habitsSectionContent: some View {
-        // 1. 顶部进度
+        habitOverviewRows
+        habitCardsContent
+    }
+
+    @ViewBuilder
+    private var habitOverviewRows: some View {
         HabitProgressView(progress: vm.getTodayCompletionRatio())
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
             .padding(.vertical, 8)
             .id("habit-progress-\(enterAnimToken)")
 
-        // 2. 本周日期横条
+        habitWeekRow
+    }
+
+    @ViewBuilder
+    private var habitWeekRow: some View {
         WeekRow(
             weekOverview: vm.weekOverview,
             selectedDate: vm.selectedDate,
@@ -403,39 +471,43 @@ struct HomeView: View {
         )
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
         .padding(.bottom, 8)
+    }
 
+    @ViewBuilder
+    private var habitCardsContent: some View {
         if vm.displayHabits.isEmpty {
             emptyView(text: "暂无待打卡习惯", icon: "leaf")
                 .padding(.top, 40)
         } else {
-            ForEach(Array(vm.displayHabits.enumerated()), id: \.element.id) { idx, item in
-                FloatUpRow(index: idx + 1, maxLoad: 15, enable: true, animateToken: enterAnimToken) {
-                    let ebState = vm.getEbbinghausState(habit: item.habit, targetDate: vm.selectedDate)
+            ForEach(viewState.habitRows, id: \.id) { row in
+                FloatUpRow(index: row.index + 1, maxLoad: 15, enable: true, animateToken: enterAnimToken) {
+                    let ebState = vm.getEbbinghausState(habit: row.item.habit, targetDate: vm.selectedDate)
                     HabitItemCard(
-                        habit: item.habit,
-                        doneCount: item.doneCount,
-                        targetCount: item.targetCount,
-                        isCompleted: item.isCompleted,
-                        status: item.isCompleted ? .completed : .undergo,
+                        habit: row.item.habit,
+                        doneCount: row.item.doneCount,
+                        targetCount: row.item.targetCount,
+                        isCompleted: row.item.isCompleted,
+                        status: row.item.isCompleted ? .completed : .undergo,
                         remainingText: ebState.text,
-                        isSelected: selectedHabitIDs.contains(item.habit.id),
+                        isSelected: selection.containsHabit(row.item.habit.id),
                         selectionMode: selectionMode,
                         canToggle: (Calendar.current.startOfDay(for: vm.selectedDate) <= Calendar.current.startOfDay(for: Date())) && ebState.isDue,
                         onToggle: {
                             Task {
-                                let finished = await vm.toggleHabitRecord(item: item)
+                                let finished = await vm.toggleHabitRecord(item: row.item)
                                 if finished { confetti.fire() }
                             }
                         },
                         onToggleSelect: {
-                            toggleHabitSelection(item.habit.id)
+                            toggleHabitSelection(row.item.habit.id)
                         },
                         onLongPress: {
                             if selectionMode {
-                                toggleHabitSelection(item.habit.id)
+                                toggleHabitSelection(row.item.habit.id)
                             } else {
-                                enterHabitSelection(with: item.habit.id)
+                                enterHabitSelection(with: row.item.habit.id)
                             }
                         }
                     )
@@ -443,7 +515,7 @@ struct HomeView: View {
                         if !selectionMode {
                             Button {
                                 pendingDeleteItems = []
-                                pendingDeleteHabits = [item.habit]
+                                pendingDeleteHabits = [row.item.habit]
                                 showDeleteConfirm = true
                             } label: {
                                 Label("删除", systemImage: "trash")
@@ -451,7 +523,7 @@ struct HomeView: View {
                             .tint(.red)
                             
                             Button {
-                                editSheetHabit = item.habit
+                                editSheetHabit = row.item.habit
                             } label: {
                                 Label("编辑", systemImage: "pencil")
                             }
@@ -461,7 +533,7 @@ struct HomeView: View {
                     .swipeActions(edge: .leading, allowsFullSwipe: !selectionMode) {
                         if !selectionMode {
                             Button {
-                                Task { await vm.archiveHabit(item.habit) }
+                                Task { await vm.archiveHabit(row.item.habit) }
                             } label: {
                                 Label("归档", systemImage: "archivebox")
                             }
@@ -472,6 +544,7 @@ struct HomeView: View {
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                 }
+                .id(row.id)
             }
         }
     }
@@ -516,8 +589,8 @@ struct HomeView: View {
                 top: selectionMode
                     ? -4
                     : RichCompactLayout.headerTopPadding(
-                        enabled: compactLayoutEnabled,
-                        progress: effectiveCompactProgress
+                        enabled: viewState.compactLayoutEnabled,
+                        progress: viewState.effectiveCompactProgress
                     ),
                 leading: 12,
                 bottom: 4,
@@ -585,34 +658,22 @@ struct HomeView: View {
 
     private func enterTaskSelection(with id: Int64) {
         withAnimation(.smooth(duration: 0.24, extraBounce: 0)) {
-            selectionMode = true
-            selectedTaskIDs = [id]
-            selectedHabitIDs.removeAll()
+            selection.enterTask(id)
         }
     }
 
     private func enterHabitSelection(with id: Int64) {
         withAnimation(.smooth(duration: 0.24, extraBounce: 0)) {
-            selectionMode = true
-            selectedHabitIDs = [id]
-            selectedTaskIDs.removeAll()
+            selection.enterHabit(id)
         }
     }
 
     private func toggleTaskSelection(_ id: Int64) {
-        if selectedTaskIDs.contains(id) {
-            selectedTaskIDs.remove(id)
-        } else {
-            selectedTaskIDs.insert(id)
-        }
+        selection.toggleTask(id)
     }
 
     private func toggleHabitSelection(_ id: Int64) {
-        if selectedHabitIDs.contains(id) {
-            selectedHabitIDs.remove(id)
-        } else {
-            selectedHabitIDs.insert(id)
-        }
+        selection.toggleHabit(id)
     }
 
     private func requestDeleteSelected() {
@@ -628,18 +689,12 @@ struct HomeView: View {
     }
 
     private func sanitizeSelection() {
-        selectedTaskIDs = selectedTaskIDs.intersection(Set(filteredTasks.map(\.id)))
-        selectedHabitIDs = selectedHabitIDs.intersection(Set(vm.displayHabits.map { $0.habit.id }))
-        if selectionMode && selectedCount == 0 {
-            selectionMode = false
-        }
+        selection.sanitize(validTaskIDs: viewState.validTaskIDs, validHabitIDs: viewState.validHabitIDs)
     }
 
     private func clearSelection() {
         withAnimation(.smooth(duration: 0.24, extraBounce: 0)) {
-            selectionMode = false
-            selectedTaskIDs.removeAll()
-            selectedHabitIDs.removeAll()
+            selection.clear()
         }
     }
 
@@ -667,58 +722,4 @@ struct HomeView: View {
         .listRowBackground(Color.clear)
     }
 
-    // MARK: - Mapping Helpers (基础版)
-
-    private func status(for item: DDLItem) -> DDLStatus {
-        if item.state.isAbandonedLike { return .abandoned }
-        if item.isCompleted { return .completed }
-
-        guard let end = DeadlineDateParser.safeParseOptional(item.endTime) else { return .undergo }
-        let now = Date()
-        if end < now { return .passed }
-
-        let hours = end.timeIntervalSince(now) / 3600
-        if hours <= 24 { return .near }
-        return .undergo
-    }
-
-    private func remainingTimeText(for item: DDLItem) -> String {
-        if item.state.isAbandonedLike { return item.isArchived ? "已放弃归档" : "已放弃" }
-        if item.isCompleted { return "已完成" }
-        guard let end = DeadlineDateParser.safeParseOptional(item.endTime) else { return item.endTime }
-
-        let now = Date()
-        let diffSec = end.timeIntervalSince(now)
-        let diffHours = Int(floor(diffSec / 3600.0))
-
-        if diffSec < 0 {
-            return "已逾期 \(abs(diffHours)) 小时"
-        } else {
-            let days = diffHours / 24
-            let hours = diffHours % 24
-
-            if days > 0 {
-                return "\(days)天 \(hours)小时"
-            } else {
-                return hours == 0 ? "不足1小时" : "\(hours)小时"
-            }
-        }
-    }
-
-    /// 基础版本：用“开始-结束”时间窗估算进度；非法时间时返回 0
-    private func progress(for item: DDLItem) -> CGFloat {
-        guard let start = DeadlineDateParser.safeParseOptional(item.startTime), let end = DeadlineDateParser.safeParseOptional(item.endTime), end > start else {
-            return item.isCompleted ? 1 : 0
-        }
-        if item.isCompleted { return 1 }
-
-        let now = Date()
-        if now <= start { return 0 }
-        if now >= end { return 1 }
-
-        let p = now.timeIntervalSince(start) / end.timeIntervalSince(start)
-        let actualProgress = CGFloat(min(max(p, 0), 1))
-        let progress = vm.progressDir ? actualProgress : 1.0 - actualProgress
-        return progress
-    }
 }

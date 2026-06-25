@@ -244,6 +244,7 @@ struct SettingsView: View {
             }
         }
         .deadlinerScrollEdgeEffect(forceImmersive: false)
+        .deadlinerContainerSystemBackground()
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.inline)
         .alert("已开启新手引导", isPresented: $showGuideUnlockedAlert) {

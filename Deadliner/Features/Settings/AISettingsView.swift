@@ -92,6 +92,7 @@ struct AISettingsView: View {
             }
         }
         .deadlinerScrollEdgeEffect(forceImmersive: false)
+        .deadlinerContainerSystemBackground()
         .navigationTitle("Lifi AI")
         .navigationBarTitleDisplayMode(.inline)
         .optionalTint(themeStore.switchTint)

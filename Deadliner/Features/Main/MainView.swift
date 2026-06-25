@@ -14,6 +14,7 @@ struct FocusMainView: View {
 
     @State private var module: MainModule = .taskManagement
     @State private var taskSegment: TaskSegment = .tasks
+    @State private var homeAtmosphereTone: ImmersiveSurfaceTone = .accent
     @State private var query: String = ""
 
     @State private var showAISheet = false
@@ -25,6 +26,7 @@ struct FocusMainView: View {
     @AppStorage("settings.ai.last_analyzed_month") private var lastAnalyzedMonth: String = ""
     @AppStorage("userTier") private var userTier: UserTier = .free
     @AppStorage("userName") private var userName: String = "用户"
+    @AppStorage(DashboardHomeLayout.settingKey) private var dashboardHomeLayoutEnabled: Bool = DashboardHomeLayout.defaultValue
     
     let repo: TaskRepository = TaskRepository.shared
 
@@ -57,15 +59,11 @@ struct FocusMainView: View {
                     topTrailingToolbar
                     bottomToolbar
                 }
-                .background {
-                    ZStack(alignment: .top) {
-                        Color(uiColor: .systemGroupedBackground)
-                                            .ignoresSafeArea()
-                                        
-                        
-                        TopBarGradientOverlay(progress: navGradientProgress, isAIConfigured: isAIConfigured)
-                    }
-                }
+                .deadlinerTopAtmosphereSceneBackground(
+                    progress: navGradientProgress,
+                    isAIConfigured: isAIConfigured,
+                    semanticTone: moduleAtmosphereTone
+                )
                 .toolbarBackground(.hidden, for: .navigationBar)
                 .sheet(isPresented: $showAISheet) {
                     DeadlinerAIPanel()
@@ -87,6 +85,7 @@ struct FocusMainView: View {
                         .navigationTitle("用户与设置")
                         .navigationBarTitleDisplayMode(.large)
                     }
+                    .deadlinerContainerSystemBackground()
                     .presentationDetents([.large])
                 }
                 .sheet(isPresented: $showPaywall) {
@@ -110,13 +109,7 @@ struct FocusMainView: View {
     private var contentView: some View {
         switch module {
         case .taskManagement:
-            HomeView(query: $query, taskSegment: $taskSegment,
-                     onScrollProgressChange: { p in
-                         navGradientProgress = p
-                     },
-                     onSelectionModeChange: { isSelecting in
-                         homeSelectionMode = isSelecting
-                     })
+            focusHomeContent
             .id(taskManagementResetToken)
         case .insights:
             OverviewView(onScrollProgressChange: { p in
@@ -133,6 +126,48 @@ struct FocusMainView: View {
                 navGradientProgress = p
             })
             .id(archiveResetToken)
+        }
+    }
+
+    @ViewBuilder
+    private var focusHomeContent: some View {
+        if dashboardHomeLayoutEnabled {
+            DashboardHomeView(
+                query: $query,
+                taskSegment: $taskSegment,
+                onScrollProgressChange: { p in
+                    navGradientProgress = p
+                },
+                onSelectionModeChange: { isSelecting in
+                    homeSelectionMode = isSelecting
+                },
+                onAtmosphereToneChange: { homeAtmosphereTone = $0 }
+            )
+        } else {
+            HomeView(
+                query: $query,
+                taskSegment: $taskSegment,
+                onScrollProgressChange: { p in
+                    navGradientProgress = p
+                },
+                onSelectionModeChange: { isSelecting in
+                    homeSelectionMode = isSelecting
+                },
+                onAtmosphereToneChange: { homeAtmosphereTone = $0 }
+            )
+        }
+    }
+
+    private var moduleAtmosphereTone: ImmersiveSurfaceTone {
+        switch module {
+        case .taskManagement:
+            return homeAtmosphereTone
+        case .insights:
+            return .calm
+        case .inspiration:
+            return .calm
+        case .archive:
+            return .neutral
         }
     }
 

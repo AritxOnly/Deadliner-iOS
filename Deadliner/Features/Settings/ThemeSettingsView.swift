@@ -11,6 +11,7 @@ struct ThemeSettingsView: View {
     @EnvironmentObject private var themeStore: ThemeStore
 
     @AppStorage("userTier") private var userTier: UserTier = .free
+    @AppStorage(ExperimentalHomeAtmosphereStyle.settingKey) private var experimentalHomeAtmosphereRawValue: String = ExperimentalHomeAtmosphereStyle.defaultValue.rawValue
     @State private var showPaywall = false
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 4)
@@ -25,28 +26,28 @@ struct ThemeSettingsView: View {
             }
 
             Section {
-                Toggle(
-                    "启用顶部光效 Overlay",
-                    isOn: Binding(
-                        get: { themeStore.overlayEnabled },
-                        set: { themeStore.setOverlayEnabled($0) }
-                    )
-                )
+                Picker("顶部氛围", selection: atmosphereSelection) {
+                    ForEach(ExperimentalHomeAtmosphereStyle.allCases) { style in
+                        Text(style.title).tag(style.rawValue)
+                    }
+                }
 
-                Toggle(
-                    "AI 使用强调色三色方案",
-                    isOn: Binding(
-                        get: { themeStore.useAccentPaletteWhenAI },
-                        set: { themeStore.setUseAccentPaletteWhenAI($0) }
+                if selectedAtmosphereStyle == .floatingGlow {
+                    Toggle(
+                        "AI 使用强调色三色方案",
+                        isOn: Binding(
+                            get: { themeStore.useAccentPaletteWhenAI },
+                            set: { themeStore.setUseAccentPaletteWhenAI($0) }
+                        )
                     )
-                )
-                .disabled(!themeStore.overlayEnabled || isFreeUser)
+                    .disabled(isFreeUser)
+                }
             } header: {
-                Text("顶部 Overlay")
+                Text("顶部氛围")
             } footer: {
                 Text(isFreeUser
-                     ? "FREE 用户当前为只读预览。升级 Geek 后可启用并自定义顶部光效。"
-                     : "关闭后，首页顶栏不会显示任何光效。开启后，无 AI 时始终使用你这套强调色三色映射；有 AI 时默认使用品牌 AI 光效，但你可以切回强调色三色方案。")
+                     ? "FREE 用户当前为只读预览。升级 Geek 后可切换顶部氛围。"
+                     : atmosphereFooterText)
             }
             .disabled(isFreeUser)
             .opacity(isFreeUser ? 0.58 : 1)
@@ -81,9 +82,13 @@ struct ThemeSettingsView: View {
 
         }
         .deadlinerScrollEdgeEffect(forceImmersive: false)
+        .deadlinerContainerSystemBackground()
         .navigationTitle("App 主题")
         .navigationBarTitleDisplayMode(.inline)
         .optionalTint(themeStore.switchTint)
+        .onAppear {
+            syncLegacyOverlayState()
+        }
         .sheet(isPresented: $showPaywall) {
             ProPaywallView().presentationDetents([.large])
         }
@@ -97,7 +102,7 @@ struct ThemeSettingsView: View {
                     ThemeGlowPreview(
                         palette: themeStore.overlayPalette(isAIConfigured: true),
                         accent: themeStore.accentColor,
-                        enabled: themeStore.overlayEnabled
+                        atmosphereStyle: selectedAtmosphereStyle
                     )
                         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
                 }
@@ -115,7 +120,7 @@ struct ThemeSettingsView: View {
                         .fill(themeStore.accentColor)
                         .frame(width: 12, height: 12)
 
-                    Text(themeStore.useAccentPaletteWhenAI ? "AI 光效：强调色方案" : "AI 光效：品牌方案")
+                    Text(previewAtmosphereDescription)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -150,6 +155,39 @@ struct ThemeSettingsView: View {
         .frame(height: 180)
         .saturation(isFreeUser ? 0 : 1)
         .opacity(isFreeUser ? 0.72 : 1)
+    }
+
+    private var selectedAtmosphereStyle: ExperimentalHomeAtmosphereStyle {
+        return ExperimentalHomeAtmosphereStyle(rawValue: experimentalHomeAtmosphereRawValue) ?? ExperimentalHomeAtmosphereStyle.defaultValue
+    }
+
+    private var atmosphereSelection: Binding<String> {
+        Binding(
+            get: { selectedAtmosphereStyle.rawValue },
+            set: { newValue in
+                let style = ExperimentalHomeAtmosphereStyle(rawValue: newValue) ?? ExperimentalHomeAtmosphereStyle.defaultValue
+                experimentalHomeAtmosphereRawValue = style.rawValue
+                themeStore.setOverlayEnabled(style == .floatingGlow)
+            }
+        )
+    }
+
+    private var previewAtmosphereDescription: String {
+        switch selectedAtmosphereStyle {
+        case .floatingGlow:
+            return themeStore.useAccentPaletteWhenAI ? "顶部氛围：浮光 Overlay（强调色）" : "顶部氛围：浮光 Overlay（品牌 AI）"
+        case .semanticTint:
+            return "顶部氛围：沉浸语义色"
+        }
+    }
+
+    private var atmosphereFooterText: String {
+        switch selectedAtmosphereStyle {
+        case .floatingGlow:
+            return "沿用当前的顶部浮光 Overlay。无 AI 时始终使用你这套强调色三色映射；有 AI 时默认使用品牌 AI 光效，但你可以切回强调色三色方案。"
+        case .semanticTint:
+            return "使用更克制的沉浸语义色来承接顶部氛围。当前这套效果已完整用于实验主页；其他仍依赖旧 Overlay 的界面，后续可以按页面价值继续扩展。"
+        }
     }
 
     private func accentCell(_ option: ThemeAccentOption) -> some View {
@@ -190,16 +228,21 @@ struct ThemeSettingsView: View {
         .buttonStyle(.plain)
     }
 
+    private func syncLegacyOverlayState() {
+        themeStore.setOverlayEnabled(selectedAtmosphereStyle == .floatingGlow)
+    }
+
 }
 
 private struct ThemeGlowPreview: View {
     let palette: AIGlowPalette
     let accent: Color
-    let enabled: Bool
+    let atmosphereStyle: ExperimentalHomeAtmosphereStyle
 
     var body: some View {
         ZStack {
-            if enabled {
+            switch atmosphereStyle {
+            case .floatingGlow:
                 LinearGradient(
                     colors: [
                         accent.opacity(0.95),
@@ -229,6 +272,32 @@ private struct ThemeGlowPreview: View {
                     center: UnitPoint(x: 0.50, y: 0.88),
                     startRadius: 0,
                     endRadius: 140
+                )
+            case .semanticTint:
+                let palette = ImmersiveSurfacePalette.semantic(tone: .accent, accent: accent)
+
+                LinearGradient(
+                    colors: [
+                        palette.top,
+                        palette.bottom,
+                        Color.clear
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                RadialGradient(
+                    colors: [palette.bloom, palette.bloom.opacity(0.52), .clear],
+                    center: UnitPoint(x: 0.20, y: 0.18),
+                    startRadius: 0,
+                    endRadius: 150
+                )
+
+                RadialGradient(
+                    colors: [palette.orb, palette.orb.opacity(0.42), .clear],
+                    center: UnitPoint(x: 0.80, y: 0.14),
+                    startRadius: 0,
+                    endRadius: 180
                 )
             }
         }

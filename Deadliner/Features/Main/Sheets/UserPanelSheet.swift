@@ -36,6 +36,7 @@ struct UserPanelSheet: View {
             }
         }
         .deadlinerScrollEdgeEffect(forceImmersive: false)
+        .deadlinerContainerSystemBackground()
         .navigationTitle("个人面板")
         .navigationBarTitleDisplayMode(.inline)
     }
