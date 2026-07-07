@@ -26,7 +26,7 @@ struct ThemeSettingsView: View {
             }
 
             Section {
-                Picker("顶部氛围", selection: atmosphereSelection) {
+                Picker("浮光", selection: atmosphereSelection) {
                     ForEach(ExperimentalHomeAtmosphereStyle.allCases) { style in
                         Text(style.title).tag(style.rawValue)
                     }
@@ -175,18 +175,18 @@ struct ThemeSettingsView: View {
     private var previewAtmosphereDescription: String {
         switch selectedAtmosphereStyle {
         case .floatingGlow:
-            return themeStore.useAccentPaletteWhenAI ? "顶部氛围：浮光 Overlay（强调色）" : "顶部氛围：浮光 Overlay（品牌 AI）"
+            return themeStore.useAccentPaletteWhenAI ? "顶部氛围：幻彩（强调色）" : "顶部氛围：幻彩（品牌 AI）"
         case .semanticTint:
-            return "顶部氛围：沉浸语义色"
+            return "顶部氛围：沉浸"
         }
     }
 
     private var atmosphereFooterText: String {
         switch selectedAtmosphereStyle {
         case .floatingGlow:
-            return "沿用当前的顶部浮光 Overlay。无 AI 时始终使用你这套强调色三色映射；有 AI 时默认使用品牌 AI 光效，但你可以切回强调色三色方案。"
+            return ""
         case .semanticTint:
-            return "使用更克制的沉浸语义色来承接顶部氛围。当前这套效果已完整用于实验主页；其他仍依赖旧 Overlay 的界面，后续可以按页面价值继续扩展。"
+            return ""
         }
     }
 

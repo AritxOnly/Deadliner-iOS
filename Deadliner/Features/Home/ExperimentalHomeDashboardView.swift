@@ -228,8 +228,8 @@ struct ExperimentalHomeDashboardView<PrimaryContent: View, ListContent: View>: V
         HStack(spacing: 0) {
             ClearSegmentedPicker(
                 tabs: ["任务", "习惯"],
-                icons: ["checklist", "figure.run"],
-                colors: [themeStore.accentColor, .green],
+                icons: ["checklist", "leaf"],
+                colors: [.accentColor, .green],
                 indicatorStyle: .segmentWidth(inset: 8),
                 currentTab: currentTabBinding
             )
@@ -275,7 +275,7 @@ struct ExperimentalHomeDashboardView<PrimaryContent: View, ListContent: View>: V
     }
 
     private var currentPalette: ImmersiveSurfacePalette {
-        ImmersiveSurfacePalette.semantic(tone: dashboard.tone, accent: themeStore.accentColor)
+        ImmersiveSurfacePalette.semantic(tone: dashboard.tone, accent: dashboardSemanticAccent)
     }
 
     private var usesLightSemanticContrast: Bool {
@@ -321,6 +321,14 @@ struct ExperimentalHomeDashboardView<PrimaryContent: View, ListContent: View>: V
             get: { segment == .tasks ? 0 : 1 },
             set: { onSelectSegment($0 == 0 ? .tasks : .habits) }
         )
+    }
+
+    private var dashboardSemanticAccent: Color {
+        guard dashboard.tone == .accent else {
+            return themeStore.accentColor
+        }
+
+        return ThemeDefaults.homeTaskSemanticAccent
     }
 }
 

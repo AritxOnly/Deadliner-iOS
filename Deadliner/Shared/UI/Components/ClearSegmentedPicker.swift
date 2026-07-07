@@ -35,9 +35,19 @@ public struct ClearSegmentedPicker: View {
     public let colors: [Color]?
     public let indicatorStyle: IndicatorStyle
     @Binding var currentTab: Int
+    @Environment(\.colorScheme) private var colorScheme
 
     private let indicatorSpring = Animation.spring(response: 0.3, dampingFraction: 0.7)
+    private let indicatorReleaseSpring = Animation.spring(response: 0.4, dampingFraction: 0.68, blendDuration: 0.12)
+    private let pickerInsets: CGFloat = 6
+    private let segmentHorizontalPadding: CGFloat = 10
+    private let segmentVerticalPadding: CGFloat = 12
+    private let segmentLabelFont: Font = .system(.body, design: .rounded).weight(.semibold)
+    private let segmentIconFont: Font = .system(.body, design: .rounded).weight(.semibold)
     private let indicatorBaseHeight: CGFloat = 44
+    private let indicatorPressHeight: CGFloat = 6
+    private let indicatorTapMorphProgress: CGFloat = 0.22
+    private let indicatorTapPressDuration: TimeInterval = 0.16
     private let indicatorMorphHeight: CGFloat = 4
     private let indicatorMorphWidth: CGFloat = 8
 
@@ -46,8 +56,10 @@ public struct ClearSegmentedPicker: View {
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
     @State private var indicatorMorphProgress: CGFloat = 0
-    @State private var symbolEffectTriggers: [Int: Int] = [:]
     @State private var visualTab: Int
+    @State private var isProgrammaticIndicatorPressed = false
+    @State private var indicatorProgrammaticPressReleaseWorkItem: DispatchWorkItem?
+    @GestureState private var isIndicatorPressed = false
 
     public init(
         tabs: [String],
@@ -67,51 +79,39 @@ public struct ClearSegmentedPicker: View {
     public var body: some View {
         ZStack(alignment: .leading) {
             if let indicatorWidth {
-                // TODO: Revisit native glass interaction if SwiftUI exposes it for custom moving indicators.
                 ZStack {
                     Capsule(style: .continuous)
-                        .fill(currentIndicatorColor.opacity(0.24))
-
-                    Capsule(style: .continuous)
                         .fill(.clear)
-                        .glassEffect(.regular.interactive(), in: Capsule(style: .continuous))
-
-                    Capsule(style: .continuous)
-                        .strokeBorder(currentIndicatorColor.opacity(0.22), lineWidth: 1)
+                        .glassEffect(currentIndicatorGlass, in: Capsule(style: .continuous))
                 }
                 .frame(
                     width: max(indicatorWidth - currentIndicatorWidthCompression, 0),
                     height: indicatorBaseHeight + currentIndicatorHeightExpansion
                 )
-                .offset(x: calculateIndicatorOffset() + (currentIndicatorWidthCompression / 2))
+                .offset(x: currentIndicatorOffset())
+                .scaleEffect(isIndicatorPressedLikeState ? 1.015 : 1, anchor: .center)
                 .animation(isDragging ? nil : indicatorSpring, value: visualTab)
                 .animation(isDragging ? nil : indicatorSpring, value: dragOffset)
                 .animation(isDragging ? nil : indicatorSpring, value: indicatorMorphProgress)
+                .animation(indicatorSpring, value: isIndicatorPressedLikeState)
                 .zIndex(0)
             }
 
-            HStack(spacing: 0) {
-                ForEach(Array(tabs.enumerated()), id: \.offset) { index, tab in
-                    segmentLabel(index: index, title: tab, selected: visualTab == index)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .contentShape(Rectangle())
-                        .background(
-                            GeometryReader { geometry in
-                                Color.clear.preference(
-                                    key: TabWidthPreferenceKey.self,
-                                    value: [index: geometry.size.width]
-                                )
-                            }
-                        )
-                        .onTapGesture {
-                            if selectTab(index) {
-                                UISelectionFeedbackGenerator().selectionChanged()
-                            }
-                        }
-                }
+            labelsRow(isOverlay: false)
+                .zIndex(1)
+
+            if let indicatorWidth {
+                labelsRow(isOverlay: true)
+                    .mask(alignment: .leading) {
+                        indicatorMask(width: indicatorWidth)
+                    }
+                    .animation(isDragging ? nil : indicatorSpring, value: visualTab)
+                    .animation(isDragging ? nil : indicatorSpring, value: dragOffset)
+                    .animation(isDragging ? nil : indicatorSpring, value: indicatorMorphProgress)
+                    .animation(indicatorSpring, value: isIndicatorPressedLikeState)
+                    .allowsHitTesting(false)
+                    .zIndex(2)
             }
-            .zIndex(1)
 
             if let indicatorWidth {
                 Rectangle()
@@ -121,34 +121,116 @@ public struct ClearSegmentedPicker: View {
                         height: indicatorBaseHeight + currentIndicatorHeightExpansion
                     )
                     .contentShape(Rectangle())
-                    .offset(x: calculateIndicatorOffset() + (currentIndicatorWidthCompression / 2))
+                    .offset(x: currentIndicatorOffset())
                     .animation(isDragging ? nil : indicatorSpring, value: visualTab)
                     .animation(isDragging ? nil : indicatorSpring, value: dragOffset)
                     .animation(isDragging ? nil : indicatorSpring, value: indicatorMorphProgress)
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { gesture in
-                                isDragging = true
-                                indicatorMorphProgress = 0
-                                dragOffset = clampedDragOffset(for: gesture.translation.width)
-                            }
-                            .onEnded { _ in
-                                if endDrag() {
-                                    UISelectionFeedbackGenerator().selectionChanged()
-                                }
-                            }
-                    )
-                    .zIndex(2)
+                    .gesture(indicatorDragGesture)
+                    .zIndex(3)
             }
         }
-        .padding(6)
         .frame(maxWidth: .infinity)
+        .frame(height: pickerContentHeight)
+        .padding(pickerInsets)
         .onPreferenceChange(TabWidthPreferenceKey.self) { tabWidths = $0 }
         .onPreferenceChange(TextWidthPreferenceKey.self) { textWidths = $0 }
         .onChange(of: currentTab) { _, newValue in
             guard !isDragging, visualTab != newValue else { return }
             visualTab = newValue
         }
+    }
+
+    private var indicatorDragGesture: some Gesture {
+        DragGesture(minimumDistance: 0)
+            .updating($isIndicatorPressed) { _, state, _ in
+                state = true
+            }
+            .onChanged { gesture in
+                isDragging = true
+                indicatorMorphProgress = min(abs(gesture.translation.width) / max(indicatorWidth ?? 1, 1), 0.35)
+                dragOffset = clampedDragOffset(for: gesture.translation.width)
+            }
+            .onEnded { _ in
+                if endDrag() {
+                    UISelectionFeedbackGenerator().selectionChanged()
+                }
+            }
+    }
+
+    private func labelsRow(isOverlay: Bool) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Array(tabs.enumerated()), id: \.offset) { index, tab in
+                segmentLabel(index: index, title: tab, selected: visualTab == index, isOverlay: isOverlay)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .background(
+                        GeometryReader { geometry in
+                            Color.clear.preference(
+                                key: TabWidthPreferenceKey.self,
+                                value: isOverlay ? [:] : [index: geometry.size.width]
+                            )
+                        }
+                    )
+                    .onTapGesture {
+                        guard !isOverlay else { return }
+                        if selectTab(index) {
+                            UISelectionFeedbackGenerator().selectionChanged()
+                        }
+                    }
+            }
+        }
+    }
+
+    private func indicatorMask(width: CGFloat) -> some View {
+        Capsule(style: .continuous)
+            .frame(
+                width: max(width - currentIndicatorWidthCompression, 0),
+                height: indicatorBaseHeight + currentIndicatorHeightExpansion
+            )
+            .offset(x: currentIndicatorOffset())
+            .scaleEffect(isIndicatorPressedLikeState ? 1.015 : 1, anchor: .center)
+    }
+
+    private var isIndicatorInteracting: Bool {
+        isDragging || isIndicatorPressed || isProgrammaticIndicatorPressed
+    }
+
+    private var pickerContentHeight: CGFloat {
+        indicatorBaseHeight + indicatorPressHeight + indicatorMorphHeight
+    }
+
+    private var currentIndicatorGlass: Glass {
+        .regular
+            .tint(currentIndicatorColor.opacity(isIndicatorInteracting ? 0.2 : 0.12))
+            .interactive(isIndicatorInteracting)
+    }
+
+    private func currentIndicatorOffset() -> CGFloat {
+        calculateIndicatorOffset() + (currentIndicatorWidthCompression / 2)
+    }
+
+    private var indicatorPressWidthCompression: CGFloat {
+        isIndicatorPressedLikeState ? 4 : 0
+    }
+
+    private var indicatorPressHeightExpansion: CGFloat {
+        isIndicatorPressedLikeState ? indicatorPressHeight : 0
+    }
+
+    private var indicatorStretchWidthCompression: CGFloat {
+        indicatorMorphWidth * indicatorMorphProgress
+    }
+
+    private var indicatorStretchHeightExpansion: CGFloat {
+        indicatorMorphHeight * indicatorMorphProgress
+    }
+
+    private var currentIndicatorWidthCompression: CGFloat {
+        indicatorPressWidthCompression + indicatorStretchWidthCompression
+    }
+
+    private var currentIndicatorHeightExpansion: CGFloat {
+        indicatorPressHeightExpansion + indicatorStretchHeightExpansion
     }
 
     private var indicatorWidth: CGFloat? {
@@ -158,14 +240,6 @@ public struct ClearSegmentedPicker: View {
     private var currentIndicatorColor: Color {
         guard let colors, !colors.isEmpty else { return .white }
         return blendedTabColor(weights: tabs.indices.map { tabActivation(for: $0) }, fallbackIndex: visualTab)
-    }
-
-    private var currentIndicatorWidthCompression: CGFloat {
-        indicatorMorphWidth * indicatorMorphProgress
-    }
-
-    private var currentIndicatorHeightExpansion: CGFloat {
-        indicatorMorphHeight * indicatorMorphProgress
     }
 
     private func indicatorWidth(for index: Int) -> CGFloat? {
@@ -226,28 +300,33 @@ public struct ClearSegmentedPicker: View {
         return max(0, min(1, 1 - (distance / influenceRange)))
     }
 
-    private func segmentLabel(index: Int, title: String, selected: Bool) -> some View {
+    private func segmentLabel(index: Int, title: String, selected: Bool, isOverlay: Bool) -> some View {
         HStack(spacing: 6) {
             if let icons, index < icons.count {
-                segmentIcon(name: icons[index], index: index)
+                segmentIcon(name: icons[index])
             }
 
             Text(title)
-                .font(.subheadline.weight(.medium))
+                .font(segmentLabelFont)
         }
-        .padding(.horizontal, 10)
-        .foregroundStyle(labelForegroundColor(for: index, selected: selected))
+        .padding(.horizontal, segmentHorizontalPadding)
+        .padding(.vertical, segmentVerticalPadding)
+        .foregroundStyle(labelForegroundColor(for: index, selected: selected, isOverlay: isOverlay))
         .background(
             GeometryReader { geometry in
                 Color.clear.preference(
                     key: TextWidthPreferenceKey.self,
-                    value: [index: geometry.size.width]
+                    value: isOverlay ? [:] : [index: geometry.size.width]
                 )
             }
         )
     }
 
-    private func labelForegroundColor(for index: Int, selected: Bool) -> Color {
+    private func labelForegroundColor(for index: Int, selected: Bool, isOverlay: Bool) -> Color {
+        if isOverlay {
+            return overlayLabelColor(for: index, selected: selected)
+        }
+
         guard let colors, colors.indices.contains(index) else {
             return selected ? .primary : .secondary
         }
@@ -263,11 +342,32 @@ public struct ClearSegmentedPicker: View {
         )
     }
 
+    private func overlayLabelColor(for index: Int, selected: Bool) -> Color {
+        guard let colors, colors.indices.contains(index) else {
+            return selected ? .primary : .secondary
+        }
+
+        let activeUIColor = UIColor(colors[index])
+        let liftedActive = interpolateColor(
+            from: activeUIColor,
+            to: colorScheme == .dark ? .white : .black,
+            progress: 0.32
+        )
+        let inactiveUIColor = UIColor.secondaryLabel.withAlphaComponent(0.74)
+
+        return Color(
+            uiColor: interpolateColor(
+                from: inactiveUIColor,
+                to: liftedActive,
+                progress: tabActivation(for: index)
+            )
+        )
+    }
+
     @ViewBuilder
-    private func segmentIcon(name: String, index: Int) -> some View {
+    private func segmentIcon(name: String) -> some View {
         Image(systemName: name)
-            .font(.subheadline.weight(.medium))
-            .symbolEffect(.bounce, options: .nonRepeating, value: symbolEffectTriggers[index, default: 0])
+            .font(segmentIconFont)
     }
 
     private func clampedDragOffset(for proposedOffset: CGFloat) -> CGFloat {
@@ -299,12 +399,8 @@ public struct ClearSegmentedPicker: View {
 
     private func selectTab(_ index: Int) -> Bool {
         guard visualTab != index else { return false }
-        indicatorMorphProgress = 1
-        let didChange = updateSelection(to: index)
-        withAnimation(indicatorSpring) {
-            indicatorMorphProgress = 0
-        }
-        return didChange
+        triggerProgrammaticIndicatorPress()
+        return updateSelection(to: index)
     }
 
     private func endDrag() -> Bool {
@@ -317,25 +413,42 @@ public struct ClearSegmentedPicker: View {
         isDragging = false
         indicatorMorphProgress = 1
 
-        withAnimation(indicatorSpring) {
+        withAnimation(indicatorReleaseSpring) {
             dragOffset = 0
             indicatorMorphProgress = 0
         }
         return didChange
     }
 
+    private var isIndicatorPressedLikeState: Bool {
+        isIndicatorPressed || isProgrammaticIndicatorPressed
+    }
+
+    private func triggerProgrammaticIndicatorPress() {
+        isProgrammaticIndicatorPressed = true
+        indicatorMorphProgress = max(indicatorMorphProgress, indicatorTapMorphProgress)
+        indicatorProgrammaticPressReleaseWorkItem?.cancel()
+
+        let releaseWorkItem = DispatchWorkItem {
+            withAnimation(indicatorSpring) {
+                isProgrammaticIndicatorPressed = false
+                indicatorMorphProgress = 0
+            }
+        }
+        indicatorProgrammaticPressReleaseWorkItem = releaseWorkItem
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + indicatorTapPressDuration, execute: releaseWorkItem)
+    }
+
     @discardableResult
     private func updateSelection(to index: Int) -> Bool {
         guard visualTab != index else { return false }
         visualTab = index
-        symbolEffectTriggers[index, default: 0] += 1
         if currentTab != index {
-            DispatchQueue.main.async {
-                if currentTab != index {
-                    withAnimation(.smooth(duration: 0.24, extraBounce: 0)) {
-                        currentTab = index
-                    }
-                }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                currentTab = index
             }
         }
         return true
@@ -387,12 +500,6 @@ public struct ClearSegmentedPicker: View {
             blue: fromComponents.blue + (toComponents.blue - fromComponents.blue) * t,
             alpha: fromComponents.alpha + (toComponents.alpha - fromComponents.alpha) * t
         )
-    }
-}
-
-private extension Array {
-    subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
     }
 }
 

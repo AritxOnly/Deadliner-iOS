@@ -66,6 +66,7 @@
     {
       "layers" : [
         {
+          "hidden" : false,
           "image-name" : "Base2 2.png",
           "name" : "Base2 2",
           "opacity" : 0.78,

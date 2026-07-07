@@ -229,17 +229,19 @@ struct ImmersiveSurfacePalette {
         case .success:
             return .init(
                 top: Color.green.opacity(0.52),
-                bottom: accent.opacity(0.14),
+                bottom: Color.mint.opacity(0.14),
                 bloom: Color.green.opacity(0.18),
-                orb: Color.mint.opacity(0.14),
+//                orb: Color.mint.opacity(0.14),
+                orb: Color.white.opacity(0.10),
                 veil: Color(uiColor: .secondarySystemBackground).opacity(0.05)
             )
         case .warning:
             return .init(
                 top: Color.orange.opacity(0.54),
-                bottom: accent.opacity(0.16),
+                bottom: Color.yellow.opacity(0.16),
                 bloom: Color.orange.opacity(0.20),
-                orb: Color.yellow.opacity(0.14),
+//                orb: Color.yellow.opacity(0.14),
+                orb: Color.white.opacity(0.10),
                 veil: Color(uiColor: .secondarySystemBackground).opacity(0.05)
             )
         case .danger:
@@ -247,7 +249,8 @@ struct ImmersiveSurfacePalette {
                 top: Color.red.opacity(0.56),
                 bottom: Color.orange.opacity(0.18),
                 bloom: Color.red.opacity(0.22),
-                orb: Color.pink.opacity(0.12),
+//                orb: Color.pink.opacity(0.12),
+                orb: Color.white.opacity(0.10),
                 veil: Color(uiColor: .secondarySystemBackground).opacity(0.05)
             )
         case .calm:
@@ -272,4 +275,5 @@ struct ImmersiveSurfacePalette {
 
 enum ThemeDefaults {
     static let fabColor = Color(hex: "#FFFF6D6D")
+    static let homeTaskSemanticAccent = Color.blue
 }

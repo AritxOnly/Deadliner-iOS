@@ -605,73 +605,65 @@ extension AIFunctionView {
     }
 
     private var inputSection: some View {
-        GlassEffectContainer(spacing: 12) {
-            VStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 18) {
-                    TextField("和 Deadliner 聊聊你接下来想做什么", text: $inputText, axis: .vertical)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.primary)
-                        .lineLimit(1...6)
-                        .focused($isInputFocused)
-                        .submitLabel(.send)
-                        .onSubmit {
-                            Task { await runSmartAgent() }
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 18) {
+                TextField("和 Deadliner 聊聊你接下来想做什么", text: $inputText, axis: .vertical)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .lineLimit(1...6)
+                    .focused($isInputFocused)
+                    .submitLabel(.send)
+                    .onSubmit {
+                        Task { await runSmartAgent() }
+                    }
+
+                HStack(spacing: 10) {
+                    Spacer(minLength: 0)
+
+                    if isInputFocused {
+                        Button {
+                            isInputFocused = false
+                        } label: {
+                            Image(systemName: "keyboard.chevron.compact.down")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 36, height: 36)
+                                .background(Color.secondary.opacity(0.12), in: Circle())
                         }
-
-                    HStack(spacing: 10) {
-                        Spacer(minLength: 0)
-
-                        if isInputFocused {
-                            Button {
-                                isInputFocused = false
-                            } label: {
-                                Image(systemName: "keyboard.chevron.compact.down")
-                                    .font(.system(size: 17, weight: .semibold))
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 36, height: 36)
-                                    .background(Color.secondary.opacity(0.12), in: Circle())
-                            }
-                            .accessibilityLabel("收起键盘")
-                        }
-
-                        voicePlaceholderButton
-
-                        Button(action: {
-                            print("[AIFunctionView] Send tapped. input=\(inputText)")
-                            Task { await runSmartAgent() }
-                        }) {
-                            Image(systemName: isParsing ? "ellipsis" : "arrow.up")
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundStyle(sendButtonForeground)
-                            .frame(width: 44, height: 44)
-                            .background(sendButtonBackground, in: Circle())
-                    }
-                    .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isParsing || speechInput.isBusy)
-                    .opacity(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isParsing || speechInput.isBusy ? 0.6 : 1)
+                        .accessibilityLabel("收起键盘")
                     }
 
-                    if let speechStatusText = speechStatusText {
-                        Text(speechStatusText)
-                            .font(.caption)
-                            .foregroundColor(speechInput.isRecording ? .secondary : .red.opacity(0.9))
-                            .transition(.opacity)
-                    }
+                    voicePlaceholderButton
+
+                    Button(action: {
+                        print("[AIFunctionView] Send tapped. input=\(inputText)")
+                        Task { await runSmartAgent() }
+                    }) {
+                        Image(systemName: isParsing ? "ellipsis" : "arrow.up")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(sendButtonForeground)
+                        .frame(width: 44, height: 44)
+                        .background(sendButtonBackground, in: Circle())
                 }
-                .animation(.easeInOut(duration: 0.18), value: speechInput.isRecording)
-                .animation(.easeInOut(duration: 0.18), value: speechInput.helperText)
-                .animation(.easeInOut(duration: 0.18), value: speechInput.lastErrorMessage)
-                .padding(.horizontal, 18)
-                .padding(.top, 18)
-                .padding(.bottom, 16)
+                .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isParsing || speechInput.isBusy)
+                .opacity(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isParsing || speechInput.isBusy ? 0.6 : 1)
+                }
+
+                if let speechStatusText = speechStatusText {
+                    Text(speechStatusText)
+                        .font(.caption)
+                        .foregroundColor(speechInput.isRecording ? .secondary : .red.opacity(0.9))
+                        .transition(.opacity)
+                }
             }
-            .glassEffect(in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .animation(.easeInOut(duration: 0.18), value: speechInput.isRecording)
+            .animation(.easeInOut(duration: 0.18), value: speechInput.helperText)
+            .animation(.easeInOut(duration: 0.18), value: speechInput.lastErrorMessage)
+            .padding(.horizontal, 18)
+            .padding(.top, 18)
+            .padding(.bottom, 16)
         }
-        .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(inputCardStroke, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.26 : 0.08), radius: 18, x: 0, y: 8)
+        .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 10)

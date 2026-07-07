@@ -48,7 +48,8 @@ struct RichHomeTabView: View {
             .deadlinerTopAtmosphereSceneBackground(
                 progress: overlayProgress,
                 isAIConfigured: isAIConfigured,
-                semanticTone: atmosphereTone
+                semanticTone: atmosphereTone,
+                semanticAccentColor: homeTaskNormalSemanticAccent
             )
         }
         .deadlinerNavigationBarMinimizeOnScrollDown()
@@ -117,6 +118,14 @@ struct RichHomeTabView: View {
 
     private var homeNavigationTitle: String {
         dashboardHomeLayoutEnabled ? "今日" : "清单"
+    }
+
+    private var homeTaskNormalSemanticAccent: Color? {
+        guard atmosphereTone == .accent else {
+            return nil
+        }
+
+        return ThemeDefaults.homeTaskSemanticAccent
     }
 }
 

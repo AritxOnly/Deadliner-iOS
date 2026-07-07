@@ -32,6 +32,7 @@ private struct DeadlinerTopAtmosphereSceneBackgroundModifier: ViewModifier {
     let progress: CGFloat
     let isAIConfigured: Bool
     let semanticTone: ImmersiveSurfaceTone
+    let semanticAccentColor: Color?
     let overlayOpacity: CGFloat
 
     func body(content: Content) -> some View {
@@ -44,7 +45,8 @@ private struct DeadlinerTopAtmosphereSceneBackgroundModifier: ViewModifier {
                     DeadlinerTopAtmosphereBackdrop(
                         progress: progress,
                         isAIConfigured: isAIConfigured,
-                        semanticTone: semanticTone
+                        semanticTone: semanticTone,
+                        semanticAccentColor: semanticAccentColor
                     )
                     .opacity(overlayOpacity)
                 }
@@ -61,6 +63,7 @@ extension View {
         progress: CGFloat,
         isAIConfigured: Bool,
         semanticTone: ImmersiveSurfaceTone,
+        semanticAccentColor: Color? = nil,
         overlayOpacity: CGFloat = 1
     ) -> some View {
         modifier(
@@ -68,6 +71,7 @@ extension View {
                 progress: progress,
                 isAIConfigured: isAIConfigured,
                 semanticTone: semanticTone,
+                semanticAccentColor: semanticAccentColor,
                 overlayOpacity: overlayOpacity
             )
         )

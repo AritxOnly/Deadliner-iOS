@@ -1,7 +1,14 @@
+import argparse
+import inspect
 import json
 import os
-import argparse
+
 from PIL import Image, ImageDraw
+from psd_tools import PSDImage
+from psd_tools.api.layers import PixelLayer
+
+
+PIXEL_LAYER_FROMPIL_PARAMS = set(inspect.signature(PixelLayer.frompil).parameters.keys())
 
 def parse_color(color_str):
     """
@@ -19,30 +26,26 @@ def parse_color(color_str):
     # 将 P3 色域的值简单映射到 0-255 (对于常规预览已足够准确)
     return (int(r * 255), int(g * 255), int(b * 255), int(a * 255))
 
-def generate_gradient_bg(icon_bundle_path, output_path, base_size=(1024, 1024)):
-    json_path = os.path.join(icon_bundle_path, "icon.json")
-    
-    if not os.path.exists(json_path):
-        print(f"❌ 错误: 在包内找不到 {json_path}")
-        return
+def find_gradient_config(config, appearance):
+    fill = config.get("fill", {})
+    if isinstance(fill, dict) and "linear-gradient" in fill:
+        return fill
 
-    print(f"📂 正在读取渐变配置: {json_path}")
-    
-    with open(json_path, 'r', encoding='utf-8') as f:
-        config = json.load(f)
-        
-    # 查找 fill-specializations 中的线性渐变配置
-    gradient_config = None
+    default_value = None
     for spec in config.get('fill-specializations', []):
+        spec_appearance = spec.get("appearance")
         value = spec.get('value', {})
-        if isinstance(value, dict) and 'linear-gradient' in value:
-            gradient_config = value
-            break
-            
-    if not gradient_config:
-        print("❌ 错误: JSON 中没有找到 linear-gradient 配置。")
-        return
-        
+        if not isinstance(value, dict) or 'linear-gradient' not in value:
+            continue
+        if spec_appearance == appearance:
+            return value
+        if spec_appearance is None and default_value is None:
+            default_value = value
+
+    return default_value
+
+
+def render_gradient_image(gradient_config, base_size):
     # 获取颜色和坐标
     colors = gradient_config.get('linear-gradient')
     start_color = parse_color(colors[0])
@@ -81,14 +84,69 @@ def generate_gradient_bg(icon_bundle_path, output_path, base_size=(1024, 1024)):
         # 绘制当前行
         draw.line([(0, y), (width, y)], fill=(r, g, b, a))
 
-    # 保存图片
-    canvas.save(output_path)
-    print(f"🎉 渐变背景已生成并保存至: {output_path}")
+    return canvas
+
+
+def save_gradient_psd(canvas, output_path):
+    psd = PSDImage.new("RGBA", canvas.size, color=0)
+
+    if "parent" in PIXEL_LAYER_FROMPIL_PARAMS:
+        PixelLayer.frompil(
+            canvas,
+            parent=psd,
+            name="Gradient Background",
+            top=0,
+            left=0,
+        )
+    else:
+        gradient_layer = PixelLayer.frompil(
+            canvas,
+            psd_file=psd,
+            layer_name="Gradient Background",
+            top=0,
+            left=0,
+        )
+        psd.append(gradient_layer)
+
+    psd.save(output_path)
+
+
+def generate_gradient_bg(icon_bundle_path, output_path, base_size=(1024, 1024), appearance="default"):
+    json_path = os.path.join(icon_bundle_path, "icon.json")
+    
+    if not os.path.exists(json_path):
+        print(f"❌ 错误: 在包内找不到 {json_path}")
+        return
+
+    print(f"📂 正在读取渐变配置: {json_path}")
+    
+    with open(json_path, 'r', encoding='utf-8') as f:
+        config = json.load(f)
+
+    gradient_config = find_gradient_config(config, appearance)
+    if not gradient_config:
+        print("❌ 错误: JSON 中没有找到 linear-gradient 配置。")
+        return
+
+    canvas = render_gradient_image(gradient_config, base_size)
+
+    if output_path.lower().endswith(".psd"):
+        save_gradient_psd(canvas, output_path)
+        print(f"🎉 渐变背景 PSD 已生成并保存至: {output_path}")
+    else:
+        canvas.save(output_path)
+        print(f"🎉 渐变背景已生成并保存至: {output_path}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="从苹果 .icon 文件提取并生成渐变背景")
+    parser = argparse.ArgumentParser(description="从苹果 .icon 文件提取并生成渐变背景（支持 PSD）")
     parser.add_argument("input", help="输入的 .icon 文件夹路径")
-    parser.add_argument("-o", "--output", default="gradient_bg.png", help="输出的图片文件路径 (默认: gradient_bg.png)")
+    parser.add_argument("-o", "--output", default="gradient_bg.psd", help="输出文件路径 (默认: gradient_bg.psd)")
+    parser.add_argument(
+        "--appearance",
+        choices=["default", "dark", "tinted"],
+        default="default",
+        help="选择要导出的外观分支 (默认: default)",
+    )
     
     args = parser.parse_args()
-    generate_gradient_bg(args.input, args.output)
+    generate_gradient_bg(args.input, args.output, appearance=args.appearance)

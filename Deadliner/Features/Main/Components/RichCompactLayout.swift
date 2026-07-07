@@ -59,8 +59,8 @@ enum ExperimentalHomeAtmosphereStyle: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .floatingGlow: return "浮光 Overlay"
-        case .semanticTint: return "沉浸语义色"
+        case .floatingGlow: return "幻彩"
+        case .semanticTint: return "沉浸"
         }
     }
 }

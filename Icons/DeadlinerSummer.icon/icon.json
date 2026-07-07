@@ -114,11 +114,12 @@
       "blur-material" : null,
       "layers" : [
         {
-          "image-name" : "Base3_spring.png",
-          "name" : "Base3_spring",
+          "hidden" : false,
+          "image-name" : "Base2 2.png",
+          "name" : "Base2 2",
           "opacity" : 0.78,
           "position" : {
-            "scale" : 0.94,
+            "scale" : 1.05,
             "translation-in-points" : [
               0,
               0

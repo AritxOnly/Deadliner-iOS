@@ -11,10 +11,23 @@ struct DeadlinerTopAtmosphereBackdrop: View {
     let progress: CGFloat
     let isAIConfigured: Bool
     let semanticTone: ImmersiveSurfaceTone
+    let semanticAccentColor: Color?
 
     @EnvironmentObject private var themeStore: ThemeStore
     @AppStorage(ExperimentalHomeAtmosphereStyle.settingKey)
     private var atmosphereRawValue: String = ExperimentalHomeAtmosphereStyle.defaultValue.rawValue
+
+    init(
+        progress: CGFloat,
+        isAIConfigured: Bool,
+        semanticTone: ImmersiveSurfaceTone,
+        semanticAccentColor: Color? = nil
+    ) {
+        self.progress = progress
+        self.isAIConfigured = isAIConfigured
+        self.semanticTone = semanticTone
+        self.semanticAccentColor = semanticAccentColor
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -23,7 +36,10 @@ struct DeadlinerTopAtmosphereBackdrop: View {
             } else {
                 SemanticTopAtmosphereOverlay(
                     progress: progress,
-                    palette: ImmersiveSurfacePalette.semantic(tone: semanticTone, accent: themeStore.accentColor)
+                    palette: ImmersiveSurfacePalette.semantic(
+                        tone: semanticTone,
+                        accent: semanticAccentColor ?? themeStore.accentColor
+                    )
                 )
             }
         }

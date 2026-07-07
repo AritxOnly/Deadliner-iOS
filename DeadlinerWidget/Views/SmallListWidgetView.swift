@@ -18,6 +18,10 @@ struct SmallListWidgetView: View {
         relevantTasks.prefix(3)
     }
 
+    private var displayedTasksArray: [DDLItem] {
+        Array(displayedTasks)
+    }
+
     private var badgeTextColor: Color {
         if hasOverdueTasks {
             return .red.opacity(0.84)
@@ -130,16 +134,32 @@ struct SmallListWidgetView: View {
     }
 
     private var taskList: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(displayedTasks.enumerated()), id: \.element.id) { index, task in
-                HarmonyCompactTaskRow(task: task, style: style)
+        GeometryReader { proxy in
+            let slotHeight = proxy.size.height / 3
 
-                if index < displayedTasks.count - 1 {
-                    Spacer(minLength: 0)
+            VStack(spacing: 0) {
+                ForEach(0..<3, id: \.self) { index in
+                    taskSlot(at: index)
+                        .frame(
+                            maxWidth: .infinity,
+                            minHeight: slotHeight,
+                            maxHeight: slotHeight,
+                            alignment: .top
+                        )
                 }
             }
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    @ViewBuilder
+    private func taskSlot(at index: Int) -> some View {
+        if index < displayedTasksArray.count {
+            HarmonyCompactTaskRow(task: displayedTasksArray[index], style: style)
+        } else {
+            Color.clear
+        }
     }
 
     private var emptyState: some View {

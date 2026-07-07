@@ -67,7 +67,8 @@ struct FocusMainView: View {
                         DeadlinerTopAtmosphereBackdrop(
                             progress: navGradientProgress,
                             isAIConfigured: isAIConfigured,
-                            semanticTone: moduleAtmosphereTone
+                            semanticTone: moduleAtmosphereTone,
+                            semanticAccentColor: homeTaskNormalSemanticAccent
                         )
                     }
                 }
@@ -176,6 +177,15 @@ struct FocusMainView: View {
         case .archive:
             return .neutral
         }
+    }
+
+    private var homeTaskNormalSemanticAccent: Color? {
+        guard module == .taskManagement,
+              homeAtmosphereTone == .accent else {
+            return nil
+        }
+
+        return ThemeDefaults.homeTaskSemanticAccent
     }
 
     // MARK: - Top Toolbar
