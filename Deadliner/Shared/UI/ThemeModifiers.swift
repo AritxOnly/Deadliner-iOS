@@ -110,7 +110,7 @@ extension View {
 private struct DeadlinerNavigationBarMinimizeOnScrollDownModifier: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 27.0, *) {
-            content.toolbarMinimizeBehavior(.onScrollDown, for: .navigationBar)
+            content.toolbarMinimizationBehavior(.onScrollDown, for: .statusBar)
         } else {
             content
         }

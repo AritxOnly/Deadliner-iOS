@@ -114,8 +114,6 @@ struct ExperimentalHomeDashboardView<PrimaryContent: View, ListContent: View>: V
 
     let segment: TaskSegment
     let dashboard: ExperimentalDashboardHeader
-    let listTitle: String
-    let listSubtitle: String
     let onSelectSegment: (TaskSegment) -> Void
     let primaryContent: PrimaryContent
     let listContent: ListContent
@@ -126,16 +124,12 @@ struct ExperimentalHomeDashboardView<PrimaryContent: View, ListContent: View>: V
     init(
         segment: TaskSegment,
         dashboard: ExperimentalDashboardHeader,
-        listTitle: String,
-        listSubtitle: String,
         onSelectSegment: @escaping (TaskSegment) -> Void,
         @ViewBuilder primaryContent: () -> PrimaryContent,
         @ViewBuilder listContent: () -> ListContent
     ) {
         self.segment = segment
         self.dashboard = dashboard
-        self.listTitle = listTitle
-        self.listSubtitle = listSubtitle
         self.onSelectSegment = onSelectSegment
         self.primaryContent = primaryContent()
         self.listContent = listContent()
@@ -150,7 +144,6 @@ struct ExperimentalHomeDashboardView<PrimaryContent: View, ListContent: View>: V
             }
 
             Section {
-                sectionHeaderRow
                 listContent
             }
         }
@@ -236,24 +229,6 @@ struct ExperimentalHomeDashboardView<PrimaryContent: View, ListContent: View>: V
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: segmentToContentSpacing, trailing: 16))
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
-    }
-
-    private var sectionHeaderRow: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(listTitle)
-                .font(.title3.weight(.bold))
-                .foregroundStyle(.primary)
-
-            Text(listSubtitle)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-        }
-        .textCase(nil)
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
-        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 6, trailing: 16))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
     }

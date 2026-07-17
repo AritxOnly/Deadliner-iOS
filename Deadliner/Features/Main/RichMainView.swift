@@ -160,10 +160,13 @@ struct RichMainView: View {
         }
         .tabBarMinimizeBehavior(.onScrollDown)
         .animation(.smooth(duration: 0.28, extraBounce: 0), value: selectedTab)
-        .onChange(of: selectedTab) { _, newTab in
+        .onChange(of: selectedTab) { oldTab, newTab in
             navGradientProgress = 0
             if newTab != .search {
                 searchUsesLocalAtmosphere = false
+            }
+            if oldTab != .search, newTab == .search, !seperateSearchBarVisible {
+                searchResetToken += 1
             }
         }
         .onChange(of: separateAIPageEnabled) { _, newValue in
@@ -221,6 +224,10 @@ struct RichMainView: View {
             overlayProgress: $navGradientProgress,
             atmosphereTone: homeAtmosphereTone,
             onAtmosphereToneChange: { homeAtmosphereTone = $0 },
+            showsHomeFilterToolbarItem: !dashboardHomeLayoutEnabled,
+            onHomeFilterTapped: {
+                // TODO: Present task-category filters for the classic home layout.
+            },
             showsAIToolbarItem: !separateAIPageEnabled,
             onAITapped: {
                 showAISheet = true

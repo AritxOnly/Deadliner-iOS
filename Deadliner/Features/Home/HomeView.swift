@@ -88,6 +88,10 @@ struct HomeBoardCoreView: View {
         selection.isActive
     }
 
+    private var showsToolbarSegmentPicker: Bool {
+        presentationStyle == .classic && !selectionMode
+    }
+
     private var selectedTasks: [DDLItem] {
         viewState.selectedTasks
     }
@@ -274,20 +278,11 @@ struct HomeBoardCoreView: View {
                 } else {
                     habitsSectionContent(state: state)
                 }
-            } header: {
-                if !state.compactLayoutEnabled {
-                    segmentedControl(state: state)
-                }
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .deadlinerScrollEdgeEffect()
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if state.compactLayoutEnabled {
-                segmentedControlInset(state: state)
-            }
-        }
     }
 
     @ViewBuilder
@@ -295,8 +290,6 @@ struct HomeBoardCoreView: View {
         ExperimentalHomeDashboardView(
             segment: taskSegment,
             dashboard: state.dashboardHeader,
-            listTitle: state.dashboardListTitle,
-            listSubtitle: state.dashboardListSubtitle,
             onSelectSegment: { taskSegment = $0 }
         ) {
             if taskSegment == .tasks {
@@ -545,62 +538,14 @@ struct HomeBoardCoreView: View {
         }
     }
 
-    private func segmentedControl(state: HomeBoardDerivedState) -> some View {
-//        HStack {
-//            Picker("Task Segment", selection: $taskSegment) {
-//                ForEach(TaskSegment.allCases) { segment in
-//                    Text(segment.rawValue).tag(segment)
-//                }
-//            }
-//            .pickerStyle(.segmented)
-//            .textCase(nil)
-//            .padding(EdgeInsets(top: 0, leading: 0, bottom: 1, trailing: 0))
-//        }
-//        .glassEffect()
-//        .clipShape(Capsule())
-//        .padding(
-//            EdgeInsets(
-//                top: selectionMode
-//                    ? 0
-//                    : RichCompactLayout.headerTopPadding(
-//                        enabled: compactLayoutEnabled,
-//                        progress: effectiveCompactProgress
-//                    ),
-//                leading: 12,
-//                bottom: 4,
-//                trailing: 12
-//            )
-//        )
-        
+    private var toolbarSegmentedControl: some View {
         Picker("Task Segment", selection: $taskSegment) {
             ForEach(TaskSegment.allCases) { segment in
                 Text(segment.rawValue).tag(segment)
             }
         }
         .pickerStyle(.segmented)
-        .textCase(nil)
-        .glassEffect()
-        .padding(
-            EdgeInsets(
-                top: selectionMode
-                    ? -4
-                    : RichCompactLayout.headerTopPadding(
-                        enabled: state.compactLayoutEnabled,
-                        progress: state.effectiveCompactProgress
-                    ),
-                leading: 12,
-                bottom: 4,
-                trailing: 12
-            )
-        )
-    }
-
-    private func segmentedControlInset(state: HomeBoardDerivedState) -> some View {
-        segmentedControl(state: state)
-            .padding(.top, 8)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 12)
-            .background(Color.clear)
+        .frame(width: 160)
     }
 
     private var deleteConfirmTitle: String {
@@ -648,6 +593,10 @@ struct HomeBoardCoreView: View {
                     Image(systemName: "trash")
                 }
                 .disabled(selectedCount == 0)
+            }
+        } else if showsToolbarSegmentPicker {
+            ToolbarItem(placement: .principal) {
+                toolbarSegmentedControl
             }
         }
     }

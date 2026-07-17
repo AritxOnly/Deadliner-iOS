@@ -29,10 +29,13 @@ struct TopBarGradientOverlay: View {
 
     var body: some View {
         let p = min(max(progress, 0), 1)
-
-        // 高度随滚动缩短
-        let h: CGFloat = max(0, 340 - 340 * p)
+        let glowHeight: CGFloat = max(0, 340 - 340 * p)
         let topOverflow: CGFloat = 52
+        // Keep the transparency falloff inside the frame. Without this tail,
+        // the glow can be visibly clipped where the overlay's frame ends.
+        let fadeTailHeight: CGFloat = max(72, glowHeight * 0.28)
+        let canvasHeight = glowHeight + fadeTailHeight + topOverflow
+        let fadeStart = min(max((glowHeight + topOverflow * 0.4) / canvasHeight, 0), 1)
 
         let baseAlpha: CGFloat = colorScheme == .dark ? 0.60 : 0.95
         let topAlpha: CGFloat = max(0, baseAlpha - 0.50 * p)
@@ -40,14 +43,15 @@ struct TopBarGradientOverlay: View {
         ZStack {
             AIVibrantGlowView(palette: resolvedPalette)
         }
-        .frame(height: h + topOverflow)
+        .frame(height: canvasHeight)
         .offset(y: -topOverflow * 0.6)
         .allowsHitTesting(false)
         .mask(
             LinearGradient(
                 stops: [
                     .init(color: .black.opacity(topAlpha), location: 0.0),
-                    .init(color: .black.opacity(0.0),      location: 1.0)
+                    .init(color: .black.opacity(topAlpha), location: fadeStart),
+                    .init(color: .clear, location: 1.0)
                 ],
                 startPoint: .top,
                 endPoint: .bottom

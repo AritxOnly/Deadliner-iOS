@@ -95,8 +95,6 @@ struct HomeBoardDerivedState {
     let completedHabitCount: Int
     let taskRows: [HomeTaskRowState]
     let habitRows: [HomeHabitRowState]
-    let dashboardListTitle: String
-    let dashboardListSubtitle: String
     let dashboardHeader: ExperimentalDashboardHeader
     let currentAtmosphereTone: ImmersiveSurfaceTone
     let validTaskIDs: Set<Int64>
@@ -167,11 +165,6 @@ struct HomeBoardDerivedState {
         }
 
         if taskSegment == .tasks {
-            dashboardListTitle = "任务列表"
-            dashboardListSubtitle = openTasks.isEmpty
-                ? "今天的任务已经收完了，当前没有待推进任务"
-                : "列表保持在首屏，打开就能直接开始处理"
-
             let summaryText: String
             if overdueTaskCount > 0 {
                 summaryText = "今天要先清掉最危险的几项。"
@@ -209,9 +202,6 @@ struct HomeBoardDerivedState {
             let summaryText = totalHabits == 0
                 ? "今天还没有可见习惯，先把列表空间留出来。"
                 : ""
-
-            dashboardListTitle = "习惯列表"
-            dashboardListSubtitle = displayHabits.isEmpty ? "当前没有可见习惯" : "保留进度概览，但把主要空间还给列表"
             dashboardHeader = ExperimentalDashboardHeader(
                 eyebrow: "HABIT TRACKER",
                 title: "今日节奏",

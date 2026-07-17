@@ -18,6 +18,8 @@ struct RichHomeTabView: View {
     @AppStorage(RichCompactLayout.settingKey) private var compactLayoutEnabled: Bool = false
     @AppStorage(DashboardHomeLayout.settingKey) private var dashboardHomeLayoutEnabled: Bool = DashboardHomeLayout.defaultValue
     @State private var selectionMode = false
+    let showsHomeFilterToolbarItem: Bool
+    let onHomeFilterTapped: () -> Void
     let showsAIToolbarItem: Bool
     let onAITapped: () -> Void
     let onSettingsTapped: () -> Void
@@ -33,6 +35,12 @@ struct RichHomeTabView: View {
                 !selectionMode ? "Deadliner" : nil
             )
             .toolbar {
+                if showsHomeFilterToolbarItem && !selectionMode {
+                    ToolbarItem(placement: .topBarLeading) {
+                        homeFilterButton
+                    }
+                }
+
                 if showsAIToolbarItem && !selectionMode {
                     ToolbarItem(placement: .topBarLeading) {
                         aiButton
@@ -98,12 +106,23 @@ struct RichHomeTabView: View {
             .scaledToFill()
             .frame(width: 42, height: 42)
             .clipShape(Circle())
-            .overlay(Circle().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5))
+//            .overlay(Circle().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5))
+            .glassEffect(.regular.interactive(), in: Circle())
             .contentShape(Circle())
         }
         .accessibilityLabel("用户与设置")
         .accessibilityHint("打开用户面板与设置")
         .padding(.trailing, compactLayoutEnabled ? -8 : 0)
+    }
+
+    private var homeFilterButton: some View {
+        Button {
+            onHomeFilterTapped()
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease")
+        }
+        .accessibilityLabel("筛选")
+        .accessibilityHint("预留给后续任务分类筛选")
     }
 
     private var aiButton: some View {
@@ -172,7 +191,6 @@ struct RichOverviewTabView: View {
     @AppStorage(RichCompactLayout.settingKey) private var compactLayoutEnabled: Bool = false
     @AppStorage("settings.ai.last_analyzed_month") private var lastAnalyzedMonth: String = ""
     @AppStorage("userTier") private var userTier: UserTier = .free
-    @State private var showPaywall = false
 
     var body: some View {
         NavigationStack {
@@ -183,30 +201,6 @@ struct RichOverviewTabView: View {
                 .richCompactNavigationTitle("概览")
                 .navigationSubtitle(overviewSubtitle)
                 .toolbarBackground(.hidden, for: .navigationBar)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            if isInsightFreeUser {
-                                showPaywall = true
-                            } else if !insightAnalysisGenerated {
-                                NotificationCenter.default.post(name: .ddlRequestMonthlyAnalysis, object: nil)
-                            }
-                        } label: {
-                            if isInsightFreeUser {
-                                Image(systemName: "lock.fill")
-                            } else if insightAnalysisGenerated {
-                                Image(systemName: "checkmark.circle.fill")
-                            } else {
-                                Image("lifi.logo.v1")
-                            }
-                        }
-                        .disabled(!isInsightFreeUser && insightAnalysisGenerated)
-                        .tint(.primary)
-                    }
-                }
-                .sheet(isPresented: $showPaywall) {
-                    ProPaywallView()
-                }
                 .deadlinerTopAtmosphereSceneBackground(
                     progress: overlayProgress,
                     isAIConfigured: isAIConfigured,
@@ -241,7 +235,7 @@ struct RichOverviewTabView: View {
         if isInsightFreeUser {
             return "AI 月度分析需要 Geek"
         }
-        return insightAnalysisGenerated ? "上月 AI 分析已生成" : "点击生成上月 AI 分析"
+        return insightAnalysisGenerated ? "上月 AI 分析已生成" : "进入页面后会自动生成上月 AI 分析"
     }
 }
 
