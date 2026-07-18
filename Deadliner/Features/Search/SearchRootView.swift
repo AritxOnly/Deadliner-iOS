@@ -12,9 +12,11 @@ struct RichSearchTabView: View {
     @Binding var overlayProgress: CGFloat
     let focusRequestToken: Int
     @Binding var usesLocalAtmosphere: Bool
+    let hiddenMainTabs: [RichMainTab]
 
     @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
     @AppStorage(RichCompactLayout.settingKey) private var compactLayoutEnabled: Bool = false
+    @AppStorage(SeperateSearchBar.settingKey) private var seperateSearchBarVisible = SeperateSearchBar.defaultValue
     @FocusState private var isSearchFieldFocused: Bool
     @State private var scope: SearchScope = .all
     @StateObject private var captureStore = CaptureStore()
@@ -22,6 +24,7 @@ struct RichSearchTabView: View {
     @State private var activeHabits: [Habit] = []
     @State private var archivedTasks: [DDLItem] = []
     @State private var archivedHabits: [Habit] = []
+    @State private var categories: [TaskCategory] = []
     @State private var habitStatusMap: [Int64: HabitWithDailyStatus] = [:]
     @State private var isLoading = true
     @State private var selectedTaskForEdit: DDLItem?
@@ -32,12 +35,40 @@ struct RichSearchTabView: View {
     @State private var showDeleteAlert = false
     @State private var pendingGiveUpTask: DDLItem?
     @State private var showGiveUpAlert = false
+    @State private var navigationPath = NavigationPath()
+    @State private var showCategoryManagement = false
+    @State private var hasLoadedOnce = false
+    @State private var reloadSequence = 0
+    @AppStorage("search.browse.category_layout") private var browseCategoryLayoutRaw = BrowseCategoryLayout.cards.rawValue
 
     private let taskRepo = TaskRepository.shared
     private let habitRepo = HabitRepository.shared
+    private let categoryRepo = CategoryRepository.shared
+
+    private var categoryMap: [String: TaskCategory] {
+        Dictionary(uniqueKeysWithValues: categories.map { ($0.uid, $0) })
+    }
+
+    private var browseCategoryLayout: BrowseCategoryLayout {
+        BrowseCategoryLayout(rawValue: browseCategoryLayoutRaw) ?? .cards
+    }
+
+    private var browseCategoryLayoutBinding: Binding<BrowseCategoryLayout> {
+        Binding(
+            get: { browseCategoryLayout },
+            set: { browseCategoryLayoutRaw = $0.rawValue }
+        )
+    }
 
     private var isBrowsingHome: Bool {
         query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var usesToolbarPrincipalSearch: Bool {
+        guard #available(iOS 27.0, *) else {
+            return false
+        }
+        return !seperateSearchBarVisible
     }
 
     private var taskActions: SearchTaskActions {
@@ -103,7 +134,7 @@ struct RichSearchTabView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             List {
                 if isLoading {
                     ProgressView("搜索索引加载中...")
@@ -112,7 +143,20 @@ struct RichSearchTabView: View {
                         .listRowBackground(Color.clear)
                         .padding(.top, 24)
                 } else if isBrowsingHome {
-                    SearchBrowseHomeView(usesLocalAtmosphere: $usesLocalAtmosphere)
+                    SearchBrowseHomeView(
+                        categoryLayout: browseCategoryLayout,
+                        categories: categories,
+                        hiddenMainTabs: hiddenMainTabs,
+                        onSelectBrowseCategory: { category in
+                            navigationPath.append(category)
+                        },
+                        onSelectTaskCategory: { uid in
+                            navigationPath.append(SearchTaskCategoryRoute(uid: uid))
+                        },
+                        onSelectMainTab: { tab in
+                            navigationPath.append(tab)
+                        }
+                    )
                         .transition(
                             .asymmetric(
                                 insertion: .opacity,
@@ -133,6 +177,7 @@ struct RichSearchTabView: View {
                         archivedTasks: archivedTasks,
                         archivedHabits: archivedHabits,
                         habitStatusMap: habitStatusMap,
+                        categoryMap: categoryMap,
                         taskActions: taskActions,
                         habitActions: habitActions,
                         inspirationActions: inspirationActions
@@ -145,29 +190,56 @@ struct RichSearchTabView: View {
                     )
                 }
             }
-            .modifier(SearchListStyleModifier(useInsetGrouped: isBrowsingHome))
+            .modifier(SearchListStyleModifier(useInsetGrouped: isBrowsingHome && browseCategoryLayout == .list))
             .scrollContentBackground(.hidden)
             .deadlinerScrollEdgeEffect()
             .animation(.smooth(duration: 0.22, extraBounce: 0), value: isBrowsingHome)
-            .richCompactNavigationTitle("搜索")
-            .searchable(text: $query, prompt: searchPrompt)
-            .searchFocused($isSearchFieldFocused)
+            .animation(.smooth(duration: 0.22, extraBounce: 0), value: browseCategoryLayout)
+            .richCompactNavigationTitle("浏览")
             .navigationDestination(for: SearchBrowseCategory.self) { category in
-                SearchCategoryDetailView(
-                    category: category,
-                    activeTasks: SearchViewSupport.tasks(
-                        for: category,
-                        activeTasks: activeTasks,
-                        archivedTasks: archivedTasks
-                    ),
-                    activeHabits: SearchViewSupport.habits(for: category, activeHabits: activeHabits),
-                    archivedTasks: SearchViewSupport.archivedTasks(for: category, archivedTasks: archivedTasks),
-                    archivedHabits: SearchViewSupport.archivedHabits(for: category, archivedHabits: archivedHabits),
-                    habitStatusMap: habitStatusMap,
-                    taskActions: taskActions,
-                    habitActions: habitActions,
+                browseDestinationView(for: category)
+            }
+            .navigationDestination(for: SearchTaskCategoryRoute.self) { route in
+                taskCategoryDestinationView(for: route.uid)
+            }
+            .navigationDestination(for: RichMainTab.self) { tab in
+                SearchHiddenMainTabDestinationView(
+                    tab: tab,
                     usesLocalAtmosphere: $usesLocalAtmosphere
                 )
+            }
+            .modifier(
+                RichSearchSearchableModifier(
+                    usesToolbarPrincipal: usesToolbarPrincipalSearch,
+                    query: $query,
+                    focus: $isSearchFieldFocused,
+                    prompt: searchPrompt
+                )
+            )
+            .deadlinerNavigationTitleBarAutomaticMinimize(usesToolbarPrincipalSearch)
+            .toolbar {
+                if isBrowsingHome {
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        Button {
+                            showCategoryManagement = true
+                        } label: {
+                            Image(systemName: "slider.horizontal.3")
+                        }
+                        .accessibilityLabel("管理分类")
+
+                        Menu {
+                            Picker("分类布局", selection: browseCategoryLayoutBinding) {
+                                ForEach(BrowseCategoryLayout.allCases) { layout in
+                                    Label(layout.title, systemImage: layout.systemImage)
+                                        .tag(layout)
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                        }
+                        .accessibilityLabel("布局选项")
+                    }
+                }
             }
             .toolbarBackground(.hidden, for: .navigationBar)
             .background {
@@ -184,7 +256,7 @@ struct RichSearchTabView: View {
                 }
             }
             .task {
-                await reload()
+                await reload(showLoading: true)
             }
             .refreshable {
                 await reload()
@@ -213,10 +285,7 @@ struct RichSearchTabView: View {
             .sheet(item: $selectedHabitForEdit) { habit in
                 HabitEditorSheetView(
                     mode: .edit(original: habit),
-                    initialDraft: .fromHabit(habit),
-                    onDone: {
-                        NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
-                    }
+                    initialDraft: .fromHabit(habit)
                 )
             }
             .sheet(item: $selectedInspirationForEdit) { item in
@@ -250,6 +319,10 @@ struct RichSearchTabView: View {
             }
             .sheet(item: $inspirationConversionRequest) { request in
                 inspirationConversionDestination(for: request)
+            }
+            .sheet(isPresented: $showCategoryManagement) {
+                CategoryManagementView()
+                    .presentationDetents([.large])
             }
             .alert(deleteAlertTitle, isPresented: $showDeleteAlert) {
                 Button("取消", role: .cancel) {
@@ -319,15 +392,66 @@ struct RichSearchTabView: View {
         }
     }
 
-    private func reload() async {
-        await MainActor.run {
-            isLoading = true
+    @ViewBuilder
+    private func browseDestinationView(for category: SearchBrowseCategory) -> some View {
+        if category == .archived {
+            SearchArchiveContainerView(usesLocalAtmosphere: $usesLocalAtmosphere)
+        } else {
+            SearchCategoryDetailView(
+                category: category,
+                activeTasks: SearchViewSupport.tasks(
+                    for: category,
+                    activeTasks: activeTasks,
+                    archivedTasks: archivedTasks
+                ),
+                activeHabits: SearchViewSupport.habits(for: category, activeHabits: activeHabits),
+                archivedTasks: SearchViewSupport.archivedTasks(for: category, archivedTasks: archivedTasks),
+                archivedHabits: SearchViewSupport.archivedHabits(for: category, archivedHabits: archivedHabits),
+                habitStatusMap: habitStatusMap,
+                categoryMap: categoryMap,
+                taskActions: taskActions,
+                habitActions: habitActions,
+                usesLocalAtmosphere: $usesLocalAtmosphere
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func taskCategoryDestinationView(for uid: String) -> some View {
+        if let category = categoryMap[uid] {
+            CategoryContentDetailView(
+                category: category,
+                activeTasks: activeTasks.filter { $0.categoryUID == uid },
+                activeHabits: activeHabits.filter { $0.categoryUID == uid },
+                archivedTasks: archivedTasks.filter { $0.categoryUID == uid },
+                archivedHabits: archivedHabits.filter { $0.categoryUID == uid },
+                habitStatusMap: habitStatusMap,
+                categoryMap: categoryMap,
+                taskActions: taskActions,
+                habitActions: habitActions,
+                usesLocalAtmosphere: $usesLocalAtmosphere
+            )
+        } else {
+            ContentUnavailableView("分类不存在", systemImage: "tag.slash", description: Text("这个分类可能已被删除。"))
+                .navigationTitle("分类")
+                .navigationBarTitleDisplayMode(.large)
+        }
+    }
+
+    private func reload(showLoading: Bool = false) async {
+        let sequence = await MainActor.run { () -> Int in
+            reloadSequence += 1
+            if showLoading || !hasLoadedOnce {
+                isLoading = true
+            }
+            return reloadSequence
         }
 
         do {
             async let tasks = taskRepo.getDDLsByType(.task)
             async let habits = habitRepo.getAllHabits()
-            let (allTasks, allHabits) = try await (tasks, habits)
+            async let categories = loadCategoriesPreservingCurrent()
+            let (allTasks, allHabits, allCategories) = try await (tasks, habits, categories)
 
             let activeTasks = allTasks.filter { !$0.isArchived }
             let archivedTasks = allTasks.filter { $0.isArchived }
@@ -335,24 +459,38 @@ struct RichSearchTabView: View {
             let archivedHabits = allHabits.filter { $0.status == .archived }
 
             await MainActor.run {
+                guard sequence == reloadSequence else { return }
                 self.activeTasks = activeTasks
                 self.archivedTasks = archivedTasks
                 self.activeHabits = activeHabits
                 self.archivedHabits = archivedHabits
+                self.categories = allCategories
                 self.habitStatusMap = [:]
                 self.isLoading = false
+                self.hasLoadedOnce = true
             }
 
             let statuses = await buildHabitStatuses(for: activeHabits)
             await MainActor.run {
+                guard sequence == reloadSequence else { return }
                 guard self.activeHabits.map(\.id) == activeHabits.map(\.id) else { return }
                 self.habitStatusMap = statuses
             }
         } catch {
             print("RichSearchTab reload failed: \(error)")
             await MainActor.run {
+                guard sequence == reloadSequence else { return }
                 isLoading = false
             }
+        }
+    }
+
+    private func loadCategoriesPreservingCurrent() async -> [TaskCategory] {
+        do {
+            return try await categoryRepo.getAllCategories()
+        } catch {
+            print("RichSearchTab category reload failed: \(error)")
+            return categories
         }
     }
 
@@ -563,6 +701,26 @@ struct RichSearchTabView: View {
             await reload()
         } catch {
             print("RichSearchTab performDelete failed: \(error)")
+        }
+    }
+}
+
+private struct RichSearchSearchableModifier: ViewModifier {
+    let usesToolbarPrincipal: Bool
+    @Binding var query: String
+    let focus: FocusState<Bool>.Binding
+    let prompt: String
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 27.0, *), usesToolbarPrincipal {
+            content
+                .searchable(text: $query, placement: .toolbarPrincipal, prompt: prompt)
+                .searchFocused(focus)
+        } else {
+            content
+                .searchable(text: $query, prompt: prompt)
+                .searchFocused(focus)
         }
     }
 }

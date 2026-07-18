@@ -85,6 +85,10 @@ enum SearchBrowseCategory: String, CaseIterable, Hashable, Identifiable {
     }
 }
 
+struct SearchTaskCategoryRoute: Hashable {
+    let uid: String
+}
+
 enum RichSearchDeleteTarget {
     case task(DDLItem)
     case habit(Habit)

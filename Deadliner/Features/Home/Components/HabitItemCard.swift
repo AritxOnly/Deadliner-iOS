@@ -14,6 +14,7 @@ struct HabitItemCard: View {
     let isCompleted: Bool
     let status: DDLStatus
     let remainingText: String?
+    var categoryBadge: CategoryBadgeModel? = nil
     
     var isSelected: Bool = false
     var selectionMode: Bool = false
@@ -81,7 +82,7 @@ struct HabitItemCard: View {
                 }
                 
                 // 文本与交互行
-                HStack(spacing: 12) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
                     // Checkbox (模拟鸿蒙版样式)
                     Button {
                         if canToggle { onToggle?() }
@@ -92,20 +93,36 @@ struct HabitItemCard: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(!canToggle)
-                    
+                    .alignmentGuide(.firstTextBaseline) { context in
+                        context[VerticalAlignment.center]
+                    }
+
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(habit.name)
-                            .font(.system(size: 16, weight: .medium))
-                            .lineLimit(1)
-                        
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(habit.name)
+                                .font(.system(size: 16, weight: .medium))
+                                .lineLimit(1)
+
+                            // 分类徽章跟在名称后；无徽章时以同高度占位，保持名称纵向位置稳定
+                            Group {
+                                if let categoryBadge {
+                                    CategoryBadgeView(badge: categoryBadge, backgroundColor: Color(UIColor.secondarySystemBackground))
+                                } else {
+                                    Color.clear.frame(width: 20, height: 20)
+                                }
+                            }
+                            .alignmentGuide(.firstTextBaseline) { context in
+                                context[VerticalAlignment.center]
+                            }
+                        }
+
                         Text(bottomLine)
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
-                    
-                    Spacer()
-                    
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
                     Text(rightLabel)
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)

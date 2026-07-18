@@ -33,6 +33,9 @@ struct DDLItem: Identifiable, Equatable, Sendable {
     // 业务时间戳（你当前是字符串）
     var timestamp: String
 
+    // 可选分类。nil 表示“不分类”，不参与 Deadline 语义色计算。
+    var categoryUID: String? = nil
+
     var isCompleted: Bool {
         state.isCompletedLike
     }

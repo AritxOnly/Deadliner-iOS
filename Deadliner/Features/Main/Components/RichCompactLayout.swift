@@ -38,14 +38,171 @@ enum SeperateSearchBar {
     static let defaultValue = true
 }
 
-enum RichSeparateAIPage {
-    static let settingKey = "settings.home.rich.separate_ai_page"
-    static let defaultValue = true
-}
-
 enum DashboardHomeLayout {
     static let settingKey = "settings.home.rich.experimental_dashboard"
     static let defaultValue = false
+}
+
+enum RichMainTab: String, CaseIterable, Codable, Hashable, Identifiable {
+    case home
+    case overview
+    case inspiration
+    case ai
+    case search
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .home:
+            return "清单"
+        case .overview:
+            return "概览"
+        case .inspiration:
+            return "灵感"
+        case .ai:
+            return "AI"
+        case .search:
+            return "浏览"
+        }
+    }
+
+    var settingsTitle: String {
+        switch self {
+        case .home:
+            return "主页"
+        default:
+            return title
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .home:
+            return "checklist"
+        case .overview:
+            return "chart.pie"
+        case .inspiration:
+            return "pencil.and.outline"
+        case .ai:
+            return "sparkles"
+        case .search:
+            return "magnifyingglass"
+        }
+    }
+
+    var canHide: Bool {
+        self != .home && self != .search
+    }
+
+    var browseTint: Color {
+        switch self {
+        case .home:
+            return ThemeDefaults.homeTaskSemanticAccent
+        case .overview:
+            return .teal
+        case .inspiration:
+            return .indigo
+        case .ai:
+            return .purple
+        case .search:
+            return .blue
+        }
+    }
+
+    func iconImage() -> Image {
+        Image(systemName: systemImage)
+    }
+}
+
+struct RichTabConfiguration: Codable, Equatable {
+    var order: [RichMainTab]
+    var hidden: Set<RichMainTab>
+}
+
+enum RichTabCustomization {
+    static let settingKey = "settings.home.rich.tab_customization"
+
+    static var defaultConfiguration: RichTabConfiguration {
+        RichTabConfiguration(order: RichMainTab.allCases, hidden: [])
+    }
+
+    static var defaultRawValue: String {
+        encode(defaultConfiguration)
+    }
+
+    static func decode(_ rawValue: String) -> RichTabConfiguration {
+        guard !rawValue.isEmpty,
+              let data = rawValue.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode(RichTabConfiguration.self, from: data) else {
+            return defaultConfiguration
+        }
+
+        return normalized(decoded)
+    }
+
+    static func encode(_ configuration: RichTabConfiguration) -> String {
+        let normalizedConfiguration = normalized(configuration)
+        guard let data = try? JSONEncoder().encode(normalizedConfiguration),
+              let rawValue = String(data: data, encoding: .utf8) else {
+            return ""
+        }
+
+        return rawValue
+    }
+
+    static func visibleTabs(rawValue: String) -> [RichMainTab] {
+        let configuration = normalized(decode(rawValue))
+        let available = Set(availableTabs())
+        let visible = configuration.order.filter { tab in
+            available.contains(tab) && (!configuration.hidden.contains(tab) || !tab.canHide)
+        }
+
+        return visible.contains(.search) ? visible : visible + [.search]
+    }
+
+    static func hiddenTabs(rawValue: String) -> [RichMainTab] {
+        let configuration = normalized(decode(rawValue))
+        let available = Set(availableTabs())
+
+        return configuration.order.filter { tab in
+            available.contains(tab) && tab.canHide && configuration.hidden.contains(tab)
+        }
+    }
+
+    static func availableTabs() -> [RichMainTab] {
+        RichMainTab.allCases
+    }
+
+    static func normalizedConfiguration(rawValue: String) -> RichTabConfiguration {
+        let configuration = normalized(decode(rawValue))
+        let available = Set(availableTabs())
+        let visibleOrder = configuration.order.filter { available.contains($0) }
+        let unavailableOrder = configuration.order.filter { !available.contains($0) }
+
+        return RichTabConfiguration(
+            order: visibleOrder + unavailableOrder,
+            hidden: configuration.hidden.filter { $0.canHide }
+        )
+    }
+
+    private static func normalized(_ configuration: RichTabConfiguration) -> RichTabConfiguration {
+        var seen = Set<RichMainTab>()
+        var order = configuration.order.filter { tab in
+            guard !seen.contains(tab) else { return false }
+            seen.insert(tab)
+            return true
+        }
+
+        for tab in RichMainTab.allCases where !seen.contains(tab) {
+            order.append(tab)
+        }
+
+        return RichTabConfiguration(
+            order: order,
+            hidden: configuration.hidden.filter { $0.canHide }
+        )
+    }
 }
 
 enum ExperimentalHomeAtmosphereStyle: String, CaseIterable, Identifiable {

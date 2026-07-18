@@ -49,6 +49,7 @@ final class DDLItemEntity {
     var habitTotalCount: Int
     var calendarEventId: Int64
     var timestamp: String
+    var categoryUID: String?
     var habitAppliedVerTs: String?
     var habitAppliedVerCtr: Int?
     var habitAppliedVerDev: String?
@@ -84,6 +85,7 @@ final class DDLItemEntity {
         habitTotalCount: Int = 0,
         calendarEventId: Int64 = -1,
         timestamp: String,
+        categoryUID: String? = nil,
         habitAppliedVerTs: String? = nil,
         habitAppliedVerCtr: Int? = nil,
         habitAppliedVerDev: String? = nil,
@@ -109,6 +111,7 @@ final class DDLItemEntity {
         self.habitTotalCount = habitTotalCount
         self.calendarEventId = calendarEventId
         self.timestamp = timestamp
+        self.categoryUID = categoryUID
         self.habitAppliedVerTs = habitAppliedVerTs
         self.habitAppliedVerCtr = habitAppliedVerCtr
         self.habitAppliedVerDev = habitAppliedVerDev
@@ -129,6 +132,7 @@ final class HabitEntity {
     var descText: String?
     var color: Int?
     var iconKey: String?
+    var categoryUID: String?
     var periodRaw: String
     var timesPerPeriod: Int
     var goalTypeRaw: String
@@ -150,6 +154,7 @@ final class HabitEntity {
         descText: String? = nil,
         color: Int? = nil,
         iconKey: String? = nil,
+        categoryUID: String? = nil,
         periodRaw: String,
         timesPerPeriod: Int = 1,
         goalTypeRaw: String = HabitGoalType.perPeriod.rawValue,
@@ -166,6 +171,7 @@ final class HabitEntity {
         self.descText = descText
         self.color = color
         self.iconKey = iconKey
+        self.categoryUID = categoryUID
         self.periodRaw = periodRaw
         self.timesPerPeriod = timesPerPeriod
         self.goalTypeRaw = goalTypeRaw
@@ -203,6 +209,50 @@ final class HabitRecordEntity {
         self.statusRaw = statusRaw
         self.createdAt = createdAt
         self.habit = habit
+    }
+}
+
+@Model
+final class CategoryEntity {
+    @Attribute(.unique) var uid: String
+    var name: String
+    var iconKey: String
+    var colorHex: String
+    var isPreset: Bool
+    var sortOrder: Int
+    var createdAt: String
+    var updatedAt: String
+    var isDeleted: Bool
+    var verTs: String
+    var verCtr: Int
+    var verDev: String
+
+    init(
+        uid: String,
+        name: String,
+        iconKey: String,
+        colorHex: String,
+        isPreset: Bool,
+        sortOrder: Int,
+        createdAt: String,
+        updatedAt: String,
+        isDeleted: Bool = false,
+        verTs: String = "1970-01-01T00:00:00Z",
+        verCtr: Int = 0,
+        verDev: String = ""
+    ) {
+        self.uid = uid
+        self.name = name
+        self.iconKey = iconKey
+        self.colorHex = colorHex
+        self.isPreset = isPreset
+        self.sortOrder = sortOrder
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.isDeleted = isDeleted
+        self.verTs = verTs
+        self.verCtr = verCtr
+        self.verDev = verDev
     }
 }
 

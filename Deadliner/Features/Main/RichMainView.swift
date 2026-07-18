@@ -21,24 +21,17 @@ struct MainView: View {
     }
 }
 
-private enum RichMainTab: String, Hashable {
-    case home
-    case overview
-    case inspiration
-    case ai
-    case search
-}
-
 struct RichMainView: View {
     @EnvironmentObject private var themeStore: ThemeStore
     @AppStorage("settings.ai.is_configured") private var isAIConfigured: Bool = false
     @AppStorage(RichTabBarTitles.settingKey) private var richTabBarTitlesVisible: Bool = RichTabBarTitles.defaultValue
     @AppStorage(SeperateSearchBar.settingKey) private var seperateSearchBarVisible: Bool = SeperateSearchBar.defaultValue
-    @AppStorage(RichSeparateAIPage.settingKey) private var separateAIPageEnabled: Bool = RichSeparateAIPage.defaultValue
     @AppStorage(DashboardHomeLayout.settingKey) private var dashboardHomeLayoutEnabled: Bool = DashboardHomeLayout.defaultValue
+    @AppStorage(RichTabCustomization.settingKey) private var richTabCustomizationRaw = RichTabCustomization.defaultRawValue
 
     @State private var selectedTab: RichMainTab = .home
     @State private var homeTaskSegment: TaskSegment = .tasks
+    @State private var homeCategoryFilter: CategoryFilter = .all
     @State private var homeAtmosphereTone: ImmersiveSurfaceTone = .accent
     @State private var homeQuery: String = ""
 
@@ -47,9 +40,9 @@ struct RichMainView: View {
     @State private var navGradientProgress: CGFloat = 0
 
     @State private var showAddEntrySheet = false
-    @State private var showAISheet = false
     @State private var addEntrySelection: TaskSegment = .tasks
     @State private var showSettingsSheet = false
+    @State private var showHomeCategoryFilterSheet = false
     @State private var homeResetToken = 0
     @State private var overviewResetToken = 0
     @State private var inspirationResetToken = 0
@@ -69,78 +62,20 @@ struct RichMainView: View {
                 .ignoresSafeArea()
 
             TabView(selection: $selectedTab) {
-                if richTabBarTitlesVisible {
-                    Tab(homeTabTitle, systemImage: homeTabSystemImage, value: RichMainTab.home) {
-                        homeTabContent
-                    }
-
-                    Tab("概览", systemImage: "chart.pie", value: RichMainTab.overview) {
-                        overviewTabContent
-                    }
-
-                    Tab("灵感", systemImage: "pencil.and.outline", value: RichMainTab.inspiration) {
-                        inspirationTabContent
-                    }
-
-                    if separateAIPageEnabled {
-                        Tab("AI", image: "lifi.logo.v1", value: RichMainTab.ai) {
-                            aiTabContent
-                        }
-                    }
-
-                    if #available(iOS 27.0, *), seperateSearchBarVisible {
-                        Tab("搜索", systemImage: "magnifyingglass", value: RichMainTab.search, role: .prominent) {
-                            searchTabContent
-                        }
-                    } else {
-                        Tab("搜索", systemImage: "magnifyingglass", value: RichMainTab.search, role: .search) {
-                            searchTabContent
+                if #available(iOS 27.0, *), seperateSearchBarVisible {
+                    ForEach(visibleTabs) { tab in
+                        if richTabBarTitlesVisible {
+                            titledProminentSearchTab(for: tab)
+                        } else {
+                            iconOnlyProminentSearchTab(for: tab)
                         }
                     }
                 } else {
-                    Tab(value: RichMainTab.home) {
-                        homeTabContent
-                    } label: {
-                        Image(systemName: homeTabSystemImage)
-                            .accessibilityLabel(homeTabTitle)
-                    }
-
-                    Tab(value: RichMainTab.overview) {
-                        overviewTabContent
-                    } label: {
-                        Image(systemName: "chart.pie")
-                            .accessibilityLabel("概览")
-                    }
-
-                    Tab(value: RichMainTab.inspiration) {
-                        inspirationTabContent
-                    } label: {
-                        Image(systemName: "pencil.and.outline")
-                            .accessibilityLabel("灵感")
-                    }
-
-                    if separateAIPageEnabled {
-                        Tab(value: RichMainTab.ai) {
-                            aiTabContent
-                        } label: {
-                            Image("lifi.logo.v1")
-                                .accessibilityLabel("AI")
-                        }
-                    }
-
-                    if #available(iOS 27.0, *), seperateSearchBarVisible {
-                        Tab(value: RichMainTab.search, role: .prominent) {
-                            searchTabContent
-                        } label: {
-                            Image(systemName: "magnifyingglass")
-                                .accessibilityLabel("搜索")
-                        }
-                    } else {
-                        Tab(value: RichMainTab.search, role: .search) {
-                            searchTabContent
-                        } label: {
-                            Image(systemName: "magnifyingglass")
-                                .accessibilityLabel("搜索")
+                    ForEach(visibleTabs) { tab in
+                        if richTabBarTitlesVisible {
+                            titledTab(for: tab)
+                        } else {
+                            iconOnlyTab(for: tab)
                         }
                     }
                 }
@@ -169,28 +104,12 @@ struct RichMainView: View {
                 searchResetToken += 1
             }
         }
-        .onChange(of: separateAIPageEnabled) { _, newValue in
-            if !newValue, selectedTab == .ai {
-                selectedTab = .home
-            }
-        }
         .sheet(isPresented: $showAddEntrySheet) {
             AddEntrySheetView(
                 repository: repo,
-                initialSelection: addEntrySelection,
-                onDone: {
-                    NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
-                }
+                initialSelection: addEntrySelection
             )
             .presentationDetents([.large])
-        }
-        .fullScreenCover(isPresented: $showAISheet) {
-            DeadlinerAIPanel(
-                showsDismissButton: true,
-                embedInNavigationStack: true,
-                bottomAccessoryInset: 16,
-                useSheetDetents: false
-            )
         }
         .sheet(isPresented: $showSettingsSheet) {
             NavigationStack {
@@ -201,9 +120,14 @@ struct RichMainView: View {
             .deadlinerContainerSystemBackground()
             .presentationDetents([.large])
         }
+        .sheet(isPresented: $showHomeCategoryFilterSheet) {
+            CategoryFilterSheet(selectedFilter: $homeCategoryFilter)
+                .presentationDetents([.medium, .large])
+        }
         .onAppear {
             consumePendingWidgetLaunch()
             applyTabBarAppearance()
+            repairSelectedTabIfNeeded()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             consumePendingWidgetLaunch()
@@ -215,22 +139,170 @@ struct RichMainView: View {
         .onChange(of: themeStore.accentOption) { _, _ in
             applyTabBarAppearance()
         }
+        .onChange(of: richTabCustomizationRaw) { _, _ in
+            repairSelectedTabIfNeeded()
+        }
+    }
+
+    @TabContentBuilder<RichMainTab>
+    private func titledTab(for tab: RichMainTab) -> some TabContent<RichMainTab> {
+        switch tab {
+        case .home:
+            Tab(value: RichMainTab.home) {
+                homeTabContent
+            } label: {
+                Label {
+                    Text(homeTabTitle)
+                } icon: {
+                    RichMainTab.home.iconImage()
+                }
+            }
+        case .overview:
+            Tab("概览", systemImage: "chart.pie", value: RichMainTab.overview) {
+                overviewTabContent
+            }
+        case .inspiration:
+            Tab("灵感", systemImage: "pencil.and.outline", value: RichMainTab.inspiration) {
+                inspirationTabContent
+            }
+        case .ai:
+            Tab("AI", image: "lifi.logo.v1", value: RichMainTab.ai) {
+                aiTabContent
+            }
+        case .search:
+            Tab("浏览", systemImage: "magnifyingglass", value: RichMainTab.search, role: .search) {
+                searchTabContent
+            }
+        }
+    }
+
+    @TabContentBuilder<RichMainTab>
+    private func iconOnlyTab(for tab: RichMainTab) -> some TabContent<RichMainTab> {
+        switch tab {
+        case .home:
+            Tab(value: RichMainTab.home) {
+                homeTabContent
+            } label: {
+                RichMainTab.home.iconImage()
+                    .accessibilityLabel(homeTabTitle)
+            }
+        case .overview:
+            Tab(value: RichMainTab.overview) {
+                overviewTabContent
+            } label: {
+                Image(systemName: "chart.pie")
+                    .accessibilityLabel("概览")
+            }
+        case .inspiration:
+            Tab(value: RichMainTab.inspiration) {
+                inspirationTabContent
+            } label: {
+                Image(systemName: "pencil.and.outline")
+                    .accessibilityLabel("灵感")
+            }
+        case .ai:
+            Tab(value: RichMainTab.ai) {
+                aiTabContent
+            } label: {
+                Image("lifi.logo.v1")
+                    .accessibilityLabel("AI")
+            }
+        case .search:
+            Tab(value: RichMainTab.search, role: .search) {
+                searchTabContent
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .accessibilityLabel("浏览")
+            }
+        }
+    }
+
+    @available(iOS 27.0, *)
+    @TabContentBuilder<RichMainTab>
+    private func titledProminentSearchTab(for tab: RichMainTab) -> some TabContent<RichMainTab> {
+        switch tab {
+        case .home:
+            Tab(value: RichMainTab.home) {
+                homeTabContent
+            } label: {
+                Label {
+                    Text(homeTabTitle)
+                } icon: {
+                    RichMainTab.home.iconImage()
+                }
+            }
+        case .overview:
+            Tab("概览", systemImage: "chart.pie", value: RichMainTab.overview) {
+                overviewTabContent
+            }
+        case .inspiration:
+            Tab("灵感", systemImage: "pencil.and.outline", value: RichMainTab.inspiration) {
+                inspirationTabContent
+            }
+        case .ai:
+            Tab("AI", image: "lifi.logo.v1", value: RichMainTab.ai) {
+                aiTabContent
+            }
+        case .search:
+            Tab("浏览", systemImage: "magnifyingglass", value: RichMainTab.search, role: .prominent) {
+                searchTabContent
+            }
+        }
+    }
+
+    @available(iOS 27.0, *)
+    @TabContentBuilder<RichMainTab>
+    private func iconOnlyProminentSearchTab(for tab: RichMainTab) -> some TabContent<RichMainTab> {
+        switch tab {
+        case .home:
+            Tab(value: RichMainTab.home) {
+                homeTabContent
+            } label: {
+                RichMainTab.home.iconImage()
+                    .accessibilityLabel(homeTabTitle)
+            }
+        case .overview:
+            Tab(value: RichMainTab.overview) {
+                overviewTabContent
+            } label: {
+                Image(systemName: "chart.pie")
+                    .accessibilityLabel("概览")
+            }
+        case .inspiration:
+            Tab(value: RichMainTab.inspiration) {
+                inspirationTabContent
+            } label: {
+                Image(systemName: "pencil.and.outline")
+                    .accessibilityLabel("灵感")
+            }
+        case .ai:
+            Tab(value: RichMainTab.ai) {
+                aiTabContent
+            } label: {
+                Image("lifi.logo.v1")
+                    .accessibilityLabel("AI")
+            }
+        case .search:
+            Tab(value: RichMainTab.search, role: .prominent) {
+                searchTabContent
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .accessibilityLabel("浏览")
+            }
+        }
     }
 
     private var homeTabContent: some View {
         RichHomeTabView(
             query: $homeQuery,
             taskSegment: $homeTaskSegment,
+            categoryFilter: $homeCategoryFilter,
             overlayProgress: $navGradientProgress,
             atmosphereTone: homeAtmosphereTone,
             onAtmosphereToneChange: { homeAtmosphereTone = $0 },
             showsHomeFilterToolbarItem: !dashboardHomeLayoutEnabled,
             onHomeFilterTapped: {
-                // TODO: Present task-category filters for the classic home layout.
-            },
-            showsAIToolbarItem: !separateAIPageEnabled,
-            onAITapped: {
-                showAISheet = true
+                showHomeCategoryFilterSheet = true
             },
             onSettingsTapped: {
                 showSettingsSheet = true
@@ -265,31 +337,22 @@ struct RichMainView: View {
             query: $searchQuery,
             overlayProgress: $navGradientProgress,
             focusRequestToken: searchFocusRequestToken,
-            usesLocalAtmosphere: $searchUsesLocalAtmosphere
+            usesLocalAtmosphere: $searchUsesLocalAtmosphere,
+            hiddenMainTabs: hiddenMainTabs
         )
         .id(searchResetToken)
     }
 
     private var visibleTabs: [RichMainTab] {
-        var tabs: [RichMainTab] = [.home, .overview, .inspiration]
-        if separateAIPageEnabled {
-            tabs.append(.ai)
-        }
-        tabs.append(.search)
-        return tabs
+        RichTabCustomization.visibleTabs(rawValue: richTabCustomizationRaw)
     }
 
-    private var homeTabSystemImage: String {
-        dashboardHomeLayoutEnabled ? todayCalendarSystemImage : "checklist"
+    private var hiddenMainTabs: [RichMainTab] {
+        RichTabCustomization.hiddenTabs(rawValue: richTabCustomizationRaw)
     }
 
     private var homeTabTitle: String {
         dashboardHomeLayoutEnabled ? "今日" : "清单"
-    }
-
-    private var todayCalendarSystemImage: String {
-        let day = Calendar.current.component(.day, from: Date())
-        return (1...31).contains(day) ? "\(day).calendar" : "calendar"
     }
 
     private var floatingAddButton: some View {
@@ -448,11 +511,10 @@ struct RichMainView: View {
     }
 
     private func openAIEntryPoint() {
-        if separateAIPageEnabled {
+        if visibleTabs.contains(.ai) {
             selectedTab = .ai
         } else {
-            selectedTab = .home
-            showAISheet = true
+            selectedTab = .search
         }
     }
 
@@ -463,6 +525,11 @@ struct RichMainView: View {
         } else {
             resetScroll(for: tab)
         }
+    }
+
+    private func repairSelectedTabIfNeeded() {
+        guard !visibleTabs.contains(selectedTab) else { return }
+        selectedTab = visibleTabs.first ?? .search
     }
 
 }

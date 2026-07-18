@@ -11,6 +11,7 @@ actor SyncServiceV2: SyncService {
     private let web: WebDAVClient
     private let snapshotV2Path = "Deadliner/snapshot-v2.json"
     private let habitSnapshotV2Path = "Deadliner/habit-snapshot-v2.json"
+    private let categorySnapshotV2Path = "Deadliner/category-snapshot-v2.json"
     private let snapshotV1Path = "Deadliner/snapshot-v1.json"
     private let logger = Logger(subsystem: "Deadliner", category: "SyncServiceV2")
 
@@ -43,6 +44,12 @@ actor SyncServiceV2: SyncService {
     }
 
     private func pruneExpiredDeletedItems(_ items: [HabitSnapshotV2Item], cutoff: Date?) -> [HabitSnapshotV2Item] {
+        items.filter { item in
+            !item.deleted || shouldKeepDeletedItem(verTs: item.ver.ts, cutoff: cutoff)
+        }
+    }
+
+    private func pruneExpiredDeletedItems(_ items: [CategorySnapshotV2Item], cutoff: Date?) -> [CategorySnapshotV2Item] {
         items.filter { item in
             !item.deleted || shouldKeepDeletedItem(verTs: item.ver.ts, cutoff: cutoff)
         }
@@ -88,7 +95,8 @@ actor SyncServiceV2: SyncService {
                 habit_total_count: entity.habitTotalCount,
                 calendar_event: entity.calendarEventId,
                 timestamp: entity.timestamp,
-                sub_tasks: try entity.decodedSubTasks().map { $0.toSnapshotV2() }
+                sub_tasks: try entity.decodedSubTasks().map { $0.toSnapshotV2() },
+                category_uid: entity.categoryUID
             )
             return SnapshotV2Item(uid: uid, ver: ver, deleted: false, doc: doc)
         }
@@ -262,7 +270,8 @@ actor SyncServiceV2: SyncService {
                     habit_total_count: doc.habit_total_count,
                     calendar_event: doc.calendar_event,
                     timestamp: doc.timestamp,
-                    sub_tasks: []
+                    sub_tasks: [],
+                    category_uid: nil
                 )
             )
         }
@@ -367,6 +376,125 @@ actor SyncServiceV2: SyncService {
             )
 
             let hasChanges = try await applySnapshotToLocal(merged)
+            return .init(success: true, hasLocalChanges: hasChanges)
+        }
+    }
+
+    private func buildLocalCategorySnapshotV2() async throws -> CategorySnapshotV2Root {
+        try await db.bootstrapPresetCategoriesIfNeeded()
+        let items = try await db.getAllCategoryEntitiesForSync()
+        let cutoff = await tombstoneRetentionCutoff()
+
+        let snapshotItems = items.compactMap { entity -> CategorySnapshotV2Item? in
+            let ver = SnapshotVer(ts: entity.verTs, ctr: entity.verCtr, dev: entity.verDev)
+            if entity.isDeleted {
+                guard shouldKeepDeletedItem(verTs: ver.ts, cutoff: cutoff) else {
+                    trace("buildLocalCategorySnapshotV2 prune expired tombstone uid=\(entity.uid) ver=\(ver.ts)#\(ver.ctr)#\(ver.dev)")
+                    return nil
+                }
+                return CategorySnapshotV2Item(uid: entity.uid, ver: ver, deleted: true, doc: nil)
+            }
+
+            return CategorySnapshotV2Item(
+                uid: entity.uid,
+                ver: ver,
+                deleted: false,
+                doc: entity.toSnapshotV2Doc()
+            )
+        }
+
+        let dev = try await db.getDeviceId()
+        let now = Date().toLocalISOString()
+        return CategorySnapshotV2Root(version: .init(ts: now, dev: dev), items: snapshotItems)
+    }
+
+    private func merge(local: CategorySnapshotV2Root, remote: CategorySnapshotV2Root?) -> CategorySnapshotV2Root {
+        let cutoff = TaskLocalSyncContext.tombstoneCutoff
+        var map: [String: CategorySnapshotV2Item] = [:]
+        for item in pruneExpiredDeletedItems(local.items, cutoff: cutoff) {
+            map[item.uid] = item
+        }
+
+        for item in pruneExpiredDeletedItems(remote?.items ?? [], cutoff: cutoff) {
+            if let existing = map[item.uid] {
+                if isVerNewer(item.ver, existing.ver) {
+                    map[item.uid] = item
+                }
+            } else {
+                map[item.uid] = item
+            }
+        }
+
+        return CategorySnapshotV2Root(version: local.version, items: Array(map.values))
+    }
+
+    private func loadRemoteCategoryV2IfPresent(decoder: JSONDecoder) async throws -> (root: CategorySnapshotV2Root?, etag: String?) {
+        let head = try await web.head(path: categorySnapshotV2Path)
+        if [404, 409, 410].contains(head.code) {
+            return (nil, nil)
+        }
+
+        let remote = try await web.getBytes(path: categorySnapshotV2Path)
+        let root = try decoder.decode(CategorySnapshotV2Root.self, from: remote.bytes)
+        return (root, remote.etag)
+    }
+
+    private func applyCategorySnapshotToLocal(_ merged: CategorySnapshotV2Root) async throws -> Bool {
+        var changed = false
+
+        for item in merged.items {
+            if let local = try await db.findCategoryEntity(uid: item.uid) {
+                let localVer = SnapshotVer(ts: local.verTs, ctr: local.verCtr, dev: local.verDev)
+                if !isVerNewer(item.ver, localVer) {
+                    continue
+                }
+            }
+
+            try await db.overwriteCategoryFromSnapshotV2(
+                uid: item.uid,
+                doc: item.doc,
+                deleted: item.deleted,
+                ver: item.ver
+            )
+            changed = true
+        }
+
+        return changed
+    }
+
+    private func syncCategorySnapshotOnce() async throws -> SyncResult {
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        let cutoff = await tombstoneRetentionCutoff()
+
+        return try await TaskLocalSyncContext.$tombstoneCutoff.withValue(cutoff) {
+            let local = try await buildLocalCategorySnapshotV2()
+            let remote = try await loadRemoteCategoryV2IfPresent(decoder: decoder)
+            let merged = merge(local: local, remote: remote.root)
+            let mergedBytes = try encoder.encode(merged)
+
+            do {
+                _ = await web.ensureDir("Deadliner")
+                _ = try await web.putBytes(
+                    path: categorySnapshotV2Path,
+                    bytes: mergedBytes,
+                    ifMatch: remote.etag,
+                    ifNoneMatchStar: remote.root == nil
+                )
+            } catch is PreconditionFailedError {
+                let refreshed = try await loadRemoteCategoryV2IfPresent(decoder: decoder)
+                let mergedRetry = merge(local: local, remote: refreshed.root)
+                _ = try await web.putBytes(
+                    path: categorySnapshotV2Path,
+                    bytes: try encoder.encode(mergedRetry),
+                    ifMatch: refreshed.etag,
+                    ifNoneMatchStar: refreshed.root == nil
+                )
+                let hasChanges = try await applyCategorySnapshotToLocal(mergedRetry)
+                return .init(success: true, hasLocalChanges: hasChanges)
+            }
+
+            let hasChanges = try await applyCategorySnapshotToLocal(merged)
             return .init(success: true, hasLocalChanges: hasChanges)
         }
     }
@@ -562,11 +690,12 @@ actor SyncServiceV2: SyncService {
     }
 
     private func syncAllSnapshotsOnce() async throws -> SyncResult {
+        let categoryResult = try await syncCategorySnapshotOnce()
         let ddlResult = try await syncDDLSnapshotOnce()
         let habitResult = try await syncHabitSnapshotOnce()
         return .init(
-            success: ddlResult.success && habitResult.success,
-            hasLocalChanges: ddlResult.hasLocalChanges || habitResult.hasLocalChanges
+            success: categoryResult.success && ddlResult.success && habitResult.success,
+            hasLocalChanges: categoryResult.hasLocalChanges || ddlResult.hasLocalChanges || habitResult.hasLocalChanges
         )
     }
 
@@ -617,6 +746,7 @@ private extension HabitEntity {
             description: descText,
             color: color,
             icon_key: iconKey,
+            category_uid: categoryUID,
             period: periodRaw,
             times_per_period: timesPerPeriod,
             goal_type: goalTypeRaw,

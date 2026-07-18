@@ -87,6 +87,33 @@ extension View {
     }
 
     @ViewBuilder
+    func deadlinerNavigationBarMinimizeOnScrollDown(_ isEnabled: Bool) -> some View {
+        if isEnabled {
+            deadlinerNavigationBarMinimizeOnScrollDown()
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
+    func deadlinerNavigationTitleBarMinimizeOnScrollDown(_ isEnabled: Bool) -> some View {
+        if #available(iOS 27.0, *), isEnabled {
+            modifier(DeadlinerNavigationTitleBarMinimizeOnScrollDownModifier())
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
+    func deadlinerNavigationTitleBarAutomaticMinimize(_ isEnabled: Bool) -> some View {
+        if #available(iOS 27.0, *), isEnabled {
+            modifier(DeadlinerNavigationTitleBarAutomaticMinimizeModifier())
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
     func deadlinerScrollEdgeEffect(forceImmersive: Bool = false) -> some View {
         if #available(iOS 26.0, macOS 26.0, tvOS 26.0, watchOS 26.0, *) {
             modifier(DeadlinerScrollEdgeEffectModifier(forceImmersive: forceImmersive))
@@ -111,6 +138,26 @@ private struct DeadlinerNavigationBarMinimizeOnScrollDownModifier: ViewModifier 
     func body(content: Content) -> some View {
         if #available(iOS 27.0, *) {
             content.toolbarMinimizationBehavior(.onScrollDown, for: .statusBar)
+        } else {
+            content
+        }
+    }
+}
+
+private struct DeadlinerNavigationTitleBarMinimizeOnScrollDownModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 27.0, *) {
+            content.toolbarMinimizationBehavior(.onScrollDown, for: .navigationBar)
+        } else {
+            content
+        }
+    }
+}
+
+private struct DeadlinerNavigationTitleBarAutomaticMinimizeModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 27.0, *) {
+            content.toolbarMinimizationBehavior(.automatic, for: .navigationBar)
         } else {
             content
         }

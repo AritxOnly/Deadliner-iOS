@@ -10,6 +10,7 @@ import SwiftUI
 struct DashboardHomeView: View {
     @Binding var query: String
     @Binding var taskSegment: TaskSegment
+    @Binding var categoryFilter: CategoryFilter
     var onScrollProgressChange: ((CGFloat) -> Void)? = nil
     var onSelectionModeChange: ((Bool) -> Void)? = nil
     var onAtmosphereToneChange: ((ImmersiveSurfaceTone) -> Void)? = nil
@@ -19,6 +20,7 @@ struct DashboardHomeView: View {
         HomeBoardCoreView(
             query: $query,
             taskSegment: $taskSegment,
+            categoryFilter: $categoryFilter,
             onScrollProgressChange: onScrollProgressChange,
             onSelectionModeChange: onSelectionModeChange,
             onAtmosphereToneChange: onAtmosphereToneChange,

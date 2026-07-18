@@ -10,6 +10,7 @@ struct HabitSnapshotV2Payload: Codable, Sendable {
     let description: String?
     let color: Int?
     let icon_key: String?
+    let category_uid: String?
     let period: String
     let times_per_period: Int
     let goal_type: String

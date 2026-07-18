@@ -35,7 +35,6 @@ struct HomeStyleSettingsView: View {
     @AppStorage(RichCompactLayout.settingKey) private var richCompactLayoutEnabled: Bool = false
     @AppStorage(RichTabBarTitles.settingKey) private var richTabBarTitlesVisible: Bool = RichTabBarTitles.defaultValue
     @AppStorage(SeperateSearchBar.settingKey) private var seperateSearchBar: Bool = SeperateSearchBar.defaultValue
-    @AppStorage(RichSeparateAIPage.settingKey) private var separateAIPageEnabled: Bool = RichSeparateAIPage.defaultValue
     @AppStorage(DashboardHomeLayout.settingKey) private var dashboardHomeLayoutEnabled: Bool = DashboardHomeLayout.defaultValue
 
     var body: some View {
@@ -88,8 +87,12 @@ struct HomeStyleSettingsView: View {
 //                        .font(.footnote)
 //                        .foregroundStyle(.secondary)
 
-                    Toggle("独立 Lifi AI 页", isOn: $separateAIPageEnabled)
-                    
+                    NavigationLink {
+                        RichTabCustomizationSettingsView()
+                    } label: {
+                        Label("自定义底栏", systemImage: "slider.horizontal.3")
+                    }
+
                     if #available(iOS 27.0, *) {
                         Toggle("分体式搜索栏", isOn: $seperateSearchBar)
                     }

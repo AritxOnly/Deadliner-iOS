@@ -990,29 +990,9 @@ extension AIFunctionView {
         defer { repoBusy = false }
 
         do {
-            // 1. 先创建一个 DDLItem 作为载体 (类型为 .habit)
-            let ddlParams = DDLInsertParams(
-                name: habit.name,
-                startTime: Date().toLocalISOString(),
-                endTime: "", // 习惯通常没有明确截止时间
-                state: .active,
-                completeTime: "",
-                note: "",
-                isStared: false,
-                subTasks: [],
-                type: .habit,
-                calendarEventId: nil
-            )
-            
-            let ddlId = try await TaskRepository.shared.insertDDL(ddlParams)
-            
-            // 2. 解析周期与目标类型
             let periodEnum = HabitPeriod(rawValue: habit.period.uppercased()) ?? .daily
             let goalTypeEnum = HabitGoalType(rawValue: habit.goalType.uppercased()) ?? .perPeriod
-            
-            // 3. 创建 Habit 本体
-            _ = try await HabitRepository.shared.createHabitForDdl(
-                ddlId: ddlId,
+            let creation = try await HabitRepository.shared.createHabitWithCarrier(
                 name: habit.name,
                 period: periodEnum,
                 timesPerPeriod: habit.timesPerPeriod,
@@ -1023,7 +1003,7 @@ extension AIFunctionView {
 
             let key = makeHabitKey(habit)
             addedHabitKeys.insert(key)
-            createdHabitDdlIDsByKey[key] = ddlId
+            createdHabitDdlIDsByKey[key] = creation.ddlID
 
             withAnimation(.spring()) {
                 displayItems.append(DisplayItem(kind: .aiChat("已开启习惯：\(habit.name)")))
@@ -1163,23 +1143,9 @@ extension AIFunctionView {
         var successCount = 0
         for proposal in proposals {
             do {
-                let ddlParams = DDLInsertParams(
-                    name: proposal.name,
-                    startTime: Date().toLocalISOString(),
-                    endTime: "",
-                    state: .active,
-                    completeTime: "",
-                    note: "",
-                    isStared: false,
-                    subTasks: [],
-                    type: .habit,
-                    calendarEventId: nil
-                )
-                let ddlId = try await TaskRepository.shared.insertDDL(ddlParams)
                 let periodEnum = HabitPeriod(rawValue: proposal.period.uppercased()) ?? .daily
                 let goalTypeEnum = HabitGoalType(rawValue: proposal.goalType.uppercased()) ?? .perPeriod
-                _ = try await HabitRepository.shared.createHabitForDdl(
-                    ddlId: ddlId,
+                let creation = try await HabitRepository.shared.createHabitWithCarrier(
                     name: proposal.name,
                     period: periodEnum,
                     timesPerPeriod: proposal.timesPerPeriod,
@@ -1189,7 +1155,7 @@ extension AIFunctionView {
                 )
                 let key = makeHabitKey(proposal)
                 addedHabitKeys.insert(key)
-                createdHabitDdlIDsByKey[key] = ddlId
+                createdHabitDdlIDsByKey[key] = creation.ddlID
                 successCount += 1
             } catch {
                 continue

@@ -14,6 +14,7 @@ struct TaskDraft: Equatable {
     var startTime: Date
     var endTime: Date
     var isStarred: Bool
+    var categoryUID: String?
 
     static func empty() -> TaskDraft {
         .init(
@@ -21,7 +22,8 @@ struct TaskDraft: Equatable {
             note: "",
             startTime: Date(),
             endTime: Date().addingTimeInterval(3600),
-            isStarred: false
+            isStarred: false,
+            categoryUID: nil
         )
     }
 
@@ -31,7 +33,8 @@ struct TaskDraft: Equatable {
             note: item.note,
             startTime: DeadlineDateParser.safeParseOptional(item.startTime) ?? Date(),
             endTime: DeadlineDateParser.safeParseOptional(item.endTime) ?? Date().addingTimeInterval(3600),
-            isStarred: item.isStared
+            isStarred: item.isStared,
+            categoryUID: item.categoryUID
         )
     }
 }
@@ -64,6 +67,9 @@ struct TaskEditorSheetView: View {
     @State private var startTime: Date
     @State private var endTime: Date
     @State private var isStarred: Bool
+    @State private var selectedCategoryUID: String?
+    @State private var categories: [TaskCategory] = []
+    @State private var showCategoryPicker = false
 
     @State private var aiInputText: String = ""
     @State private var isAILoading: Bool = false
@@ -104,6 +110,7 @@ struct TaskEditorSheetView: View {
         _startTime = State(initialValue: initialDraft.startTime)
         _endTime = State(initialValue: initialDraft.endTime)
         _isStarred = State(initialValue: initialDraft.isStarred)
+        _selectedCategoryUID = State(initialValue: initialDraft.categoryUID)
         _aiInputText = State(initialValue: initialAIInput ?? "")
     }
 
@@ -156,6 +163,17 @@ struct TaskEditorSheetView: View {
                         .lineLimit(2...5)
 
                     Toggle("星标", isOn: $isStarred)
+
+                    Button {
+                        showCategoryPicker = true
+                    } label: {
+                        HStack {
+                            Text("分类")
+                            Spacer()
+                            categorySelectionLabel
+                        }
+                    }
+                    .foregroundStyle(.primary)
                 }
 
                 Section("时间") {
@@ -206,6 +224,12 @@ struct TaskEditorSheetView: View {
         .sheet(isPresented: $showPaywall) {
             ProPaywallView()
         }
+        .sheet(isPresented: $showCategoryPicker) {
+            CategoryPickerSheet(selectedUID: $selectedCategoryUID) {
+                Task { await loadCategories() }
+            }
+            .presentationDetents([.medium, .large])
+        }
         .onChange(of: saveTrigger) { oldValue, newValue in
             guard embedsInParentNavigationStack, newValue != oldValue else { return }
             Task { await save() }
@@ -216,6 +240,9 @@ struct TaskEditorSheetView: View {
             guard !isAILoading else { return }
             guard !aiInputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             Task { await onAITriggered() }
+        }
+        .task {
+            await loadCategories()
         }
         .onChange(of: name) { _, _ in
             onSaveEnabledChange?(isSaveEnabled)
@@ -237,6 +264,19 @@ struct TaskEditorSheetView: View {
 
     private var isSaveEnabled: Bool {
         !isSaving && !isAILoading && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var categorySelectionLabel: some View {
+        Group {
+            if let selectedCategoryUID,
+               let category = categories.first(where: { $0.uid == selectedCategoryUID }) {
+                CategoryBadgeView(badge: CategoryBadgeModel(category: category), showsTitle: true)
+            } else {
+                Label("不分类", systemImage: "tag.slash")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     // MARK: - AI
@@ -318,7 +358,8 @@ struct TaskEditorSheetView: View {
                     isStared: isStarred,
                     subTasks: [],
                     type: .task,
-                    calendarEventId: nil
+                    calendarEventId: nil,
+                    categoryUID: selectedCategoryUID
                 )
 
                 let ddlId = try await repository.insertDDL(params)
@@ -338,6 +379,7 @@ struct TaskEditorSheetView: View {
                 updated.startTime = startTime.toLocalISOString()
                 updated.endTime = endTime.toLocalISOString()
                 updated.isStared = isStarred
+                updated.categoryUID = selectedCategoryUID
 
                 try await repository.updateDDL(updated)
                 NotificationManager.shared.scheduleTaskNotification(for: updated)
@@ -356,5 +398,15 @@ struct TaskEditorSheetView: View {
     private func showToast(_ msg: String) {
         alertMessage = msg
         showAlert = true
+    }
+
+    @MainActor
+    private func loadCategories() async {
+        do {
+            categories = try await CategoryRepository.shared.getAllCategories()
+        } catch {
+            print("TaskEditorSheetView category reload failed: \(error)")
+            // Keep existing category cache on transient failures.
+        }
     }
 }

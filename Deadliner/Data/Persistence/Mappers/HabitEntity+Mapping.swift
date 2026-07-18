@@ -16,6 +16,7 @@ extension HabitEntity {
             description: descText,
             color: color,
             iconKey: iconKey,
+            categoryUID: categoryUID,
             period: HabitPeriod(rawValue: periodRaw) ?? .daily,
             timesPerPeriod: timesPerPeriod,
             goalType: HabitGoalType(rawValue: goalTypeRaw) ?? .perPeriod,
@@ -35,6 +36,7 @@ extension HabitEntity {
         descText = domain.description
         color = domain.color
         iconKey = domain.iconKey
+        categoryUID = domain.categoryUID
         periodRaw = domain.period.rawValue
         timesPerPeriod = domain.timesPerPeriod
         goalTypeRaw = domain.goalType.rawValue

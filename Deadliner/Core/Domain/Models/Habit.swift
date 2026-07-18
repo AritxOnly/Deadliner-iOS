@@ -15,6 +15,7 @@ struct Habit: Identifiable, Equatable, Sendable {
     var description: String?
     var color: Int?
     var iconKey: String?
+    var categoryUID: String? = nil
     
     var period: HabitPeriod
     var timesPerPeriod: Int

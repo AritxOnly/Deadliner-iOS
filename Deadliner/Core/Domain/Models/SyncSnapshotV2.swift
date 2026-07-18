@@ -29,6 +29,7 @@ struct SnapshotV2Doc: Codable, Sendable {
     let calendar_event: Int64
     let timestamp: String
     let sub_tasks: [SnapshotV2InnerTodo]
+    let category_uid: String?
 }
 
 struct SnapshotV2Item: Codable, Sendable {

@@ -7,14 +7,19 @@
 
 import XCTest
 import SwiftData
+import Foundation
 @testable import Deadliner
 
 final class DatabaseHelperSyncBridgeTests: XCTestCase {
 
     private var container: ModelContainer!
+    private var database: DatabaseHelper!
+    private var habitRepository: HabitRepository!
 
     override func setUpWithError() throws {
         container = try PersistenceController.makeContainer(inMemory: true)
+        database = DatabaseHelper()
+        habitRepository = HabitRepository(db: database)
         try awaitInit()
     }
 
@@ -22,7 +27,7 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
         let exp = expectation(description: "init db")
         Task {
             do {
-                try await DatabaseHelper.shared.initIfNeeded(container: container)
+                try await database.initIfNeeded(container: container)
                 exp.fulfill()
             } catch {
                 XCTFail("init failed: \(error)")
@@ -52,14 +57,14 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
         let exp = expectation(description: "insert")
         Task {
             do {
-                try await DatabaseHelper.shared.insertDDLFromSnapshot(
+                try await database.insertDDLFromSnapshot(
                     uid: "DEV123:42",
                     doc: doc,
                     verTs: "2026-02-16T10:00:00Z",
                     verCtr: 0,
                     verDev: "DEV123"
                 )
-                let found = try await DatabaseHelper.shared.findDDLByUID("DEV123:42")
+                let found = try await database.findDDLByUID("DEV123:42")
                 XCTAssertNotNil(found)
                 XCTAssertEqual(found?.legacyId, 42)
                 XCTAssertEqual(found?.name, "Task A")
@@ -76,7 +81,7 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
         let exp = expectation(description: "tombstone")
         Task {
             do {
-                let id = try await DatabaseHelper.shared.insertDDL(.init(
+                let id = try await database.insertDDL(.init(
                     name: "To Delete",
                     startTime: "2026-02-16T10:00:00",
                     endTime: "2026-02-16T12:00:00",
@@ -89,14 +94,14 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
                     calendarEventId: nil
                 ))
 
-                try await DatabaseHelper.shared.applyTombstone(
+                try await database.applyTombstone(
                     legacyId: id,
                     verTs: "2026-02-16T11:00:00Z",
                     verCtr: 1,
                     verDev: "D1"
                 )
 
-                let all = try await DatabaseHelper.shared.getAllDDLsIncludingDeletedForSync()
+                let all = try await database.getAllDDLsIncludingDeletedForSync()
                 let target = all.first(where: { $0.legacyId == id })
                 XCTAssertEqual(target?.isTombstoned, true)
                 XCTAssertEqual(target?.isArchived, true)
@@ -112,7 +117,7 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
         let exp = expectation(description: "overwrite")
         Task {
             do {
-                let id = try await DatabaseHelper.shared.insertDDL(.init(
+                let id = try await database.insertDDL(.init(
                     name: "Old",
                     startTime: "2026-02-16T09:00:00",
                     endTime: "2026-02-16T10:00:00",
@@ -142,7 +147,7 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
                     timestamp: "2026-02-16T12:00:00"
                 )
 
-                try await DatabaseHelper.shared.overwriteDDLFromSnapshot(
+                try await database.overwriteDDLFromSnapshot(
                     legacyId: id,
                     doc: doc,
                     verTs: "2026-02-16T12:00:00Z",
@@ -150,7 +155,7 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
                     verDev: "D2"
                 )
 
-                let all = try await DatabaseHelper.shared.getAllDDLsIncludingDeletedForSync()
+                let all = try await database.getAllDDLsIncludingDeletedForSync()
                 let target = all.first(where: { $0.legacyId == id })
                 XCTAssertEqual(target?.name, "New Name")
                 XCTAssertEqual(target?.isCompleted, true)
@@ -191,10 +196,11 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
                             created_at: "2026-03-23T10:00:00Z",
                             updated_at: "2026-03-23T11:00:00Z"
                         )
-                    ]
+                    ],
+                    category_uid: nil
                 )
 
-                try await DatabaseHelper.shared.insertDDLFromSnapshotV2(
+                try await database.insertDDLFromSnapshotV2(
                     uid: "DEV123:88",
                     doc: doc,
                     verTs: "2026-03-23T12:00:00Z",
@@ -202,7 +208,7 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
                     verDev: "DEV123"
                 )
 
-                let found = try await DatabaseHelper.shared.findDDLByUID("DEV123:88")
+                let found = try await database.findDDLByUID("DEV123:88")
                 XCTAssertNotNil(found)
                 XCTAssertEqual(found?.resolvedState(), .abandoned)
                 XCTAssertEqual(try found?.decodedSubTasks().count, 1)
@@ -233,11 +239,12 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
                     habit_total_count: 0,
                     calendar_event: -1,
                     timestamp: "2026-03-23T10:00:00",
-                    sub_tasks: []
+                    sub_tasks: [],
+                    category_uid: nil
                 )
 
                 do {
-                    try await DatabaseHelper.shared.insertDDLFromSnapshotV2(
+                    try await database.insertDDLFromSnapshotV2(
                         uid: "DEV123:99",
                         doc: doc,
                         verTs: "2026-03-23T12:00:00Z",
@@ -260,7 +267,7 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
         let exp = expectation(description: "upsert habit snapshot")
         Task {
             do {
-                try await DatabaseHelper.shared.insertDDLFromSnapshotV2(
+                try await database.insertDDLFromSnapshotV2(
                     uid: "DEV123:H1",
                     doc: .init(
                         id: 101,
@@ -283,7 +290,7 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
                     verDev: "DEV123"
                 )
 
-                let habit = try await DatabaseHelper.shared.upsertHabitFromSnapshotV2(
+                let habit = try await database.upsertHabitFromSnapshotV2(
                     ddlUID: "DEV123:H1",
                     payload: .init(
                         name: "Read",
@@ -318,7 +325,7 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
         let exp = expectation(description: "invalid habit payload")
         Task {
             do {
-                try await DatabaseHelper.shared.insertDDLFromSnapshotV2(
+                try await database.insertDDLFromSnapshotV2(
                     uid: "DEV123:H2",
                     doc: .init(
                         id: 102,
@@ -342,7 +349,7 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
                 )
 
                 do {
-                    _ = try await DatabaseHelper.shared.upsertHabitFromSnapshotV2(
+                    _ = try await database.upsertHabitFromSnapshotV2(
                         ddlUID: "DEV123:H2",
                         payload: .init(
                             name: "Broken",
@@ -377,7 +384,7 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
         let exp = expectation(description: "invalid habit record payload")
         Task {
             do {
-                try await DatabaseHelper.shared.insertDDLFromSnapshotV2(
+                try await database.insertDDLFromSnapshotV2(
                     uid: "DEV123:H3",
                     doc: .init(
                         id: 103,
@@ -399,7 +406,7 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
                     verCtr: 0,
                     verDev: "DEV123"
                 )
-                let habit = try await DatabaseHelper.shared.upsertHabitFromSnapshotV2(
+                let habit = try await database.upsertHabitFromSnapshotV2(
                     ddlUID: "DEV123:H3",
                     payload: .init(
                         name: "Read",
@@ -419,7 +426,7 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
                 )
 
                 do {
-                    try await DatabaseHelper.shared.replaceHabitRecordsFromSnapshotV2(
+                    try await database.replaceHabitRecordsFromSnapshotV2(
                         habitLegacyId: habit.legacyId,
                         records: [
                             .init(
@@ -447,7 +454,7 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
         let exp = expectation(description: "daily multi check-in")
         Task {
             do {
-                let ddlId = try await DatabaseHelper.shared.insertDDL(.init(
+                let ddlId = try await database.insertDDL(.init(
                     name: "Daily Multi Habit Carrier",
                     startTime: "2026-05-01T08:00:00",
                     endTime: "2026-05-01T09:00:00",
@@ -460,7 +467,7 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
                     calendarEventId: nil
                 ))
 
-                let habitId = try await HabitRepository.shared.createHabitForDdl(
+                let habitId = try await habitRepository.createHabitForDdl(
                     ddlId: ddlId,
                     name: "Drink Water",
                     period: .daily,
@@ -469,20 +476,20 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
 
                 let day = Date()
 
-                try await HabitRepository.shared.toggleRecord(habitId: habitId, date: day)
-                var records = try await HabitRepository.shared.getRecordsForHabitOnDate(habitId: habitId, date: day)
+                try await habitRepository.toggleRecord(habitId: habitId, date: day)
+                var records = try await habitRepository.getRecordsForHabitOnDate(habitId: habitId, date: day)
                 XCTAssertEqual(records.reduce(0) { $0 + $1.count }, 1)
 
-                try await HabitRepository.shared.toggleRecord(habitId: habitId, date: day)
-                records = try await HabitRepository.shared.getRecordsForHabitOnDate(habitId: habitId, date: day)
+                try await habitRepository.toggleRecord(habitId: habitId, date: day)
+                records = try await habitRepository.getRecordsForHabitOnDate(habitId: habitId, date: day)
                 XCTAssertEqual(records.reduce(0) { $0 + $1.count }, 2)
 
-                try await HabitRepository.shared.toggleRecord(habitId: habitId, date: day)
-                records = try await HabitRepository.shared.getRecordsForHabitOnDate(habitId: habitId, date: day)
+                try await habitRepository.toggleRecord(habitId: habitId, date: day)
+                records = try await habitRepository.getRecordsForHabitOnDate(habitId: habitId, date: day)
                 XCTAssertEqual(records.reduce(0) { $0 + $1.count }, 3)
 
-                try await HabitRepository.shared.toggleRecord(habitId: habitId, date: day)
-                records = try await HabitRepository.shared.getRecordsForHabitOnDate(habitId: habitId, date: day)
+                try await habitRepository.toggleRecord(habitId: habitId, date: day)
+                records = try await habitRepository.getRecordsForHabitOnDate(habitId: habitId, date: day)
                 XCTAssertEqual(records.reduce(0) { $0 + $1.count }, 0)
 
                 exp.fulfill()
@@ -492,4 +499,5 @@ final class DatabaseHelperSyncBridgeTests: XCTestCase {
         }
         wait(for: [exp], timeout: 3.0)
     }
+
 }

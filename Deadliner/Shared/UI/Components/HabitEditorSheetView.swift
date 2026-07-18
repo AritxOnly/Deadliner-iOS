@@ -14,6 +14,7 @@ struct HabitDraft: Equatable {
     var goalType: HabitGoalType
     var timesPerPeriod: String
     var totalTarget: String
+    var categoryUID: String?
 
     static func empty() -> HabitDraft {
         .init(
@@ -22,7 +23,8 @@ struct HabitDraft: Equatable {
             period: .daily,
             goalType: .perPeriod,
             timesPerPeriod: "1",
-            totalTarget: "100"
+            totalTarget: "100",
+            categoryUID: nil
         )
     }
 
@@ -33,7 +35,8 @@ struct HabitDraft: Equatable {
             period: h.period,
             goalType: h.goalType,
             timesPerPeriod: String(h.timesPerPeriod),
-            totalTarget: String(h.totalTarget ?? 100)
+            totalTarget: String(h.totalTarget ?? 100),
+            categoryUID: h.categoryUID
         )
     }
 }
@@ -50,7 +53,6 @@ struct HabitEditorSheetView: View {
     @AppStorage("userTier") private var userTier: UserTier = .free
     @AppStorage("settings.ai.enabled") private var aiEnabled: Bool = true
     
-    let taskRepository: TaskRepository = .shared
     let habitRepository: HabitRepository = .shared
     let mode: HabitSheetMode
     var onDone: (() -> Void)? = nil
@@ -69,6 +71,9 @@ struct HabitEditorSheetView: View {
     @State private var goalType: HabitGoalType
     @State private var timesPerPeriod: String
     @State private var totalTarget: String
+    @State private var selectedCategoryUID: String?
+    @State private var categories: [TaskCategory] = []
+    @State private var showCategoryPicker = false
     
     @State private var isReminderEnabled: Bool
     @State private var reminderTime: Date
@@ -109,6 +114,7 @@ struct HabitEditorSheetView: View {
         _goalType = State(initialValue: initialDraft.goalType)
         _timesPerPeriod = State(initialValue: initialDraft.timesPerPeriod)
         _totalTarget = State(initialValue: initialDraft.totalTarget)
+        _selectedCategoryUID = State(initialValue: initialDraft.categoryUID)
         
         let initialAlarmTime: String? = {
             if case .edit(let h) = mode { return h.alarmTime }
@@ -183,6 +189,17 @@ struct HabitEditorSheetView: View {
                     TextField("要做什么？", text: $name)
                     TextField("备注（可选）", text: $description, axis: .vertical)
                         .lineLimit(2...5)
+
+                    Button {
+                        showCategoryPicker = true
+                    } label: {
+                        HStack {
+                            Text("分类")
+                            Spacer()
+                            categorySelectionLabel
+                        }
+                    }
+                    .foregroundStyle(.primary)
                 }
                 
                 Section("类型 / 周期") {
@@ -299,6 +316,12 @@ struct HabitEditorSheetView: View {
         .sheet(isPresented: $showPaywall) {
             ProPaywallView()
         }
+        .sheet(isPresented: $showCategoryPicker) {
+            CategoryPickerSheet(selectedUID: $selectedCategoryUID) {
+                Task { await loadCategories() }
+            }
+            .presentationDetents([.medium, .large])
+        }
         .onChange(of: saveTrigger) { oldValue, newValue in
             guard embedsInParentNavigationStack, newValue != oldValue else { return }
             Task { await save() }
@@ -309,6 +332,9 @@ struct HabitEditorSheetView: View {
             guard !isAILoading else { return }
             guard !aiInputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             Task { await onAITriggered() }
+        }
+        .task {
+            await loadCategories()
         }
         .onChange(of: name) { _, _ in
             onSaveEnabledChange?(isSaveEnabled)
@@ -330,6 +356,19 @@ struct HabitEditorSheetView: View {
 
     private var isSaveEnabled: Bool {
         !isSaving && !isAILoading && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var categorySelectionLabel: some View {
+        Group {
+            if let selectedCategoryUID,
+               let category = categories.first(where: { $0.uid == selectedCategoryUID }) {
+                CategoryBadgeView(badge: CategoryBadgeModel(category: category), showsTitle: true)
+            } else {
+                Label("不分类", systemImage: "tag.slash")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
     
     // MARK: - AI
@@ -400,31 +439,14 @@ struct HabitEditorSheetView: View {
         do {
             switch mode {
             case .add:
-                // 1. 先创建一个 DDLItem 作为载体
-                let ddlParams = DDLInsertParams(
-                    name: trimmedName,
-                    startTime: Date().toLocalISOString(),
-                    endTime: "", // 习惯通常没有明确截止时间
-                    state: .active,
-                    completeTime: "",
-                    note: description,
-                    isStared: false,
-                    subTasks: [],
-                    type: .habit,
-                    calendarEventId: nil
-                )
-                
-                let ddlId = try await taskRepository.insertDDL(ddlParams)
-                
-                // 2. 创建 Habit 本体
-                _ = try await habitRepository.createHabitForDdl(
-                    ddlId: ddlId,
+                _ = try await habitRepository.createHabitWithCarrier(
                     name: trimmedName,
                     period: period,
                     timesPerPeriod: Int(timesPerPeriod) ?? 1,
                     goalType: goalType,
                     totalTarget: goalType == .total ? (Int(totalTarget) ?? 100) : nil,
                     description: description,
+                    categoryUID: selectedCategoryUID,
                     alarmTime: alarmStr
                 )
                 
@@ -434,7 +456,6 @@ struct HabitEditorSheetView: View {
                 dismiss()
                 
             case .edit(let original):
-                // 1. 更新 Habit
                 var updatedHabit = original
                 updatedHabit.name = trimmedName
                 updatedHabit.description = description
@@ -443,18 +464,9 @@ struct HabitEditorSheetView: View {
                 updatedHabit.goalType = goalType
                 updatedHabit.totalTarget = goalType == .total ? (Int(totalTarget) ?? 100) : nil
                 updatedHabit.alarmTime = alarmStr
+                updatedHabit.categoryUID = selectedCategoryUID
                 
                 try await habitRepository.updateHabit(updatedHabit)
-                
-                // 2. 更新关联的 DDLItem
-                // 习惯的显示和管理主要依赖于其载体 DDLItem 的元数据，因此我们也要同步更新 DDLItem 的 name 和 note
-                let allDDLs = try await taskRepository.getAllDDLs()
-                if let originalDDL = allDDLs.first(where: { $0.id == original.ddlId }) {
-                    var updatedDDL = originalDDL
-                    updatedDDL.name = trimmedName
-                    updatedDDL.note = description
-                    try await taskRepository.updateDDL(updatedDDL)
-                }
                 
                 showToast("保存成功")
                 onSaved?()
@@ -470,5 +482,15 @@ struct HabitEditorSheetView: View {
     private func showToast(_ msg: String) {
         alertMessage = msg
         showAlert = true
+    }
+
+    @MainActor
+    private func loadCategories() async {
+        do {
+            categories = try await CategoryRepository.shared.getAllCategories()
+        } catch {
+            print("HabitEditorSheetView category reload failed: \(error)")
+            // Keep existing category cache on transient failures.
+        }
     }
 }

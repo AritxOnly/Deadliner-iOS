@@ -13,6 +13,7 @@ struct DDLItemCard: View {
     let note: String
     let progress: CGFloat   // 0...1
     let isStarred: Bool
+    var categoryBadge: CategoryBadgeModel? = nil
     var status: DDLStatus = .undergo
     var onTap: (() -> Void)? = nil
 
@@ -45,34 +46,47 @@ struct DDLItemCard: View {
                 }
                 .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
 
-                VStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 6) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text(title)
                             .font(.title3.weight(.bold))
                             .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                        Text(remainingTimeAlt)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                        Spacer(minLength: 8)
 
-                        if isStarred {
-                            Image(systemName: "star.fill")
-                                .foregroundStyle(style.indicator)
-                        }
-                    }
+                        // 固定 trailing：分类徽章 + 收藏 + 剩余时间（时间在极右，便于纵向扫视）
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            if let categoryBadge {
+                                CategoryBadgeView(badge: categoryBadge, backgroundColor: Color(UIColor.secondarySystemBackground))
+                                    .alignmentGuide(.firstTextBaseline) { context in
+                                        context[VerticalAlignment.center]
+                                    }
+                            }
 
-                    HStack {
-                        if !note.isEmpty {
-                            Text(note)
+                            if isStarred {
+                                Image(systemName: "star.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(style.indicator)
+                                    .alignmentGuide(.firstTextBaseline) { context in
+                                        context[VerticalAlignment.center]
+                                    }
+                            }
+
+                            Text(remainingTimeAlt)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        } else {
-                            Spacer(minLength: 0)
                         }
+                    }
+
+                    // 备注行始终占位，保证有/无备注时标题的纵向位置不变
+                    HStack {
+                        Text(note.isEmpty ? "\u{00A0}" : note)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .opacity(note.isEmpty ? 0 : 1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -90,6 +104,7 @@ struct DDLItemCardSwipeable: View {
     let note: String
     let progress: CGFloat
     let isStarred: Bool
+    var categoryBadge: CategoryBadgeModel? = nil
     var status: DDLStatus = .undergo
 
     var selectionMode: Bool = false
@@ -117,6 +132,7 @@ struct DDLItemCardSwipeable: View {
                 note: note,
                 progress: progress,
                 isStarred: isStarred,
+                categoryBadge: categoryBadge,
                 status: status,
                 onTap: {
                     if suppressNextTapAfterLongPress {

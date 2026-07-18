@@ -25,6 +25,10 @@ enum MainModule: String, CaseIterable, Identifiable {
     }
 
     var title: String { rawValue }
+
+    func iconImage() -> Image {
+        Image(systemName: systemImage)
+    }
 }
 
 enum TaskSegment: String, CaseIterable, Identifiable {

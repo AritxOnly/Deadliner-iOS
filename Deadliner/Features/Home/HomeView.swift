@@ -17,6 +17,7 @@ enum HomeBoardPresentationStyle {
 struct HomeView: View {
     @Binding var query: String
     @Binding var taskSegment: TaskSegment
+    @Binding var categoryFilter: CategoryFilter
     var onScrollProgressChange: ((CGFloat) -> Void)? = nil
     var onSelectionModeChange: ((Bool) -> Void)? = nil
     var onAtmosphereToneChange: ((ImmersiveSurfaceTone) -> Void)? = nil
@@ -26,6 +27,7 @@ struct HomeView: View {
         HomeBoardCoreView(
             query: $query,
             taskSegment: $taskSegment,
+            categoryFilter: $categoryFilter,
             onScrollProgressChange: onScrollProgressChange,
             onSelectionModeChange: onSelectionModeChange,
             onAtmosphereToneChange: onAtmosphereToneChange,
@@ -38,6 +40,7 @@ struct HomeView: View {
 struct HomeBoardCoreView: View {
     @Binding var query: String
     @Binding var taskSegment: TaskSegment
+    @Binding var categoryFilter: CategoryFilter
     var onScrollProgressChange: ((CGFloat) -> Void)? = nil
     var onSelectionModeChange: ((Bool) -> Void)? = nil
     var onAtmosphereToneChange: ((ImmersiveSurfaceTone) -> Void)? = nil
@@ -72,6 +75,8 @@ struct HomeBoardCoreView: View {
             taskSegment: taskSegment,
             tasks: vm.tasks,
             displayHabits: vm.displayHabits,
+            categories: vm.categories,
+            categoryFilter: categoryFilter,
             selection: selection,
             compactLayoutProgress: compactLayoutProgress,
             scrollProgress: scrollProgress,
@@ -173,6 +178,10 @@ struct HomeBoardCoreView: View {
         .onChange(of: taskSegment) { _, _ in
             clearSelection()
         }
+        .onChange(of: categoryFilter) { _, _ in
+            clearSelection()
+            sanitizeSelection()
+        }
         .onChange(of: selection.isActive) { _, newValue in
             onSelectionModeChange?(newValue)
         }
@@ -257,10 +266,7 @@ struct HomeBoardCoreView: View {
         .sheet(item: $editSheetHabit) { habit in
             HabitEditorSheetView(
                 mode: .edit(original: habit),
-                initialDraft: .fromHabit(habit),
-                onDone: {
-                    NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
-                }
+                initialDraft: .fromHabit(habit)
             )
         }
         .sheet(item: $detailSheetItem) { item in
@@ -365,6 +371,7 @@ struct HomeBoardCoreView: View {
                         note: row.item.note,
                         progress: row.progress,
                         isStarred: row.item.isStared,
+                        categoryBadge: row.categoryBadge,
                         status: row.status,
                         selectionMode: selectionMode,
                         selected: selection.containsTask(row.item.id),
@@ -481,6 +488,7 @@ struct HomeBoardCoreView: View {
                         isCompleted: row.item.isCompleted,
                         status: row.item.isCompleted ? .completed : .undergo,
                         remainingText: ebState.text,
+                        categoryBadge: row.categoryBadge,
                         isSelected: selection.containsHabit(row.item.habit.id),
                         selectionMode: selectionMode,
                         canToggle: (Calendar.current.startOfDay(for: vm.selectedDate) <= Calendar.current.startOfDay(for: Date())) && ebState.isDue,

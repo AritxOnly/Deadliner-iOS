@@ -17,7 +17,11 @@ struct UserPanelSheet: View {
                     Button {
                         selectedModule = module
                     } label: {
-                        Label(module.title, systemImage: module.systemImage)
+                        Label {
+                            Text(module.title)
+                        } icon: {
+                            module.iconImage()
+                        }
                     }
                 }
             }

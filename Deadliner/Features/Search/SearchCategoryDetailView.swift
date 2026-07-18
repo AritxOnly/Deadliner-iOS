@@ -14,6 +14,7 @@ struct SearchCategoryDetailView: View {
     let archivedTasks: [DDLItem]
     let archivedHabits: [Habit]
     let habitStatusMap: [Int64: HabitWithDailyStatus]
+    let categoryMap: [String: TaskCategory]
     let taskActions: SearchTaskActions
     let habitActions: SearchHabitActions
     @Binding var usesLocalAtmosphere: Bool
@@ -130,6 +131,7 @@ struct SearchCategoryDetailView: View {
             note: item.note,
             progress: SearchViewSupport.progress(for: item),
             isStarred: item.isStared,
+            categoryBadge: CategoryPresentationSupport.badge(for: item.categoryUID, categories: categoryMap),
             status: SearchViewSupport.status(for: item),
             onTap: { },
             onComplete: {
@@ -164,6 +166,7 @@ struct SearchCategoryDetailView: View {
             isCompleted: statusValue.isCompleted,
             status: statusValue.isCompleted ? .completed : .undergo,
             remainingText: ebbinghausState.text,
+            categoryBadge: CategoryPresentationSupport.badge(for: habit.categoryUID, categories: categoryMap),
             canToggle: ebbinghausState.isDue,
             onToggle: {
                 Task { await habitActions.onToggle(statusValue) }

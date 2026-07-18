@@ -20,6 +20,33 @@ struct DDLInsertParams {
     let subTasks: [InnerTodo]
     let type: DeadlineType
     let calendarEventId: Int64?
+    let categoryUID: String?
+
+    init(
+        name: String,
+        startTime: String,
+        endTime: String,
+        state: DDLState,
+        completeTime: String,
+        note: String,
+        isStared: Bool,
+        subTasks: [InnerTodo],
+        type: DeadlineType,
+        calendarEventId: Int64?,
+        categoryUID: String? = nil
+    ) {
+        self.name = name
+        self.startTime = startTime
+        self.endTime = endTime
+        self.state = state
+        self.completeTime = completeTime
+        self.note = note
+        self.isStared = isStared
+        self.subTasks = subTasks
+        self.type = type
+        self.calendarEventId = calendarEventId
+        self.categoryUID = categoryUID
+    }
 }
 
 struct SubTaskInsertParams {
@@ -33,7 +60,8 @@ actor DatabaseHelper {
     static let shared = DatabaseHelper()
 
     private var container: ModelContainer?
-    private var context: ModelContext?
+    // Persistence extensions stay actor-isolated; feature code must use repositories.
+    var context: ModelContext?
 
     // 简单自增序列（替代 SQL AUTOINCREMENT）
     private var ddlSeq: Int64 = 0
@@ -48,7 +76,8 @@ actor DatabaseHelper {
         SyncDebugLog.log(message)
     }
 
-    private init() {}
+    // Internal so tests can use a fresh actor per store instead of sharing process state.
+    init() {}
 
     func isReady() -> Bool { context != nil }
 
@@ -60,6 +89,8 @@ actor DatabaseHelper {
         try bootstrapSyncStateIfNeeded()
         try bootstrapSequences()
         try migrateDDLStateAndEmbeddedSubTasksIfNeeded()
+        try bootstrapPresetCategoriesIfNeeded()
+        try repairHabitCategoryMirrorsIfNeeded()
     }
 
     // MARK: - Bootstrap
@@ -90,7 +121,7 @@ actor DatabaseHelper {
         habitRecordSeq = try maxLegacyId(context: context, for: HabitRecordEntity.self)
     }
 
-    private func nextId(_ type: SeqType) -> Int64 {
+    func nextId(_ type: SeqType) -> Int64 {
         switch type {
         case .ddl:
             ddlSeq += 1; return ddlSeq
@@ -160,6 +191,7 @@ actor DatabaseHelper {
             habitTotalCount: 0,
             calendarEventId: item.calendarEventId ?? -1,
             timestamp: Self.formatLocalDateTime(Date()),
+            categoryUID: item.categoryUID,
             uid: uid,
             deleted: false,
             verTs: v.ts,
@@ -384,6 +416,7 @@ actor DatabaseHelper {
             descText: habit.description,
             color: habit.color,
             iconKey: habit.iconKey,
+            categoryUID: habit.categoryUID,
             periodRaw: habit.period.rawValue,
             timesPerPeriod: habit.timesPerPeriod,
             goalTypeRaw: habit.goalType.rawValue,
@@ -496,6 +529,7 @@ actor DatabaseHelper {
             existing.descText = payload.description
             existing.color = payload.color
             existing.iconKey = payload.icon_key
+            existing.categoryUID = payload.category_uid
             existing.periodRaw = payload.period
             existing.timesPerPeriod = payload.times_per_period
             existing.goalTypeRaw = payload.goal_type
@@ -517,6 +551,7 @@ actor DatabaseHelper {
             descText: payload.description,
             color: payload.color,
             iconKey: payload.icon_key,
+            categoryUID: payload.category_uid,
             periodRaw: payload.period,
             timesPerPeriod: payload.times_per_period,
             goalTypeRaw: payload.goal_type,
@@ -631,6 +666,219 @@ actor DatabaseHelper {
         ddl.verCtr = v.ctr
         ddl.verDev = v.dev
         ddl.timestamp = Self.formatLocalDateTime(Date())
+        try context.save()
+    }
+
+    // MARK: - Category
+
+    func bootstrapPresetCategoriesIfNeeded() throws {
+        guard let context else { throw DBError.notInitialized }
+
+        var hasChanges = false
+        for seed in TaskCategory.presets {
+            let uid = seed.uid
+            let fd = FetchDescriptor<CategoryEntity>(predicate: #Predicate { $0.uid == uid })
+            if try context.fetch(fd).first != nil {
+                continue
+            }
+
+            let v = try nextVersionUTC()
+            let entity = CategoryEntity(
+                uid: seed.uid,
+                name: seed.name,
+                iconKey: seed.iconKey,
+                colorHex: seed.colorHex,
+                isPreset: true,
+                sortOrder: seed.sortOrder,
+                createdAt: v.ts,
+                updatedAt: v.ts,
+                isDeleted: false,
+                verTs: v.ts,
+                verCtr: v.ctr,
+                verDev: v.dev
+            )
+            context.insert(entity)
+            hasChanges = true
+        }
+
+        if hasChanges {
+            try context.save()
+        }
+    }
+
+    func getAllCategories(includeDeleted: Bool = false) throws -> [TaskCategory] {
+        guard let context else { throw DBError.notInitialized }
+        let fd = FetchDescriptor<CategoryEntity>(
+            sortBy: [SortDescriptor(\.sortOrder), SortDescriptor(\.name), SortDescriptor(\.uid)]
+        )
+        let entities = try context.fetch(fd)
+        return entities
+            .filter { includeDeleted || !$0.isDeleted }
+            .map { $0.toDomain() }
+    }
+
+    func getCategory(uid: String) throws -> TaskCategory? {
+        guard let context else { throw DBError.notInitialized }
+        let targetUID = uid
+        let fd = FetchDescriptor<CategoryEntity>(predicate: #Predicate { $0.uid == targetUID })
+        guard let entity = try context.fetch(fd).first, !entity.isDeleted else {
+            return nil
+        }
+        return entity.toDomain()
+    }
+
+    func getAllCategoryEntitiesForSync() throws -> [CategoryEntity] {
+        guard let context else { throw DBError.notInitialized }
+        let fd = FetchDescriptor<CategoryEntity>()
+        return try context.fetch(fd)
+    }
+
+    func findCategoryEntity(uid: String) throws -> CategoryEntity? {
+        guard let context else { throw DBError.notInitialized }
+        let targetUID = uid
+        let fd = FetchDescriptor<CategoryEntity>(predicate: #Predicate { $0.uid == targetUID })
+        return try context.fetch(fd).first
+    }
+
+    @discardableResult
+    func createCategory(name: String, iconKey: String, colorHex: String) throws -> TaskCategory {
+        guard let context else { throw DBError.notInitialized }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw DBError.invalidData("Category name must not be empty")
+        }
+
+        let v = try nextVersionUTC()
+        let uid = "custom.\(v.dev).\(UUID().uuidString)"
+        let now = v.ts
+        let maxSort = (try context.fetch(FetchDescriptor<CategoryEntity>()).map(\.sortOrder).max() ?? 100) + 10
+        let entity = CategoryEntity(
+            uid: uid,
+            name: trimmed,
+            iconKey: Self.normalizedCategoryIcon(iconKey),
+            colorHex: Self.normalizedCategoryColor(colorHex),
+            isPreset: false,
+            sortOrder: maxSort,
+            createdAt: now,
+            updatedAt: now,
+            isDeleted: false,
+            verTs: v.ts,
+            verCtr: v.ctr,
+            verDev: v.dev
+        )
+        context.insert(entity)
+        try context.save()
+        return entity.toDomain()
+    }
+
+    func updateCategory(_ category: TaskCategory) throws {
+        guard let context else { throw DBError.notInitialized }
+        guard let entity = try findCategoryEntity(uid: category.uid) else {
+            throw DBError.notFound("Category \(category.uid)")
+        }
+
+        let trimmed = category.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw DBError.invalidData("Category name must not be empty")
+        }
+
+        let v = try nextVersionUTC()
+        entity.name = trimmed
+        entity.iconKey = Self.normalizedCategoryIcon(category.iconKey)
+        entity.colorHex = Self.normalizedCategoryColor(category.colorHex)
+        entity.sortOrder = category.sortOrder
+        entity.updatedAt = v.ts
+        entity.isDeleted = false
+        entity.verTs = v.ts
+        entity.verCtr = v.ctr
+        entity.verDev = v.dev
+        try context.save()
+    }
+
+    func softDeleteCategory(uid: String) throws {
+        guard context != nil else { throw DBError.notInitialized }
+        guard let entity = try findCategoryEntity(uid: uid) else {
+            throw DBError.notFound("Category \(uid)")
+        }
+        let v = try nextVersionUTC()
+        entity.isDeleted = true
+        entity.updatedAt = v.ts
+        entity.verTs = v.ts
+        entity.verCtr = v.ctr
+        entity.verDev = v.dev
+        try context!.save()
+    }
+
+    func overwriteCategoryFromSnapshotV2(
+        uid: String,
+        doc: CategorySnapshotV2Doc?,
+        deleted: Bool,
+        ver: SnapshotVer
+    ) throws {
+        guard let context else { throw DBError.notInitialized }
+
+        if deleted {
+            if let existing = try findCategoryEntity(uid: uid) {
+                existing.isDeleted = true
+                existing.updatedAt = ver.ts
+                existing.verTs = ver.ts
+                existing.verCtr = ver.ctr
+                existing.verDev = ver.dev
+            } else {
+                let tombstone = CategoryEntity(
+                    uid: uid,
+                    name: "(deleted)",
+                    iconKey: "tag.slash",
+                    colorHex: "#8E8E93",
+                    isPreset: false,
+                    sortOrder: 9999,
+                    createdAt: ver.ts,
+                    updatedAt: ver.ts,
+                    isDeleted: true,
+                    verTs: ver.ts,
+                    verCtr: ver.ctr,
+                    verDev: ver.dev
+                )
+                context.insert(tombstone)
+            }
+            try context.save()
+            return
+        }
+
+        guard let doc else {
+            throw DBError.invalidData("Category snapshot missing doc for uid \(uid)")
+        }
+
+        if let existing = try findCategoryEntity(uid: uid) {
+            existing.name = doc.name
+            existing.iconKey = Self.normalizedCategoryIcon(doc.icon_key)
+            existing.colorHex = Self.normalizedCategoryColor(doc.color_hex)
+            existing.isPreset = doc.is_preset != 0
+            existing.sortOrder = doc.sort_order
+            existing.createdAt = doc.created_at
+            existing.updatedAt = doc.updated_at
+            existing.isDeleted = false
+            existing.verTs = ver.ts
+            existing.verCtr = ver.ctr
+            existing.verDev = ver.dev
+        } else {
+            let entity = CategoryEntity(
+                uid: uid,
+                name: doc.name,
+                iconKey: Self.normalizedCategoryIcon(doc.icon_key),
+                colorHex: Self.normalizedCategoryColor(doc.color_hex),
+                isPreset: doc.is_preset != 0,
+                sortOrder: doc.sort_order,
+                createdAt: doc.created_at,
+                updatedAt: doc.updated_at,
+                isDeleted: false,
+                verTs: ver.ts,
+                verCtr: ver.ctr,
+                verDev: ver.dev
+            )
+            context.insert(entity)
+        }
+
         try context.save()
     }
 
@@ -815,7 +1063,25 @@ actor DatabaseHelper {
         }
     }
 
-    private static func formatLocalDateTime(_ date: Date) -> String {
+    private static func normalizedCategoryColor(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = trimmed.hasPrefix("#") ? String(trimmed.dropFirst()) : trimmed
+        guard body.count == 6 || body.count == 8 else { return "#8E8E93" }
+        guard body.allSatisfy({ $0.isHexDigit }) else { return "#8E8E93" }
+        return "#\(body.uppercased())"
+    }
+
+    private static func normalizedCategoryIcon(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let allowedCharacters = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_")
+        guard !trimmed.isEmpty,
+              trimmed.rangeOfCharacter(from: allowedCharacters.inverted) == nil else {
+            return "tag.fill"
+        }
+        return trimmed
+    }
+
+    static func formatLocalDateTime(_ date: Date) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.timeZone = .current
@@ -823,7 +1089,7 @@ actor DatabaseHelper {
         return f.string(from: date)
     }
 
-    private static func syncCarrierStateFromHabitStatus(ddl: DDLItemEntity, statusRaw: String) {
+    static func syncCarrierStateFromHabitStatus(ddl: DDLItemEntity, statusRaw: String) {
         guard ddl.typeRaw == DeadlineType.habit.rawValue,
               let status = HabitStatus(rawValue: statusRaw) else {
             return
@@ -1005,6 +1271,7 @@ actor DatabaseHelper {
         e.habitTotalCount = doc.habit_total_count
         e.calendarEventId = doc.calendar_event
         e.timestamp = doc.timestamp
+        e.categoryUID = nil
 
         e.verTs = verTs
         e.verCtr = verCtr
@@ -1064,6 +1331,7 @@ actor DatabaseHelper {
         e.habitTotalCount = doc.habit_total_count
         e.calendarEventId = doc.calendar_event
         e.timestamp = doc.timestamp
+        e.categoryUID = doc.category_uid
 
         e.verTs = verTs
         e.verCtr = verCtr
@@ -1113,6 +1381,7 @@ actor DatabaseHelper {
             habitTotalCount: doc.habit_total_count,
             calendarEventId: doc.calendar_event,
             timestamp: doc.timestamp,
+            categoryUID: doc.category_uid,
             uid: uid,
             deleted: false,
             verTs: verTs,
@@ -1242,7 +1511,7 @@ actor DatabaseHelper {
         stateFromLegacy(isCompleted: isCompleted, isArchived: isArchived)
     }
 
-    private static func encodeSubTasks(_ subTasks: [InnerTodo]) throws -> Data {
+    static func encodeSubTasks(_ subTasks: [InnerTodo]) throws -> Data {
         try DDLItemEntity.encodeSubTasks(subTasks)
     }
     

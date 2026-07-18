@@ -15,7 +15,8 @@ enum PersistenceController {
             DDLItemEntity.self,
             HabitEntity.self,
             HabitRecordEntity.self,
-            SubTaskEntity.self
+            SubTaskEntity.self,
+            CategoryEntity.self
         ])
 
         let modelConfig = ModelConfiguration(

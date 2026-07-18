@@ -47,6 +47,12 @@ actor SyncCoordinator {
         return SyncServiceFactory.make(db: db, web: web, impl: .v2)
     }
 
+    private func publishDataChanged() async {
+        await MainActor.run {
+            NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
+        }
+    }
+
     func scheduleSync() async {
         syncDebounceTask?.cancel()
         syncDebounceTask = nil
@@ -133,7 +139,7 @@ actor SyncCoordinator {
     }
 
     private func handleLocalChanges() async {
-        NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
+        await publishDataChanged()
         WidgetCenter.shared.reloadAllTimelines()
         ControlCenter.shared.reloadControls(ofKind: Self.taskStatusControlKind)
 
@@ -154,7 +160,7 @@ actor SyncCoordinator {
             let deleted = try await db.pruneExpiredTombstones(olderThan: retentionDays)
             if deleted > 0 {
                 logger.info("Pruned \(deleted, privacy: .public) expired tombstones")
-                NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
+                await publishDataChanged()
                 WidgetCenter.shared.reloadAllTimelines()
                 ControlCenter.shared.reloadControls(ofKind: Self.taskStatusControlKind)
             }

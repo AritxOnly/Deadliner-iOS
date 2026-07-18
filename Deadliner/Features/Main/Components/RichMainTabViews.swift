@@ -10,6 +10,7 @@ import SwiftUI
 struct RichHomeTabView: View {
     @Binding var query: String
     @Binding var taskSegment: TaskSegment
+    @Binding var categoryFilter: CategoryFilter
     @Binding var overlayProgress: CGFloat
     let atmosphereTone: ImmersiveSurfaceTone
     let onAtmosphereToneChange: (ImmersiveSurfaceTone) -> Void
@@ -20,8 +21,6 @@ struct RichHomeTabView: View {
     @State private var selectionMode = false
     let showsHomeFilterToolbarItem: Bool
     let onHomeFilterTapped: () -> Void
-    let showsAIToolbarItem: Bool
-    let onAITapped: () -> Void
     let onSettingsTapped: () -> Void
 
     var body: some View {
@@ -38,12 +37,6 @@ struct RichHomeTabView: View {
                 if showsHomeFilterToolbarItem && !selectionMode {
                     ToolbarItem(placement: .topBarLeading) {
                         homeFilterButton
-                    }
-                }
-
-                if showsAIToolbarItem && !selectionMode {
-                    ToolbarItem(placement: .topBarLeading) {
-                        aiButton
                     }
                 }
 
@@ -69,6 +62,7 @@ struct RichHomeTabView: View {
             DashboardHomeView(
                 query: $query,
                 taskSegment: $taskSegment,
+                categoryFilter: $categoryFilter,
                 onScrollProgressChange: { overlayProgress = $0 },
                 onSelectionModeChange: { selectionMode = $0 },
                 onAtmosphereToneChange: onAtmosphereToneChange,
@@ -78,6 +72,7 @@ struct RichHomeTabView: View {
             HomeView(
                 query: $query,
                 taskSegment: $taskSegment,
+                categoryFilter: $categoryFilter,
                 onScrollProgressChange: { overlayProgress = $0 },
                 onSelectionModeChange: { selectionMode = $0 },
                 onAtmosphereToneChange: onAtmosphereToneChange,
@@ -106,8 +101,7 @@ struct RichHomeTabView: View {
             .scaledToFill()
             .frame(width: 42, height: 42)
             .clipShape(Circle())
-//            .overlay(Circle().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5))
-            .glassEffect(.regular.interactive(), in: Circle())
+            .overlay(Circle().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5))
             .contentShape(Circle())
         }
         .accessibilityLabel("用户与设置")
@@ -121,18 +115,9 @@ struct RichHomeTabView: View {
         } label: {
             Image(systemName: "line.3.horizontal.decrease")
         }
+        .tint(categoryFilter.isAll ? Color.primary : Color.accentColor)
         .accessibilityLabel("筛选")
-        .accessibilityHint("预留给后续任务分类筛选")
-    }
-
-    private var aiButton: some View {
-        Button {
-            onAITapped()
-        } label: {
-            Image("lifi.logo.v1")
-        }
-        .accessibilityLabel("Lifi AI")
-        .accessibilityHint("打开 Lifi AI")
+        .accessibilityHint("按分类筛选主页内容")
     }
 
     private var homeNavigationTitle: String {
@@ -280,6 +265,7 @@ struct RichAITabView: View {
                 onScrollProgressChange: { overlayProgress = $0 }
             )
             .toolbarBackground(.hidden, for: .navigationBar)
+            .deadlinerNavigationTitleBarMinimizeOnScrollDown(true)
             .deadlinerTopAtmosphereSceneBackground(
                 progress: overlayProgress,
                 isAIConfigured: isAIConfigured,

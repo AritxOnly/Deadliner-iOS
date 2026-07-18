@@ -14,6 +14,15 @@ public enum SharedModelContainer {
     private static let syncProviderKey = "settings.sync_provider"
     private static let iCloudSyncProviderRawValue = "icloud"
 
+    // Production must surface a persistent-store failure. Otherwise users see
+    // an empty, disposable database and assume their data was deleted.
+    private static var allowsEphemeralFallback: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["XCTestConfigurationFilePath"] != nil
+            || environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+            || environment["DEADLINER_ALLOW_INMEMORY_FALLBACK"] == "1"
+    }
+
     private static var shouldUseICloudSync: Bool {
         let defaults = UserDefaults.standard
         let cloudSyncEnabled = defaults.object(forKey: cloudSyncEnabledKey) as? Bool ?? true
@@ -57,6 +66,7 @@ public enum SharedModelContainer {
             SubTaskEntity.self,
             HabitEntity.self,
             HabitRecordEntity.self,
+            CategoryEntity.self,
             SyncStateEntity.self
         ])
 
@@ -85,13 +95,17 @@ public enum SharedModelContainer {
                 }
             }
 
+            guard allowsEphemeralFallback else {
+                fatalError("Could not create persistent ModelContainer. firstError=\(firstError)")
+            }
+
             do {
                 let memoryConfig = makeConfiguration(
                     schema: schema,
                     cloudKitDatabase: .none,
                     isStoredInMemoryOnly: true
                 )
-                NSLog("[SharedModelContainer] Falling back to in-memory store.")
+                NSLog("[SharedModelContainer] Using in-memory store for test or preview only.")
                 return try ModelContainer(for: schema, configurations: [memoryConfig])
             } catch let memoryError {
                 fatalError("Could not create any ModelContainer. firstError=\(firstError), memoryError=\(memoryError)")

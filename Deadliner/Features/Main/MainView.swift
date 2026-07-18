@@ -14,6 +14,7 @@ struct FocusMainView: View {
 
     @State private var module: MainModule = .taskManagement
     @State private var taskSegment: TaskSegment = .tasks
+    @State private var categoryFilter: CategoryFilter = .all
     @State private var homeAtmosphereTone: ImmersiveSurfaceTone = .accent
     @State private var query: String = ""
 
@@ -80,10 +81,7 @@ struct FocusMainView: View {
                 .sheet(isPresented: $showAddEntrySheet) {
                     AddEntrySheetView(
                         repository: repo,
-                        initialSelection: addEntrySelection,
-                        onDone: {
-                            NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
-                        }
+                        initialSelection: addEntrySelection
                     )
                     .presentationDetents([.large])
                 }
@@ -143,6 +141,7 @@ struct FocusMainView: View {
             DashboardHomeView(
                 query: $query,
                 taskSegment: $taskSegment,
+                categoryFilter: $categoryFilter,
                 onScrollProgressChange: { p in
                     navGradientProgress = p
                 },
@@ -155,6 +154,7 @@ struct FocusMainView: View {
             HomeView(
                 query: $query,
                 taskSegment: $taskSegment,
+                categoryFilter: $categoryFilter,
                 onScrollProgressChange: { p in
                     navGradientProgress = p
                 },
@@ -205,12 +205,16 @@ struct FocusMainView: View {
                             }
                         }
                     } label: {
-                        Label(m.title, systemImage: m.systemImage)
+                        Label {
+                            Text(m.title)
+                        } icon: {
+                            m.iconImage()
+                        }
                     }
                 }
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: module.systemImage)
+                    module.iconImage()
                     Image(systemName: "chevron.down")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -309,6 +313,7 @@ struct FocusMainView: View {
                 Image(systemName: "plus")
             }
             .buttonStyle(.glassProminent)
+            .buttonBorderShape(.circle)
             .tint(themeStore.fabColor)
             .id("main-fab-\(themeStore.accentOption.rawValue)")
             .accessibilityLabel("添加")

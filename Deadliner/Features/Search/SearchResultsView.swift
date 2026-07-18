@@ -17,6 +17,7 @@ struct SearchResultsView: View {
     let archivedTasks: [DDLItem]
     let archivedHabits: [Habit]
     let habitStatusMap: [Int64: HabitWithDailyStatus]
+    let categoryMap: [String: TaskCategory]
     let taskActions: SearchTaskActions
     let habitActions: SearchHabitActions
     let inspirationActions: SearchInspirationActions
@@ -149,6 +150,7 @@ struct SearchResultsView: View {
             note: item.task.note,
             progress: SearchViewSupport.progress(for: item.task),
             isStarred: item.task.isStared,
+            categoryBadge: CategoryPresentationSupport.badge(for: item.task.categoryUID, categories: categoryMap),
             status: SearchViewSupport.status(for: item.task),
             onTap: { },
             onComplete: {
@@ -220,6 +222,7 @@ struct SearchResultsView: View {
             isCompleted: status.isCompleted,
             status: status.isCompleted ? .completed : .undergo,
             remainingText: ebbinghausState.text,
+            categoryBadge: CategoryPresentationSupport.badge(for: item.habit.categoryUID, categories: categoryMap),
             canToggle: ebbinghausState.isDue,
             onToggle: {
                 Task { await habitActions.onToggle(status) }

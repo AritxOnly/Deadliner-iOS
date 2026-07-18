@@ -32,7 +32,8 @@ extension DDLItemEntity {
             habitCount: habitCount,
             habitTotalCount: habitTotalCount,
             calendarEvent: calendarEventId,
-            timestamp: timestamp
+            timestamp: timestamp,
+            categoryUID: categoryUID
         )
     }
 }
@@ -58,6 +59,7 @@ extension DDLItemEntity {
         habitTotalCount = domain.habitTotalCount
         calendarEventId = domain.calendarEvent
         timestamp = domain.timestamp
+        categoryUID = domain.categoryUID
     }
 }
 

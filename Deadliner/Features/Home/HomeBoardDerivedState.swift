@@ -14,6 +14,7 @@ struct HomeTaskRowState: Identifiable {
     let status: DDLStatus
     let remainingTimeText: String
     let progress: CGFloat
+    let categoryBadge: CategoryBadgeModel?
 
     var id: String { "task-\(item.id)" }
 }
@@ -21,6 +22,7 @@ struct HomeTaskRowState: Identifiable {
 struct HomeHabitRowState: Identifiable {
     let index: Int
     let item: HabitWithDailyStatus
+    let categoryBadge: CategoryBadgeModel?
 
     var id: String { "habit-\(item.habit.id)" }
 }
@@ -83,6 +85,8 @@ struct HomeBoardDerivedState {
     let compactLayoutProgress: CGFloat?
     let scrollProgress: CGFloat
     let todayHabitCompletionRatio: Double
+    let categoryFilter: CategoryFilter
+    let categories: [TaskCategory]
     let filteredTasks: [DDLItem]
     let displayHabits: [HabitWithDailyStatus]
     let selectedTasks: [DDLItem]
@@ -105,6 +109,8 @@ struct HomeBoardDerivedState {
         taskSegment: TaskSegment,
         tasks: [DDLItem],
         displayHabits: [HabitWithDailyStatus],
+        categories: [TaskCategory],
+        categoryFilter: CategoryFilter,
         selection: HomeBoardSelectionState,
         compactLayoutProgress: CGFloat?,
         scrollProgress: CGFloat,
@@ -117,30 +123,35 @@ struct HomeBoardDerivedState {
         self.compactLayoutProgress = compactLayoutProgress
         self.scrollProgress = scrollProgress
         self.todayHabitCompletionRatio = todayHabitCompletionRatio
+        self.categoryFilter = categoryFilter
+        self.categories = categories
 
         let now = Date()
+        let categoryMap = Dictionary(uniqueKeysWithValues: categories.map { ($0.uid, $0) })
         let visibleTasks = tasks.filter(\.state.isMainListVisible)
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let filteredTasks: [DDLItem]
+        let queryFilteredTasks: [DDLItem]
         if trimmedQuery.isEmpty {
-            filteredTasks = visibleTasks
+            queryFilteredTasks = visibleTasks
         } else {
-            filteredTasks = visibleTasks.filter {
+            queryFilteredTasks = visibleTasks.filter {
                 $0.name.localizedCaseInsensitiveContains(trimmedQuery) ||
                 $0.note.localizedCaseInsensitiveContains(trimmedQuery) ||
                 $0.endTime.localizedCaseInsensitiveContains(trimmedQuery)
             }
         }
+        let filteredTasks = queryFilteredTasks.filter { categoryFilter.matches($0.categoryUID) }
+        let filteredHabits = displayHabits.filter { categoryFilter.matches($0.habit.categoryUID) }
         self.filteredTasks = filteredTasks
-        self.displayHabits = displayHabits
+        self.displayHabits = filteredHabits
         let selectedTasks = filteredTasks.filter { selection.containsTask($0.id) }
-        let selectedHabits = displayHabits.map(\.habit).filter { selection.containsHabit($0.id) }
+        let selectedHabits = filteredHabits.map(\.habit).filter { selection.containsHabit($0.id) }
         let selectedCount = taskSegment == .tasks ? selectedTasks.count : selectedHabits.count
         let openTasks = filteredTasks.filter { !$0.isCompleted && !$0.state.isAbandonedLike }
         let completedTaskCount = filteredTasks.filter(\.isCompleted).count
         let nearTaskCount = openTasks.filter { HomeTaskPresentation.status(for: $0, now: now) == .near }.count
         let overdueTaskCount = openTasks.filter { HomeTaskPresentation.status(for: $0, now: now) == .passed }.count
-        let completedHabitCount = displayHabits.filter(\.isCompleted).count
+        let completedHabitCount = filteredHabits.filter(\.isCompleted).count
 
         self.selectedTasks = selectedTasks
         self.selectedHabits = selectedHabits
@@ -157,11 +168,16 @@ struct HomeBoardDerivedState {
                 item: item,
                 status: HomeTaskPresentation.status(for: item, now: now),
                 remainingTimeText: HomeTaskPresentation.remainingTimeText(for: item, now: now),
-                progress: HomeTaskPresentation.progress(for: item, progressDir: progressDir, now: now)
+                progress: HomeTaskPresentation.progress(for: item, progressDir: progressDir, now: now),
+                categoryBadge: CategoryPresentationSupport.badge(for: item.categoryUID, categories: categoryMap)
             )
         }
-        self.habitRows = displayHabits.enumerated().map { entry in
-            HomeHabitRowState(index: entry.offset, item: entry.element)
+        self.habitRows = filteredHabits.enumerated().map { entry in
+            HomeHabitRowState(
+                index: entry.offset,
+                item: entry.element,
+                categoryBadge: CategoryPresentationSupport.badge(for: entry.element.habit.categoryUID, categories: categoryMap)
+            )
         }
 
         if taskSegment == .tasks {
@@ -196,7 +212,7 @@ struct HomeBoardDerivedState {
             )
             currentAtmosphereTone = tone
         } else {
-            let totalHabits = displayHabits.count
+            let totalHabits = filteredHabits.count
             let progress = todayHabitCompletionRatio
             let progressPercent = Int((progress * 100).rounded())
             let summaryText = totalHabits == 0
@@ -217,7 +233,7 @@ struct HomeBoardDerivedState {
         }
 
         validTaskIDs = Set(filteredTasks.map(\.id))
-        validHabitIDs = Set(displayHabits.map { $0.habit.id })
+        validHabitIDs = Set(filteredHabits.map { $0.habit.id })
     }
 
     var compactLayoutEnabled: Bool {

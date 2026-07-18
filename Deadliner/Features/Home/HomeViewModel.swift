@@ -22,11 +22,13 @@ final class HomeViewModel: ObservableObject {
     @Published var searchQuery: String = ""
     @Published var weekOverview: [DayOverview] = []
     @Published var displayHabits: [HabitWithDailyStatus] = []
+    @Published var categories: [TaskCategory] = []
     
     private var allHabitsCache: [HabitWithDailyStatus] = []
 
     private let repo: TaskRepository
     private let habitRepo: HabitRepository = .shared
+    private let categoryRepo: CategoryRepository = .shared
     private var cancellables = Set<AnyCancellable>()
 
     private var reloadTask: Task<Void, Never>?
@@ -78,6 +80,7 @@ final class HomeViewModel: ObservableObject {
         
         // 刷新 Task 和 Habit
         await reload()
+        await refreshCategories()
         await refreshAllHabits(date: selectedDate)
         
         guard !didInitialLoad else { return }
@@ -92,14 +95,25 @@ final class HomeViewModel: ObservableObject {
     func pullToRefresh() async {
         isLoading = true
         await reload()
+        await refreshCategories()
         await refreshAllHabits(date: selectedDate)
         
         let syncOK = await repo.syncNow()
         logger.info("pull-to-refresh sync result=\(syncOK, privacy: .public)")
         
         await reload()
+        await refreshCategories()
         await refreshAllHabits(date: selectedDate)
         isLoading = false
+    }
+
+    func refreshCategories() async {
+        do {
+            categories = try await categoryRepo.getAllCategories()
+        } catch {
+            logger.error("refreshCategories failed: \(error.localizedDescription)")
+            // Preserve the previous category cache on transient store errors.
+        }
     }
 
     // MARK: - Habit Logic (對標鸿蒙)
@@ -524,6 +538,7 @@ final class HomeViewModel: ObservableObject {
             guard let self else { return }
             try? await Task.sleep(nanoseconds: delay)
             await self.reload()
+            await self.refreshCategories()
             await self.refreshAllHabits(date: selectedDate)
         }
     }

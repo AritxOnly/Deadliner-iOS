@@ -10,7 +10,7 @@ import os
 
 class HabitRepository {
     static let shared = HabitRepository()
-    private let db = DatabaseHelper.shared
+    private let db: DatabaseHelper
     private let logger = Logger(subsystem: "Deadliner", category: "HabitRepository")
 
     private func trace(_ message: String) {
@@ -20,7 +20,9 @@ class HabitRepository {
     
     private var reminderUpdateTimer: Timer?
     
-    private init() {}
+    init(db: DatabaseHelper = .shared) {
+        self.db = db
+    }
     
     // MARK: - Helper: Date Formatting
     
@@ -36,6 +38,12 @@ class HabitRepository {
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f.string(from: Date())
     }
+
+    private func publishDataChanged() async {
+        await MainActor.run {
+            NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
+        }
+    }
     
     // MARK: - Habit 本体
     
@@ -50,6 +58,7 @@ class HabitRepository {
         description: String = "",
         color: Int? = nil,
         iconKey: String? = nil,
+        categoryUID: String? = nil,
         sortOrder: Int = 0,
         alarmTime: String? = nil
     ) async throws -> Int64 {
@@ -61,6 +70,7 @@ class HabitRepository {
             description: description,
             color: color,
             iconKey: iconKey,
+            categoryUID: categoryUID,
             period: period,
             timesPerPeriod: timesPerPeriod,
             goalType: goalType,
@@ -77,6 +87,46 @@ class HabitRepository {
         scheduleReminderRefresh()
         return id
     }
+
+    @discardableResult
+    func createHabitWithCarrier(
+        name: String,
+        period: HabitPeriod,
+        timesPerPeriod: Int = 1,
+        goalType: HabitGoalType = .perPeriod,
+        totalTarget: Int? = nil,
+        description: String = "",
+        color: Int? = nil,
+        iconKey: String? = nil,
+        categoryUID: String? = nil,
+        sortOrder: Int = 0,
+        alarmTime: String? = nil
+    ) async throws -> HabitCarrierCreation {
+        let now = nowISO()
+        let habit = Habit(
+            id: -1,
+            ddlId: -1,
+            name: name,
+            description: description,
+            color: color,
+            iconKey: iconKey,
+            categoryUID: categoryUID,
+            period: period,
+            timesPerPeriod: timesPerPeriod,
+            goalType: goalType,
+            totalTarget: totalTarget,
+            createdAt: now,
+            updatedAt: now,
+            status: .active,
+            sortOrder: sortOrder,
+            alarmTime: alarmTime
+        )
+        let creation = try await db.insertHabitWithCarrier(habit)
+        await SyncCoordinator.shared.scheduleSync()
+        scheduleReminderRefresh()
+        await publishDataChanged()
+        return creation
+    }
     
     func getHabitByDDLId(ddlLegacyId: Int64) async throws -> Habit? {
         return try await db.getHabitByDDLId(ddlLegacyId: ddlLegacyId)
@@ -91,9 +141,10 @@ class HabitRepository {
     }
     
     func updateHabit(_ habit: Habit) async throws {
-        try await db.updateHabit(habit)
+        try await db.updateHabitAndCarrier(habit)
         await SyncCoordinator.shared.scheduleSync()
         scheduleReminderRefresh()
+        await publishDataChanged()
     }
     
     func deleteHabitByDdlId(ddlId: Int64) async throws {
