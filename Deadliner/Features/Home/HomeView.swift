@@ -147,7 +147,7 @@ struct HomeBoardCoreView: View {
         }
         .task {
             do {
-                try await TaskRepository.shared.initializeIfNeeded(container: SharedModelContainer.shared)
+                try await PersistenceRuntime.shared.start()
             } catch {
                 assertionFailure("Home init DB failed: \(error)")
             }

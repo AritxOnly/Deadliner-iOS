@@ -43,7 +43,7 @@ struct RichSearchTabView: View {
 
     private let taskRepo = TaskRepository.shared
     private let habitRepo = HabitRepository.shared
-    private let categoryRepo = CategoryRepository.shared
+    private let categoryRepo: any CategoryPersistenceStore = PersistenceStores.categories
 
     private var categoryMap: [String: TaskCategory] {
         Dictionary(uniqueKeysWithValues: categories.map { ($0.uid, $0) })
@@ -487,7 +487,7 @@ struct RichSearchTabView: View {
 
     private func loadCategoriesPreservingCurrent() async -> [TaskCategory] {
         do {
-            return try await categoryRepo.getAllCategories()
+            return try await categoryRepo.allCategories()
         } catch {
             print("RichSearchTab category reload failed: \(error)")
             return categories

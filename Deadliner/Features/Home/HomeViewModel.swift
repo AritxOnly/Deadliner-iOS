@@ -28,7 +28,7 @@ final class HomeViewModel: ObservableObject {
 
     private let repo: TaskRepository
     private let habitRepo: HabitRepository = .shared
-    private let categoryRepo: CategoryRepository = .shared
+    private let categoryRepo: any CategoryPersistenceStore = PersistenceStores.categories
     private var cancellables = Set<AnyCancellable>()
 
     private var reloadTask: Task<Void, Never>?
@@ -109,7 +109,7 @@ final class HomeViewModel: ObservableObject {
 
     func refreshCategories() async {
         do {
-            categories = try await categoryRepo.getAllCategories()
+            categories = try await categoryRepo.allCategories()
         } catch {
             logger.error("refreshCategories failed: \(error.localizedDescription)")
             // Preserve the previous category cache on transient store errors.

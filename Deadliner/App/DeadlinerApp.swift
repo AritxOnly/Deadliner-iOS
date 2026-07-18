@@ -41,7 +41,7 @@ struct DeadlinerApp: App {
                 .environmentObject(themeStore)
                 .task {
                     do {
-                        try await TaskRepository.shared.initializeIfNeeded(container: sharedModelContainer)
+                        try await PersistenceRuntime.shared.start()
                         try await DeadlinerCoreBridge.shared.initializeIfNeeded()
                     } catch {
                         AILog.log("Core init failed on launch task: \(error.localizedDescription)")
@@ -70,7 +70,7 @@ struct DeadlinerApp: App {
                     applyAutoSeasonIconIfNeeded()
                     Task {
                         do {
-                            try await TaskRepository.shared.initializeIfNeeded(container: sharedModelContainer)
+                            try await PersistenceRuntime.shared.start()
                             try await DeadlinerCoreBridge.shared.initializeIfNeeded()
                             HabitRepository.shared.scheduleReminderRefresh()
                             await PhoneWatchSyncBridge.shared.pushLatestSnapshot(reason: "onAppear")
@@ -88,7 +88,7 @@ struct DeadlinerApp: App {
                     Task { await StoreManager.shared.refreshEntitlementsOnLaunch() }
                     Task {
                         do {
-                            try await TaskRepository.shared.initializeIfNeeded(container: sharedModelContainer)
+                            try await PersistenceRuntime.shared.start()
                             try await DeadlinerCoreBridge.shared.initializeIfNeeded()
                             HabitRepository.shared.scheduleReminderRefresh()
                             await PhoneWatchSyncBridge.shared.pushLatestSnapshot(reason: "sceneActive")

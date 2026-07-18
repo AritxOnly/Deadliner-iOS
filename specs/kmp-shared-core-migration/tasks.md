@@ -5,7 +5,7 @@
 - [x] 评估 KMP、HarmonyOS 与 SQLDelight 的当前支持边界。
 - [x] 明确 iOS+Android 可执行共享、HarmonyOS 协议对齐的范围。
 - [x] 建立 shared core 规格与模块拆分。
-- [ ] 用户确认完整 workspace protection commit 的边界。
+- [x] 用户确认完整 workspace protection commit 的边界（`5606900`，`version110`）。
 
 ## 阶段 2：基础设施
 
@@ -26,6 +26,7 @@
 ## 阶段 4：验证与回写
 
 - [ ] 建立 Swift XCFramework bridge 和 feature flag。
+- [x] 收束 iOS SwiftData 启动入口，并定义 Task/Habit/Category 迁移 store ports。
 - [ ] 建立 SwiftData -> SQLDelight 影子导入与校验报告。
 - [ ] 先切 CategoryRepository，再切 TaskRepository、HabitRepository、Sync repository。
 - [ ] 替换裸数据变更通知为结构化 `ChangeSet`。

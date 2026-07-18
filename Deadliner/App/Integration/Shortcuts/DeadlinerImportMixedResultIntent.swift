@@ -19,13 +19,12 @@ struct DeadlinerImportMixedResultIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         do {
-            let container = SharedModelContainer.shared
-            try await TaskRepository.shared.initializeIfNeeded(container: container)
+            try await PersistenceRuntime.shared.start()
             
             let data = Data(jsonText.utf8)
             let mixed = try JSONDecoder().decode(MixedResult.self, from: data)
 
-            let useCase = ImportMixedResultUseCase(taskWriter: TaskRepository.shared)
+            let useCase = ImportMixedResultUseCase(taskStore: TaskRepository.shared)
             let stats = try await useCase.execute(mixed)
 
             return .result(dialog: "导入完成：任务 \(stats.tasksInserted) 条。")

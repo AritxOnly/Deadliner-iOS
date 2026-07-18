@@ -17,11 +17,7 @@ actor CategoryRepository {
     }
 
     private func ensureReady() async throws {
-        if await db.isReady() {
-            return
-        }
-
-        try await db.initIfNeeded(container: SharedModelContainer.shared)
+        try await PersistenceRuntime.shared.start()
     }
 
     private func sortCategories(_ categories: [TaskCategory]) -> [TaskCategory] {

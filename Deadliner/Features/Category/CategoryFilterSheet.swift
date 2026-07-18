@@ -15,7 +15,7 @@ struct CategoryFilterSheet: View {
     @State private var showCreateSheet = false
     @State private var isLoading = true
 
-    private let repository = CategoryRepository.shared
+    private let repository: any CategoryPersistenceStore = PersistenceStores.categories
 
     var body: some View {
         NavigationStack {
@@ -112,7 +112,7 @@ struct CategoryFilterSheet: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            categories = try await repository.getAllCategories()
+            categories = try await repository.allCategories()
         } catch {
             print("CategoryFilterSheet reload failed: \(error)")
             // Preserve existing categories on transient failures.

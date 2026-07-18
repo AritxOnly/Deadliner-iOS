@@ -20,7 +20,7 @@ struct CategoryEditSheet: View {
     @State private var alertMessage: String?
     @State private var showAlert = false
 
-    private let repository = CategoryRepository.shared
+    private let repository: any CategoryPersistenceStore = PersistenceStores.categories
 
     init(category: TaskCategory? = nil, onSaved: @escaping (TaskCategory) -> Void) {
         self.category = category

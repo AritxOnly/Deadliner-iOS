@@ -403,7 +403,7 @@ struct TaskEditorSheetView: View {
     @MainActor
     private func loadCategories() async {
         do {
-            categories = try await CategoryRepository.shared.getAllCategories()
+            categories = try await PersistenceStores.categories.allCategories()
         } catch {
             print("TaskEditorSheetView category reload failed: \(error)")
             // Keep existing category cache on transient failures.

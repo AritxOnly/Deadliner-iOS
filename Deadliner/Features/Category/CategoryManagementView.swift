@@ -17,7 +17,7 @@ struct CategoryManagementView: View {
     @State private var showDeleteAlert = false
     @State private var isLoading = true
 
-    private let repository = CategoryRepository.shared
+    private let repository: any CategoryPersistenceStore = PersistenceStores.categories
 
     var body: some View {
         NavigationStack {
@@ -106,7 +106,7 @@ struct CategoryManagementView: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            categories = try await repository.getAllCategories()
+            categories = try await repository.allCategories()
         } catch {
             print("CategoryManagementView reload failed: \(error)")
             // Preserve the last known categories instead of flashing an empty list on transient store errors.

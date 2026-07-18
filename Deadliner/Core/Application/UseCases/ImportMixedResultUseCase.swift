@@ -8,10 +8,10 @@
 import Foundation
 
 final class ImportMixedResultUseCase {
-    private let taskWriter: TaskWritePort
+    private let taskStore: TaskPersistenceStore
 
-    init(taskWriter: TaskWritePort) {
-        self.taskWriter = taskWriter
+    init(taskStore: TaskPersistenceStore) {
+        self.taskStore = taskStore
     }
 
     func execute(_ r: MixedResult) async throws -> ImportStats {
@@ -24,7 +24,7 @@ final class ImportMixedResultUseCase {
         var inserted = 0
         for t in tasks {
             let params = try makeDDLInsertParams(from: t)   // 把你 AIFunctionView 的逻辑搬过来
-            _ = try await taskWriter.insertDDL(params)
+            _ = try await taskStore.createTask(params)
             inserted += 1
         }
 
