@@ -24,7 +24,11 @@ final class ImportMixedResultUseCase {
         var inserted = 0
         for t in tasks {
             let params = try makeDDLInsertParams(from: t)   // 把你 AIFunctionView 的逻辑搬过来
-            _ = try await taskStore.createTask(params)
+            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                _ = try await KMPTaskUIDMutationService.create(params)
+            } else {
+                _ = try await taskStore.createTask(params)
+            }
             inserted += 1
         }
 

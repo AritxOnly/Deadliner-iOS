@@ -27,14 +27,29 @@ final class MemoryBank: ObservableObject {
     private let storageKey = "deadliner_local_memories"
     private let storageProfileKey = "deadliner_user_profile"
     private let storageRevisionKey = "deadliner_memory_revision"
+    private let kmpMigrationKey = "persistence.kmp.memory-import-v1"
     
     private let maxFragments = 60
     private let maxAgeDays = 120
+    private var persistenceChangeObserver: AnyCancellable?
 
     private init() {
-        loadFromDisk()
+        if !UserDefaults.standard.bool(forKey: kmpMigrationKey) {
+            loadFromDisk()
+        }
         loadProfileFromDisk()
         loadRevisionFromDisk()
+        persistenceChangeObserver = NotificationCenter.default.publisher(for: .persistenceDataChanged)
+            .sink { [weak self] notification in
+                guard let event = notification.object as? PersistenceChangeEvent,
+                      event.resourceKinds.contains(.memory) else {
+                    return
+                }
+                Task { await self?.reloadKMPMemory() }
+            }
+        Task { [weak self] in
+            await self?.bootstrapKMPMemory()
+        }
     }
 
     private func applyOnMain(_ work: @escaping () -> Void) {
@@ -89,8 +104,9 @@ final class MemoryBank: ObservableObject {
 
     // MARK: - Local Persistence
     private func saveToDisk() {
-        if let encoded = try? JSONEncoder().encode(fragments) {
-            UserDefaults.standard.set(encoded, forKey: storageKey)
+        let snapshot = fragments
+        Task { [weak self] in
+            await self?.persistKMPMemorySnapshot(snapshot)
         }
     }
 
@@ -123,9 +139,9 @@ final class MemoryBank: ObservableObject {
         fragments.removeAll()
         userProfile = ""
         revision = 0
-        UserDefaults.standard.removeObject(forKey: storageKey)
         UserDefaults.standard.removeObject(forKey: storageProfileKey)
         UserDefaults.standard.removeObject(forKey: storageRevisionKey)
+        saveToDisk()
     }
     
     // MARK: - Editing / Deleting
@@ -334,6 +350,55 @@ final class MemoryBank: ObservableObject {
     private func bumpRevision() {
         revision += 1
         saveRevisionToDisk()
+    }
+
+    private func bootstrapKMPMemory() async {
+        do {
+            if !UserDefaults.standard.bool(forKey: kmpMigrationKey) {
+                try await PersistenceStores.memories.importLegacyMemories(fragments)
+                UserDefaults.standard.set(true, forKey: kmpMigrationKey)
+            }
+            let persisted = try await PersistenceStores.memories.fragments()
+            applyPersistedMemory(persisted)
+        } catch {
+            print("MemoryBank KMP bootstrap failed: \(error)")
+        }
+    }
+
+    private func reloadKMPMemory() async {
+        do {
+            applyPersistedMemory(try await PersistenceStores.memories.fragments())
+        } catch {
+            print("MemoryBank KMP reload failed: \(error)")
+        }
+    }
+
+    private func applyPersistedMemory(_ persisted: [MemoryFragment]) {
+        applyOnMain {
+            self.fragments = persisted
+            self.pruneMemories()
+        }
+    }
+
+    private func persistKMPMemorySnapshot(_ snapshot: [MemoryFragment]) async {
+        do {
+            let persisted = try await PersistenceStores.memories.fragments()
+            let persistedIDs = Set(persisted.map { $0.id.uuidString })
+            let snapshotIDs = Set(snapshot.map { $0.id.uuidString })
+
+            for fragment in snapshot {
+                if persistedIDs.contains(fragment.id.uuidString) {
+                    try await PersistenceStores.memories.updateMemory(fragment)
+                } else {
+                    try await PersistenceStores.memories.createMemory(fragment)
+                }
+            }
+            for fragment in persisted where !snapshotIDs.contains(fragment.id.uuidString) {
+                try await PersistenceStores.memories.deleteMemory(uid: fragment.id.uuidString, updatedAt: Date())
+            }
+        } catch {
+            print("MemoryBank KMP persist failed: \(error)")
+        }
     }
 }
 

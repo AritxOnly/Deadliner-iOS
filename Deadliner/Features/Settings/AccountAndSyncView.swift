@@ -14,6 +14,7 @@ struct AccountAndSyncView: View {
     
     @State private var cloudSyncEnabled = true
     @State private var syncProvider: SyncProvider = .webDAV
+    @State private var webDAVSyncProtocol: WebDAVSyncProtocol = .v2Compatibility
     @State private var loadedSyncProvider: SyncProvider = .webDAV
     @State private var webdavURL = ""
     @State private var webdavUser = ""
@@ -84,6 +85,23 @@ struct AccountAndSyncView: View {
                 }
             } header: {
                 Text("极客同步 (WebDAV)")
+            }
+            .disabled(syncProvider != .webDAV)
+            .opacity(syncProvider == .webDAV ? 1 : 0.45)
+
+            Section {
+                Picker("WebDAV 协议", selection: $webDAVSyncProtocol) {
+                    ForEach(WebDAVSyncProtocol.allCases, id: \.self) { protocolVersion in
+                        Text(protocolVersion.displayName).tag(protocolVersion)
+                    }
+                }
+                .pickerStyle(.inline)
+            } header: {
+                Text("KMP 同步协议")
+            } footer: {
+                Text(webDAVSyncProtocol == .v2Compatibility
+                     ? "本地数据始终来自 KMP；继续与 Android、HarmonyOS 的 V2 快照文件同步。"
+                     : "实验性原生 KMP 变更日志。切换后只与同样启用该协议的设备同步。")
             }
             .disabled(syncProvider != .webDAV)
             .opacity(syncProvider == .webDAV ? 1 : 0.45)
@@ -171,6 +189,10 @@ struct AccountAndSyncView: View {
             showPaywall = true
             return
         }
+        .onChange(of: webDAVSyncProtocol) { oldValue, newValue in
+            guard !isLoading, oldValue != newValue else { return }
+            Task { await LocalValues.shared.setWebDAVSyncProtocol(newValue) }
+        }
         .onChange(of: syncProvider) { oldValue, newValue in
             guard !isLoading, oldValue != newValue else { return }
             guard !(newValue == .iCloud && !iCloudAvailable) else { return }
@@ -199,6 +221,7 @@ struct AccountAndSyncView: View {
 
         cloudSyncEnabled = await LocalValues.shared.getCloudSyncEnabled()
         syncProvider = await LocalValues.shared.getSyncProvider()
+        webDAVSyncProtocol = await LocalValues.shared.getWebDAVSyncProtocol()
         if !iCloudAvailable && syncProvider == .iCloud {
             syncProvider = .webDAV
         }

@@ -47,8 +47,8 @@ actor ToolCallExecutor {
             case "read_tasks":
                 let args = decodeArgs(ReadTasksArgs.self, from: argsJson)
                     ?? ReadTasksArgs(timeRangeDays: 7, status: "OPEN", keywords: nil, limit: 20, sort: "DUE_ASC")
-                let ddlTasks = try await TaskRepository.shared.getDDLsByType(.task)
-                print("[ToolCallExecutor] read_tasks fetched \(ddlTasks.count) task items from repository")
+                let ddlTasks = try await PersistenceStores.tasks.tasks(of: .task)
+                print("[ToolCallExecutor] read_tasks fetched \(ddlTasks.count) task items from KMP store")
                 let payload = makeReadTasksPayload(from: ddlTasks, args: args)
                 let resultJson = try encodeResult(payload)
                 let message = "已读取任务 \(payload.summary.count) 条（逾期 \(payload.summary.overdue)，24h 内 \(payload.summary.dueSoon24h)）"
@@ -88,7 +88,7 @@ actor ToolCallExecutor {
                       let taskId = Int64(args.taskId) else {
                     return makeFailureResult(tool: normalized, code: "INVALID_ARGS", message: "update_deadline 需要 taskId 与 newDueTime")
                 }
-                guard var task = try await TaskRepository.shared.getDDLById(taskId) else {
+                guard var task = try await PersistenceStores.tasks.task(id: taskId) else {
                     return makeFailureResult(tool: normalized, code: "TASK_NOT_FOUND", message: "未找到任务 \(taskId)")
                 }
                 guard let parsed = DeadlineDateParser.parseAIGeneratedDate(args.newDueTime)
@@ -97,7 +97,7 @@ actor ToolCallExecutor {
                 }
 
                 task.endTime = parsed.toLocalISOString()
-                try await TaskRepository.shared.updateDDL(task)
+                try await PersistenceStores.tasks.updateTask(task)
 
                 let payload = UpdateDeadlineResultPayload(
                     ok: true,
@@ -108,7 +108,7 @@ actor ToolCallExecutor {
 
             case "read_habits":
                 let args = decodeArgs(ReadHabitsArgs.self, from: argsJson) ?? ReadHabitsArgs(keywords: nil)
-                let allHabits = try await HabitRepository.shared.getAllHabits()
+                let allHabits = try await PersistenceStores.habits.allHabits()
                 let keywords = (args.keywords ?? [])
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
                     .filter { !$0.isEmpty }

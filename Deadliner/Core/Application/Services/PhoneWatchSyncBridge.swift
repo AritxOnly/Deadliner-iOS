@@ -1,6 +1,6 @@
 import Combine
 import Foundation
-import SwiftData
+import Shared
 import UIKit
 import WatchConnectivity
 
@@ -13,7 +13,7 @@ final class PhoneWatchSyncBridge: NSObject, ObservableObject {
     private var observerTokens: [NSObjectProtocol] = []
     private var processedActionIds: [UUID] = []
     private let maxProcessedActionIds = 100
-    private var refreshBurstTask: Task<Void, Never>?
+    private var refreshBurstTask: _Concurrency.Task<Void, Never>?
     private var activationState: WCSessionActivationState = .notActivated
 
     private override init() {
@@ -31,13 +31,8 @@ final class PhoneWatchSyncBridge: NSObject, ObservableObject {
 
         let center = NotificationCenter.default
         observerTokens.append(
-            center.addObserver(forName: .ddlDataChanged, object: nil, queue: .main) { [weak self] _ in
-                Task { await self?.pushLatestSnapshot(reason: "ddlDataChanged") }
-            }
-        )
-        observerTokens.append(
-            center.addObserver(forName: .captureInboxChanged, object: nil, queue: .main) { [weak self] _ in
-                Task { await self?.pushLatestSnapshot(reason: "captureInboxChanged") }
+            center.addObserver(forName: .persistenceDataChanged, object: nil, queue: .main) { [weak self] _ in
+                _Concurrency.Task { await self?.pushLatestSnapshot(reason: "persistenceDataChanged") }
             }
         )
         observerTokens.append(
@@ -69,7 +64,7 @@ final class PhoneWatchSyncBridge: NSObject, ObservableObject {
         }
 
         do {
-            let snapshot = try buildSnapshot()
+            let snapshot = await buildSnapshot()
             let summary = snapshot.pages.map { "\($0.page.rawValue)=\($0.activeCount)/\($0.totalCount)" }.joined(separator: ", ")
             let data = try JSONEncoder().encode(snapshot)
             try session.updateApplicationContext([
@@ -81,30 +76,29 @@ final class PhoneWatchSyncBridge: NSObject, ObservableObject {
         }
     }
 
-    private func makeSnapshotData() throws -> (snapshot: WatchBoardSyncSnapshot, data: Data) {
-        let snapshot = try buildSnapshot()
+    private func makeSnapshotData() async throws -> (snapshot: WatchBoardSyncSnapshot, data: Data) {
+        let snapshot = await buildSnapshot()
         let data = try JSONEncoder().encode(snapshot)
         return (snapshot, data)
     }
 
     func scheduleRefreshBurst(reason: String) {
         refreshBurstTask?.cancel()
-        refreshBurstTask = Task { @MainActor [weak self] in
+        refreshBurstTask = _Concurrency.Task { @MainActor [weak self] in
             guard let self else { return }
             await self.pushLatestSnapshot(reason: "\(reason)-immediate")
 
             for delay in [1_000_000_000, 3_000_000_000] {
-                try? await Task.sleep(nanoseconds: UInt64(delay))
-                guard Task.isCancelled == false else { return }
+                try? await _Concurrency.Task.sleep(nanoseconds: UInt64(delay))
+                guard _Concurrency.Task.isCancelled == false else { return }
                 await self.pushLatestSnapshot(reason: "\(reason)-retry")
             }
         }
     }
 
-    private func buildSnapshot() throws -> WatchBoardSyncSnapshot {
-        let context = ModelContext(SharedModelContainer.shared)
-        let taskPage = try buildTaskPage(context: context)
-        let habitPage = try buildHabitPage(context: context)
+    private func buildSnapshot() async -> WatchBoardSyncSnapshot {
+        let taskPage = await buildTaskPage()
+        let habitPage = await buildHabitPage()
         let ideaPage = buildIdeaPage()
 
         return WatchBoardSyncSnapshot(
@@ -113,30 +107,37 @@ final class PhoneWatchSyncBridge: NSObject, ObservableObject {
         )
     }
 
-    private func buildTaskPage(context: ModelContext) throws -> WatchBoardSyncPage {
-        let entities = try context.fetch(FetchDescriptor<DDLItemEntity>())
-            .filter { entity in
-                entity.isTombstoned == false
-                    && entity.typeRaw == DeadlineType.task.rawValue
-                    && entity.watchResolvedState.isMainListVisible
-                    && entity.watchResolvedState != .abandoned
+    private func buildTaskPage() async -> WatchBoardSyncPage {
+        let store = await KMPPersistenceRuntime.shared.taskStore()
+        let sourceTasks = await store.allTasks()
+        let tasks = sourceTasks
+            .filter { task in
+                !task.isDeleted && (task.state == .active || task.state == .completed)
             }
             .sorted {
-                if $0.watchResolvedState != $1.watchResolvedState {
-                    return $0.watchResolvedState == .active
+                if $0.state != $1.state {
+                    return $0.state == .active
                 }
-                return $0.endTime < $1.endTime
+                return ($0.dueAt ?? "") < ($1.dueAt ?? "")
             }
 
-        let activeEntities = entities.filter { $0.watchResolvedState == .active }
-        let total = entities.count
-        let active = activeEntities.count
+        let archivedCount = sourceTasks.filter {
+            $0.state == .archived || $0.state == .abandoned || $0.state == .abandonedArchived
+        }.count
+        SyncDebugLog.log(
+            "[KMP][Watch] tasks liveSource=\(sourceTasks.count) visible=\(tasks.count) "
+                + "hiddenArchivedLike=\(archivedCount)"
+        )
+
+        let activeTasks = tasks.filter { $0.state == .active }
+        let total = tasks.count
+        let active = activeTasks.count
         let theme: WatchBoardSyncTheme
-        if entities.isEmpty {
+        if tasks.isEmpty {
             theme = .taskEmpty
-        } else if activeEntities.contains(where: taskIsOverdue) {
+        } else if activeTasks.contains(where: taskIsOverdue) {
             theme = .taskOverdue
-        } else if activeEntities.contains(where: taskIsUrgent) {
+        } else if activeTasks.contains(where: taskIsUrgent) {
             theme = .taskNear
         } else {
             theme = .taskNormal
@@ -148,13 +149,13 @@ final class PhoneWatchSyncBridge: NSObject, ObservableObject {
             progress: progress(active: active, total: total),
             activeCount: active,
             totalCount: total,
-            items: entities.prefix(32).map {
+            items: tasks.prefix(32).map {
                 WatchBoardSyncItem(
-                    id: String($0.legacyId),
-                    title: $0.name,
+                    id: $0.uid,
+                    title: $0.title,
                     subtitle: taskDueText(for: $0),
                     badgeText: taskBadgeText(for: $0),
-                    isCompleted: $0.watchResolvedState == .completed,
+                    isCompleted: $0.state == .completed,
                     isUrgent: taskIsUrgent($0),
                     isOverdue: taskIsOverdue($0)
                 )
@@ -162,21 +163,31 @@ final class PhoneWatchSyncBridge: NSObject, ObservableObject {
         )
     }
 
-    private func buildHabitPage(context: ModelContext) throws -> WatchBoardSyncPage {
+    private func buildHabitPage() async -> WatchBoardSyncPage {
         let calendar = Calendar.current
-        let habits = try context.fetch(FetchDescriptor<HabitEntity>())
-            .filter { (HabitStatus(rawValue: $0.statusRaw) ?? .active) == .active }
+        let store = await KMPPersistenceRuntime.shared.habitStore()
+        let sourceHabits = await store.allHabits()
+        let habits = sourceHabits.filter { !$0.isDeleted && $0.status == .active }
+        let archivedCount = sourceHabits.filter { $0.status == .archived }.count
+        SyncDebugLog.log(
+            "[KMP][Watch] habits liveSource=\(sourceHabits.count) visible=\(habits.count) "
+                + "hiddenArchived=\(archivedCount)"
+        )
 
-        let items = habits.compactMap { habit -> WatchBoardSyncItem? in
-            guard let snapshot = habitSnapshot(for: habit, calendar: calendar) else { return nil }
-            return WatchBoardSyncItem(
-                id: String(habit.legacyId),
-                title: habit.name,
-                subtitle: snapshot.periodLabel,
-                badgeText: "\(snapshot.doneCount)/\(snapshot.targetCount)",
-                isCompleted: snapshot.isCompleted,
-                isUrgent: false,
-                isOverdue: false
+        var items: [WatchBoardSyncItem] = []
+        for habit in habits {
+            let records = await store.records(habitUID: habit.uid)
+            guard let snapshot = habitSnapshot(for: habit, records: records, calendar: calendar) else { continue }
+            items.append(
+                WatchBoardSyncItem(
+                    id: habit.uid,
+                    title: habit.name,
+                    subtitle: snapshot.periodLabel,
+                    badgeText: "\(snapshot.doneCount)/\(snapshot.targetCount)",
+                    isCompleted: snapshot.isCompleted,
+                    isUrgent: false,
+                    isOverdue: false
+                )
             )
         }
 
@@ -194,7 +205,7 @@ final class PhoneWatchSyncBridge: NSObject, ObservableObject {
     }
 
     private func buildIdeaPage() -> WatchBoardSyncPage {
-        let items = CaptureStore().items.sorted { $0.updatedAt > $1.updatedAt }
+        let items = CaptureStore.shared.items.sorted { $0.updatedAt > $1.updatedAt }
         let recent = items.filter { Calendar.current.dateComponents([.day], from: $0.updatedAt, to: Date()).day ?? 8 <= 7 }
 
         return WatchBoardSyncPage(
@@ -205,7 +216,7 @@ final class PhoneWatchSyncBridge: NSObject, ObservableObject {
             totalCount: items.count,
             items: items.prefix(32).map {
                 WatchBoardSyncItem(
-                    id: $0.id.uuidString,
+                    id: $0.uid,
                     title: $0.text,
                     subtitle: relativeDateText(for: $0.updatedAt),
                     badgeText: nil,
@@ -226,7 +237,7 @@ final class PhoneWatchSyncBridge: NSObject, ObservableObject {
                 processedActionIds.removeFirst(processedActionIds.count - maxProcessedActionIds)
             }
 
-            Task {
+            _Concurrency.Task {
                 await applyAction(envelope.action)
                 await pushLatestSnapshot(reason: "watchAction")
             }
@@ -235,14 +246,14 @@ final class PhoneWatchSyncBridge: NSObject, ObservableObject {
         }
     }
 
-    private func handleMessageData(_ data: Data, replyHandler: ((Data) -> Void)? = nil) {
+    private func handleMessageData(_ data: Data, replyHandler: ((Data) -> Void)? = nil) async {
         do {
             let envelope = try JSONDecoder().decode(WatchBoardActionEnvelope.self, from: data)
 
             switch envelope.action {
             case .snapshotRefreshRequest:
                 do {
-                    let payload = try makeSnapshotData()
+                    let payload = try await makeSnapshotData()
                     let summary = payload.snapshot.pages.map { "\($0.page.rawValue)=\($0.activeCount)/\($0.totalCount)" }.joined(separator: ", ")
                     replyHandler?(payload.data)
                     if let session {
@@ -264,81 +275,69 @@ final class PhoneWatchSyncBridge: NSObject, ObservableObject {
         switch action {
         case .snapshotRefreshRequest:
             await pushLatestSnapshot(reason: "watchRequestedRefresh")
-        case .taskToggle(let id):
-            do {
-                guard var item = try await TaskRepository.shared.getDDLById(id) else { return }
-                switch item.state {
-                case .active:
-                    item.state = .completed
-                    item.completeTime = Date().toLocalISOString()
-                case .completed:
-                    item.state = .active
-                    item.completeTime = ""
-                default:
-                    return
-                }
-                try await TaskRepository.shared.updateDDL(item)
-            } catch {
-                SyncDebugLog.log("Watch task toggle failed: \(error.localizedDescription)")
+        case .taskToggle(let uid):
+            let store = await KMPPersistenceRuntime.shared.taskStore()
+            guard let task = await store.task(uid: uid), !task.isDeleted else { return }
+            let action: TaskAction = task.state == .completed ? .restoreActive : .markComplete
+            _ = await store.perform(action: action, taskUID: uid, occurredAt: Date().toLocalISOString())
+        case .taskPostponeDay(let uid):
+            let store = await KMPPersistenceRuntime.shared.taskStore()
+            guard let task = await store.task(uid: uid),
+                  !task.isDeleted,
+                  let dueAt = task.dueAt,
+                  let dueDate = DeadlineDateParser.safeParseOptional(dueAt)
+            else { return }
+            let taskForPostpone: Task_
+            if task.state == .completed {
+                let result = await store.perform(
+                    action: .restoreActive,
+                    taskUID: uid,
+                    occurredAt: Date().toLocalISOString()
+                )
+                guard result.outcome == .applied, let updated = result.task else { return }
+                taskForPostpone = updated
+            } else {
+                taskForPostpone = task
             }
-        case .taskPostponeDay(let id):
+            await store.update(taskForPostpone.watchCopy(
+                state: taskForPostpone.state,
+                dueAt: dueDate.addingTimeInterval(24 * 3600).toLocalISOString(),
+                completedAt: taskForPostpone.completedAt
+            ))
+        case .taskGiveUp(let uid):
+            let store = await KMPPersistenceRuntime.shared.taskStore()
+            guard let task = await store.task(uid: uid), !task.isDeleted else { return }
+            _ = await store.perform(action: .markGiveUp, taskUID: uid, occurredAt: Date().toLocalISOString())
+        case .taskDelete(let uid):
+            let store = await KMPPersistenceRuntime.shared.taskStore()
+            await store.delete(uid: uid, updatedAt: Date().toLocalISOString())
+        case .habitToggle(let uid):
             do {
-                guard var item = try await TaskRepository.shared.getDDLById(id),
-                      let dueDate = DeadlineDateParser.safeParseOptional(item.endTime) else { return }
-                item.endTime = dueDate.addingTimeInterval(24 * 3600).toLocalISOString()
-                if item.state == .completed {
-                    item.state = .active
-                    item.completeTime = ""
-                }
-                try await TaskRepository.shared.updateDDL(item)
-            } catch {
-                SyncDebugLog.log("Watch task postpone failed: \(error.localizedDescription)")
-            }
-        case .taskGiveUp(let id):
-            do {
-                guard var item = try await TaskRepository.shared.getDDLById(id) else { return }
-                item.state = .abandoned
-                item.completeTime = ""
-                try await TaskRepository.shared.updateDDL(item)
-            } catch {
-                SyncDebugLog.log("Watch task give up failed: \(error.localizedDescription)")
-            }
-        case .taskDelete(let id):
-            do {
-                try await TaskRepository.shared.deleteDDL(id)
-            } catch {
-                SyncDebugLog.log("Watch task delete failed: \(error.localizedDescription)")
-            }
-        case .habitToggle(let id):
-            do {
-                try await HabitRepository.shared.toggleRecord(habitId: id, date: Date())
+                let store = await KMPPersistenceRuntime.shared.habitStore()
+                try await store.toggleRecord(habitUID: uid, date: Date())
             } catch {
                 SyncDebugLog.log("Watch habit toggle failed: \(error.localizedDescription)")
             }
-        case .habitClearToday(let id):
+        case .habitClearToday(let uid):
             do {
-                try await HabitRepository.shared.deleteRecordsForHabitOnDate(habitId: id, date: Date())
+                let store = await KMPPersistenceRuntime.shared.habitStore()
+                try await store.clearRecords(habitUID: uid, date: Date())
             } catch {
                 SyncDebugLog.log("Watch habit clear failed: \(error.localizedDescription)")
             }
-        case .habitArchive(let id):
-            do {
-                guard var habit = try await HabitRepository.shared.getHabitById(id: id) else { return }
-                habit.status = .archived
-                habit.updatedAt = Date().toLocalISOString()
-                try await HabitRepository.shared.updateHabit(habit)
-            } catch {
-                SyncDebugLog.log("Watch habit archive failed: \(error.localizedDescription)")
-            }
+        case .habitArchive(let uid):
+            let store = await KMPPersistenceRuntime.shared.habitStore()
+            guard let habit = await store.habit(uid: uid), !habit.isDeleted else { return }
+            _ = await store.perform(statusAction: .archive, habitUID: uid, occurredAt: Date().toLocalISOString())
         case .ideaDelete(let id):
-            CaptureStore().deleteItem(id: id)
+            CaptureStore.shared.deleteItem(uid: id)
         }
     }
 }
 
 extension PhoneWatchSyncBridge: WCSessionDelegate {
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-        Task { @MainActor in
+        _Concurrency.Task { @MainActor in
             self.activationState = activationState
             if let error {
                 SyncDebugLog.log("Watch session activation failed: \(error.localizedDescription)")
@@ -353,7 +352,7 @@ extension PhoneWatchSyncBridge: WCSessionDelegate {
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
 
     nonisolated func sessionDidDeactivate(_ session: WCSession) {
-        Task { @MainActor in
+        _Concurrency.Task { @MainActor in
             self.activationState = .notActivated
             SyncDebugLog.log("Watch session deactivated; reactivating")
         }
@@ -361,7 +360,7 @@ extension PhoneWatchSyncBridge: WCSessionDelegate {
     }
 
     nonisolated func sessionWatchStateDidChange(_ session: WCSession) {
-        Task { @MainActor in
+        _Concurrency.Task { @MainActor in
             SyncDebugLog.log("Watch state changed: paired=\(session.isPaired), installed=\(session.isWatchAppInstalled), reachable=\(session.isReachable)")
             self.scheduleRefreshBurst(reason: "watchStateChanged")
         }
@@ -369,27 +368,27 @@ extension PhoneWatchSyncBridge: WCSessionDelegate {
 #endif
 
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
-        Task { @MainActor in
+        _Concurrency.Task { @MainActor in
             SyncDebugLog.log("Watch reachability changed: reachable=\(session.isReachable)")
             self.scheduleRefreshBurst(reason: "reachabilityChanged")
         }
     }
 
     nonisolated func session(_ session: WCSession, didReceiveMessageData messageData: Data) {
-        Task { @MainActor in
-            self.handleMessageData(messageData)
+        _Concurrency.Task { @MainActor in
+            await self.handleMessageData(messageData)
         }
     }
 
     nonisolated func session(_ session: WCSession, didReceiveMessageData messageData: Data, replyHandler: @escaping (Data) -> Void) {
-        Task { @MainActor in
-            self.handleMessageData(messageData, replyHandler: replyHandler)
+        _Concurrency.Task { @MainActor in
+            await self.handleMessageData(messageData, replyHandler: replyHandler)
         }
     }
 
     nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any] = [:]) {
         guard let data = userInfo[WatchSyncPayloadKey.action.rawValue] as? Data else { return }
-        Task { @MainActor in
+        _Concurrency.Task { @MainActor in
             self.handleActionEnvelopeData(data)
         }
     }
@@ -400,37 +399,32 @@ private enum WatchSyncPayloadKey: String {
     case action = "watch_board_action"
 }
 
-private extension DDLItemEntity {
-    var watchResolvedState: DDLState {
-        if let stateRaw, let state = DDLState(rawValue: stateRaw) {
-            return state
-        }
-        if isArchived { return .archived }
-        if isCompleted { return .completed }
-        return .active
-    }
-}
-
 private func progress(active: Int, total: Int) -> Double {
     guard total > 0 else { return 0 }
     return min(max(Double(total - active) / Double(total), 0), 1)
 }
 
-private func taskIsUrgent(_ entity: DDLItemEntity) -> Bool {
-    guard entity.watchResolvedState == .active else { return false }
-    guard let endDate = DeadlineDateParser.safeParseOptional(entity.endTime) else { return false }
+private func taskIsUrgent(_ task: Task_) -> Bool {
+    guard task.state == .active,
+          let dueAt = task.dueAt,
+          let endDate = DeadlineDateParser.safeParseOptional(dueAt)
+    else { return false }
     let remaining = endDate.timeIntervalSinceNow
     return remaining > 0 && remaining <= 24 * 3600
 }
 
-private func taskIsOverdue(_ entity: DDLItemEntity) -> Bool {
-    guard entity.watchResolvedState == .active else { return false }
-    guard let endDate = DeadlineDateParser.safeParseOptional(entity.endTime) else { return false }
+private func taskIsOverdue(_ task: Task_) -> Bool {
+    guard task.state == .active,
+          let dueAt = task.dueAt,
+          let endDate = DeadlineDateParser.safeParseOptional(dueAt)
+    else { return false }
     return endDate < Date()
 }
 
-private func taskBadgeText(for entity: DDLItemEntity) -> String {
-    guard let dueDate = DeadlineDateParser.safeParseOptional(entity.endTime) else {
+private func taskBadgeText(for task: Task_) -> String {
+    guard let dueAt = task.dueAt,
+          let dueDate = DeadlineDateParser.safeParseOptional(dueAt)
+    else {
         return String(localized: "watch.board.row.no-due-date", defaultValue: "No due")
     }
     let diff = dueDate.timeIntervalSinceNow
@@ -443,9 +437,55 @@ private func taskBadgeText(for entity: DDLItemEntity) -> String {
     return "\(max(1, Int(diff / 60)))m"
 }
 
-private func taskDueText(for entity: DDLItemEntity) -> String {
-    guard let dueDate = DeadlineDateParser.safeParseOptional(entity.endTime) else { return entity.endTime }
+private func taskDueText(for task: Task_) -> String {
+    guard let dueAt = task.dueAt,
+          let dueDate = DeadlineDateParser.safeParseOptional(dueAt)
+    else { return task.dueAt ?? "" }
     return dueDate.formatted(.dateTime.month().day().hour().minute())
+}
+
+private extension Task_ {
+    func watchCopy(state: TaskState, dueAt: String? = nil, completedAt: String?) -> Task_ {
+        Task_(
+            uid: uid,
+            title: title,
+            note: note,
+            startAt: startAt,
+            dueAt: dueAt ?? self.dueAt,
+            state: state,
+            completedAt: completedAt,
+            categoryUid: categoryUid,
+            isStarred: isStarred,
+            calendarEventId: calendarEventId,
+            createdAt: createdAt,
+            updatedAt: Date().toLocalISOString(),
+            isDeleted: isDeleted,
+            subtasks: subtasks
+        )
+    }
+}
+
+private extension Habit_ {
+    func watchArchivedCopy() -> Habit_ {
+        Habit_(
+            uid: uid,
+            name: name,
+            description: description_,
+            color: color,
+            iconKey: iconKey,
+            categoryUid: categoryUid,
+            period: period,
+            timesPerPeriod: timesPerPeriod,
+            goalType: goalType,
+            totalTarget: totalTarget,
+            status: .archived,
+            sortOrder: sortOrder,
+            reminder: reminder,
+            createdAt: createdAt,
+            updatedAt: Date().toLocalISOString(),
+            isDeleted: isDeleted
+        )
+    }
 }
 
 private func relativeDateText(for date: Date) -> String {
@@ -454,40 +494,44 @@ private func relativeDateText(for date: Date) -> String {
     return formatter.localizedString(for: date, relativeTo: Date())
 }
 
-private func habitSnapshot(for habit: HabitEntity, calendar: Calendar) -> (doneCount: Int, targetCount: Int, isCompleted: Bool, periodLabel: String)? {
+private func habitSnapshot(
+    for habit: Habit_,
+    records: [KMPHabitRecord],
+    calendar: Calendar
+) -> (doneCount: Int, targetCount: Int, isCompleted: Bool, periodLabel: String)? {
     let today = calendar.startOfDay(for: Date())
     guard isHabitDueToday(habit, on: today, calendar: calendar) else { return nil }
 
-    let completedRecords = habit.records.filter { $0.statusRaw == HabitRecordStatus.completed.rawValue }
-    if HabitGoalType(rawValue: habit.goalTypeRaw) == .total {
+    let completedRecords = records.filter { !$0.isDeleted && $0.status == .completed }
+    if habit.goalType == .total {
         let todayString = dayString(for: today)
         let doneCount = completedRecords
-            .filter { $0.date <= todayString }
-            .reduce(0) { $0 + $1.count }
-        let target = habit.totalTarget.map { max(1, $0) } ?? max(1, doneCount)
+            .filter { $0.occurredOn <= todayString }
+            .reduce(0) { $0 + Int($1.count) }
+        let target = habit.totalTarget.map { max(1, Int($0.intValue)) } ?? max(1, doneCount)
         return (doneCount, target, doneCount >= target, String(localized: "watch.board.page.habits.count-caption", defaultValue: "remaining / total"))
     }
 
-    let period = HabitPeriod(rawValue: habit.periodRaw) ?? .daily
+    let period = habit.period
     let bounds = periodBounds(for: period, today: today, calendar: calendar)
     let startString = dayString(for: bounds.start)
     let endString = dayString(for: bounds.end)
     let doneCount = completedRecords
-        .filter { $0.date >= startString && $0.date <= endString }
-        .reduce(0) { $0 + $1.count }
-    let target = max(1, habit.timesPerPeriod)
+        .filter { $0.occurredOn >= startString && $0.occurredOn <= endString }
+        .reduce(0) { $0 + Int($1.count) }
+    let target = max(1, Int(habit.timesPerPeriod))
     return (doneCount, target, doneCount >= target, localizedPeriod(period))
 }
 
-private func isHabitDueToday(_ habit: HabitEntity, on date: Date, calendar: Calendar) -> Bool {
-    guard HabitPeriod(rawValue: habit.periodRaw) == .ebbinghaus else { return true }
+private func isHabitDueToday(_ habit: Habit_, on date: Date, calendar: Calendar) -> Bool {
+    guard habit.period == .ebbinghaus else { return true }
     guard let createdAt = DeadlineDateParser.safeParseOptional(habit.createdAt) else { return true }
     let curve = [0, 1, 2, 4, 7, 15, 30, 60]
     let diffDays = calendar.dateComponents([.day], from: calendar.startOfDay(for: createdAt), to: date).day ?? 0
     return curve.contains(diffDays)
 }
 
-private func periodBounds(for period: HabitPeriod, today: Date, calendar: Calendar) -> (start: Date, end: Date) {
+private func periodBounds(for period: Shared.HabitPeriod, today: Date, calendar: Calendar) -> (start: Date, end: Date) {
     let day = calendar.startOfDay(for: today)
     switch period {
     case .daily, .once, .ebbinghaus:
@@ -502,6 +546,8 @@ private func periodBounds(for period: HabitPeriod, today: Date, calendar: Calend
         let start = calendar.date(from: components) ?? day
         let end = calendar.date(byAdding: DateComponents(month: 1, day: -1), to: start) ?? day
         return (start, end)
+    default:
+        return (day, day)
     }
 }
 
@@ -511,12 +557,13 @@ private func dayString(for date: Date) -> String {
     return formatter.string(from: date)
 }
 
-private func localizedPeriod(_ period: HabitPeriod) -> String {
+private func localizedPeriod(_ period: Shared.HabitPeriod) -> String {
     switch period {
     case .daily: return String(localized: "watch.board.period.daily", defaultValue: "Daily")
     case .weekly: return String(localized: "watch.board.period.weekly", defaultValue: "Weekly")
     case .monthly: return String(localized: "watch.board.period.monthly", defaultValue: "Monthly")
     case .once: return String(localized: "watch.board.period.once", defaultValue: "Once")
     case .ebbinghaus: return String(localized: "watch.board.period.ebbinghaus", defaultValue: "Review")
+    default: return String(localized: "watch.board.period.daily", defaultValue: "Daily")
     }
 }

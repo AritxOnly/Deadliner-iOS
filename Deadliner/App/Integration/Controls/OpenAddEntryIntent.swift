@@ -7,7 +7,6 @@
 
 import AppIntents
 import Foundation
-import SwiftData
 
 enum TaskStatusLaunchTarget: String, AppEnum {
     case home
@@ -98,42 +97,15 @@ struct OpenTaskStatusActionIntent: SetValueIntent {
 
         guard launchTarget == .urgentFirst else {
             defaults?.set("open_home", forKey: "widget.pending_add_entry_type")
-            defaults?.removeObject(forKey: "widget.pending_task_detail_id")
+            defaults?.removeObject(forKey: "widget.pending_task_detail_uid")
             return .result()
         }
 
-        if let urgentTaskId = await findMostUrgentTaskId() {
-            defaults?.set("open_home_or_urgent", forKey: "widget.pending_add_entry_type")
-            defaults?.set(urgentTaskId, forKey: "widget.pending_task_detail_id")
-        } else {
-            defaults?.set("open_home", forKey: "widget.pending_add_entry_type")
-            defaults?.removeObject(forKey: "widget.pending_task_detail_id")
-        }
+        // App Intents run in a separate extension process. Do not open a second
+        // Kotlin/Native driver here: its unchecked exception boundary would crash
+        // the extension instead of returning an Intent failure.
+        defaults?.set("open_home", forKey: "widget.pending_add_entry_type")
+        defaults?.removeObject(forKey: "widget.pending_task_detail_uid")
         return .result()
-    }
-
-    @MainActor
-    private func findMostUrgentTaskId() async -> Int64? {
-        let container = SharedModelContainer.shared
-        let context = ModelContext(container)
-        let fd = FetchDescriptor<DDLItemEntity>()
-        let allEntities = (try? context.fetch(fd)) ?? []
-
-        let now = Date()
-        let tomorrow = now.addingTimeInterval(24 * 3600)
-        let taskTypeRaw = "task"
-
-        let candidates = allEntities.filter { entity in
-            guard entity.isTombstoned == false, entity.typeRaw == taskTypeRaw, entity.isCompleted == false else { return false }
-            let state = entity.resolvedState()
-            guard !state.isArchivedLike && !state.isAbandonedLike else { return false }
-            guard let endDate = DeadlineDateParser.safeParseOptional(entity.endTime) else { return false }
-            return endDate > now && endDate <= tomorrow
-        }
-
-        let urgent = candidates.min { lhs, rhs in
-            lhs.endTime < rhs.endTime
-        }
-        return urgent?.legacyId
     }
 }

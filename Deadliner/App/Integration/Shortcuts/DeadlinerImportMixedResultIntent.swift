@@ -19,12 +19,12 @@ struct DeadlinerImportMixedResultIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         do {
-            try await PersistenceRuntime.shared.start()
+            try KMPSharedDatabaseBootstrap.prepareIfNeeded()
             
             let data = Data(jsonText.utf8)
             let mixed = try JSONDecoder().decode(MixedResult.self, from: data)
 
-            let useCase = ImportMixedResultUseCase(taskStore: TaskRepository.shared)
+            let useCase = ImportMixedResultUseCase(taskStore: PersistenceStores.tasks)
             let stats = try await useCase.execute(mixed)
 
             return .result(dialog: "导入完成：任务 \(stats.tasksInserted) 条。")

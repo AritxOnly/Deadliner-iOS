@@ -14,7 +14,7 @@ struct CaptureInboxView: View {
 
     @EnvironmentObject private var themeStore: ThemeStore
 
-    @StateObject private var store = CaptureStore()
+    @StateObject private var store = CaptureStore.shared
     @StateObject private var speechInput = SpeechInputService()
 
     @State private var draftText = ""
@@ -100,7 +100,7 @@ struct CaptureInboxView: View {
                 pendingDeleteItems = []
             }
             Button("删除", role: .destructive) {
-                store.deleteItems(ids: Set(pendingDeleteItems.map(\.id)))
+                store.deleteItems(uids: Set(pendingDeleteItems.map(\.uid)))
                 pendingDeleteItems = []
                 clearSelection()
             }
@@ -113,6 +113,13 @@ struct CaptureInboxView: View {
         }
         .onChange(of: selectionMode) { _, newValue in
             onSelectionModeChange?(newValue)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .persistenceDataChanged)) { notification in
+            guard let event = notification.object as? PersistenceChangeEvent,
+                  event.resourceKinds.contains(.capture) else {
+                return
+            }
+            Task { await store.reload() }
         }
         .onAppear {
             onSelectionModeChange?(selectionMode)
@@ -287,7 +294,7 @@ struct CaptureInboxView: View {
         case .task:
             NavigationStack {
                 TaskEditorSheetView(
-                    repository: TaskRepository.shared,
+                    repository: PersistenceStores.tasks,
                     mode: .add,
                     initialDraft: TaskDraft(
                         name: request.item.text,
@@ -297,7 +304,7 @@ struct CaptureInboxView: View {
                         isStarred: false
                     ),
                     onSaved: {
-                        store.consumeItems(ids: Set(request.consumedIDs))
+                        store.consumeItems(uids: Set(request.consumedUIDs))
                         conversionRequest = nil
                         clearSelection()
                     }
@@ -316,7 +323,7 @@ struct CaptureInboxView: View {
                         totalTarget: "100"
                     ),
                     onSaved: {
-                        store.consumeItems(ids: Set(request.consumedIDs))
+                        store.consumeItems(uids: Set(request.consumedUIDs))
                         conversionRequest = nil
                         clearSelection()
                     }
@@ -325,11 +332,11 @@ struct CaptureInboxView: View {
         case .aiTask:
             NavigationStack {
                 TaskEditorSheetView(
-                    repository: TaskRepository.shared,
+                    repository: PersistenceStores.tasks,
                     mode: .add,
                     initialDraft: .empty(),
                     onSaved: {
-                        store.consumeItems(ids: Set(request.consumedIDs))
+                        store.consumeItems(uids: Set(request.consumedUIDs))
                         conversionRequest = nil
                         clearSelection()
                     },
@@ -343,7 +350,7 @@ struct CaptureInboxView: View {
                     mode: .add,
                     initialDraft: .empty(),
                     onSaved: {
-                        store.consumeItems(ids: Set(request.consumedIDs))
+                        store.consumeItems(uids: Set(request.consumedUIDs))
                         conversionRequest = nil
                         clearSelection()
                     },
@@ -391,7 +398,7 @@ struct CaptureInboxView: View {
     }
 
     private func singleConversionRequest(kind: CaptureConversionKind, item: CaptureInboxItem) -> CaptureConversionRequest {
-        CaptureConversionRequest(kind: kind, item: item, consumedIDs: [item.id])
+        CaptureConversionRequest(kind: kind, item: item, consumedUIDs: [item.uid])
     }
 
     private func mergedConversionRequest(kind: CaptureConversionKind) -> CaptureConversionRequest? {
@@ -419,7 +426,7 @@ struct CaptureInboxView: View {
         return CaptureConversionRequest(
             kind: kind,
             item: syntheticItem,
-            consumedIDs: items.map(\.id)
+            consumedUIDs: items.map(\.uid)
         )
     }
 

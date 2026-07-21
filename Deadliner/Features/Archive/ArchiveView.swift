@@ -42,8 +42,8 @@ struct ArchiveView: View {
         }
     }
 
-    private let taskRepo = TaskRepository.shared
-    private let habitRepo = HabitRepository.shared
+    private let taskRepo: any TaskPersistenceStore = PersistenceStores.tasks
+    private let habitRepo: any HabitPersistenceStore = PersistenceStores.habits
 
     var body: some View {
         List {
@@ -241,7 +241,12 @@ struct ArchiveView: View {
         
         do {
             if selectedTab == 0 {
-                let all = try await taskRepo.getAllDDLs()
+                let all: [DDLItem]
+                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                    all = await KMPTaskUIDMutationService.allTasks()
+                } else {
+                    all = try await taskRepo.allTasks()
+                }
                 archivedTasks = all.filter { $0.isArchived }
                     .sorted { (a, b) in
                         let tA = a.completeTime
@@ -249,7 +254,12 @@ struct ArchiveView: View {
                         return tA > tB
                     }
             } else {
-                let all = try await habitRepo.getAllHabits()
+                let all: [Habit]
+                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                    all = await KMPHabitUIDMutationService.allHabits()
+                } else {
+                    all = try await habitRepo.allHabits()
+                }
                 archivedHabits = all.filter { $0.status == .archived }
                     .sorted { $0.updatedAt > $1.updatedAt }
             }
@@ -261,17 +271,21 @@ struct ArchiveView: View {
     private func performUndo(_ target: DeleteTarget) async {
         do {
             switch target {
-            case .task(var item):
-                try item.transition(using: .unarchive)
-                try await taskRepo.updateDDL(item)
+            case .task(let item):
+                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                    _ = try await KMPTaskUIDMutationService.perform(item: item, action: .unarchive)
+                } else {
+                    _ = try await taskRepo.performTaskAction(id: item.id, action: .unarchive)
+                }
                 archivedTasks.removeAll { $0.id == item.id }
-            case .habit(var habit):
-                habit.status = .active
-                try await habitRepo.updateHabit(habit)
+            case .habit(let habit):
+                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                    _ = try await KMPHabitUIDMutationService.perform(.restore, habit: habit)
+                } else {
+                    _ = try await habitRepo.performHabitStatusAction(id: habit.id, action: .restore)
+                }
                 archivedHabits.removeAll { $0.id == habit.id }
             }
-            // 发送数据变更通知以刷新主页
-            NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
         } catch {
             print("Undo failed: \(error)")
         }
@@ -281,10 +295,18 @@ struct ArchiveView: View {
         do {
             switch target {
             case .task(let item):
-                try await taskRepo.deleteDDL(item.id)
+                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                    try await KMPTaskUIDMutationService.delete(item: item)
+                } else {
+                    try await taskRepo.deleteTask(id: item.id)
+                }
                 archivedTasks.removeAll { $0.id == item.id }
             case .habit(let habit):
-                try await habitRepo.deleteHabitByDdlId(ddlId: habit.ddlId)
+                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                    try await KMPHabitUIDMutationService.delete(habit: habit)
+                } else {
+                    try await habitRepo.deleteHabit(carrierID: habit.id)
+                }
                 archivedHabits.removeAll { $0.id == habit.id }
             }
         } catch {
@@ -296,12 +318,20 @@ struct ArchiveView: View {
         do {
             if selectedTab == 0 {
                 for item in archivedTasks {
-                    try await taskRepo.deleteDDL(item.id)
+                    if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                        try await KMPTaskUIDMutationService.delete(item: item)
+                    } else {
+                        try await taskRepo.deleteTask(id: item.id)
+                    }
                 }
                 archivedTasks.removeAll()
             } else {
                 for habit in archivedHabits {
-                    try await habitRepo.deleteHabitByDdlId(ddlId: habit.ddlId)
+                    if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                        try await KMPHabitUIDMutationService.delete(habit: habit)
+                    } else {
+                        try await habitRepo.deleteHabit(carrierID: habit.id)
+                    }
                 }
                 archivedHabits.removeAll()
             }

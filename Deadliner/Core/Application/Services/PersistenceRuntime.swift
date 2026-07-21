@@ -2,39 +2,40 @@
 //  PersistenceRuntime.swift
 //  Deadliner
 //
-//  The only application lifecycle entry point for the legacy SwiftData store.
-//  It is intentionally small so the KMP-backed runtime can replace it later.
+//  Opens the old SwiftData store solely for one-time KMP migration reads.
 //
-
-import SwiftData
 
 @MainActor
 final class PersistenceRuntime {
-    typealias LegacyStoreStarter = @MainActor @Sendable () async throws -> Void
+    typealias LegacyMigrationSourceStarter = @MainActor @Sendable () async throws -> Void
 
     static let shared = PersistenceRuntime()
 
-    private let startLegacyStore: LegacyStoreStarter
+    private let openLegacyMigrationSource: LegacyMigrationSourceStarter
     private var initializationTask: Task<Void, Error>?
     private var isReady = false
 
-    init(startLegacyStore: @escaping LegacyStoreStarter = {
-        try await TaskRepository.shared.initializeIfNeeded(container: SharedModelContainer.shared)
+    init(openLegacyMigrationSource: @escaping LegacyMigrationSourceStarter = {
+        try await DatabaseHelper.shared.initIfNeeded(container: SharedModelContainer.shared)
     }) {
-        self.startLegacyStore = startLegacyStore
+        self.openLegacyMigrationSource = openLegacyMigrationSource
     }
 
-    func start() async throws {
+    func openLegacyMigrationSourceIfNeeded() async throws {
         if isReady {
             return
         }
+
+        // App Intents may start in a process where the SwiftUI App initializer
+        // has not run. Prepare the shared KMP location before any store opens.
+        try KMPSharedDatabaseBootstrap.prepareIfNeeded()
 
         if let initializationTask {
             return try await initializationTask.value
         }
 
-        let task = Task { @MainActor [startLegacyStore] in
-            try await startLegacyStore()
+        let task = Task { @MainActor [openLegacyMigrationSource] in
+            try await openLegacyMigrationSource()
         }
         initializationTask = task
 
@@ -47,10 +48,17 @@ final class PersistenceRuntime {
             throw error
         }
     }
+
+    /// Read-only diagnostic access to the same legacy migration source.
+    func openLegacyMigrationSourceForAudit() async throws {
+        try await openLegacyMigrationSourceIfNeeded()
+    }
 }
 
 enum PersistenceStores {
-    static let tasks: any TaskPersistenceStore = TaskRepository.shared
-    static let habits: any HabitPersistenceStore = HabitRepository.shared
-    static let categories: any CategoryPersistenceStore = CategoryRepository.shared
+    static let tasks: any TaskPersistenceStore = KMPPersistenceFeatureFlags.taskStore()
+    static let habits: any HabitPersistenceStore = KMPPersistenceFeatureFlags.habitStore()
+    static let categories: any CategoryPersistenceStore = KMPPersistenceFeatureFlags.categoryStore()
+    static let captures: any CapturePersistenceStore = KMPSharedCaptureStore()
+    static let memories: any MemoryPersistenceStore = KMPSharedMemoryStore()
 }

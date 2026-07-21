@@ -1,4 +1,0 @@
-module _LottieStub {
-header "_LottieStub-Swift.h"
-export *
-}

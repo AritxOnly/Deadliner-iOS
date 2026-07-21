@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct EditTaskSheetView: View {
-    let repository: TaskRepository
+    let repository: any TaskPersistenceStore
     let item: DDLItem
     var onDone: (() -> Void)? = nil
 

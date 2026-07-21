@@ -8,6 +8,10 @@
 import Foundation
 import Combine
 import os
+import SwiftUI
+#if canImport(Shared)
+import Shared
+#endif
 
 @MainActor
 final class HomeViewModel: ObservableObject {
@@ -26,24 +30,26 @@ final class HomeViewModel: ObservableObject {
     
     private var allHabitsCache: [HabitWithDailyStatus] = []
 
-    private let repo: TaskRepository
-    private let habitRepo: HabitRepository = .shared
+    private let repo: any TaskPersistenceStore
+    private let habitRepo: any HabitPersistenceStore = PersistenceStores.habits
     private let categoryRepo: any CategoryPersistenceStore = PersistenceStores.categories
     private var cancellables = Set<AnyCancellable>()
 
-    private var reloadTask: Task<Void, Never>?
+    private var reloadTask: _Concurrency.Task<Void, Never>?
     private var isReloading = false
     private var pendingReload = false
+    private var kmpTaskListBridge: KMPTaskListViewModelBridge?
+    private var kmpHabitListBridge: KMPHabitListViewModelBridge?
     
     private var suppressReloadUntil: Date? = nil
     private var didInitialLoad = false
 
     private let logger = Logger(subsystem: "Deadliner", category: "HomeViewModel")
 
-    init(repo: TaskRepository = .shared) {
+    init(repo: any TaskPersistenceStore = PersistenceStores.tasks) {
         self.repo = repo
 
-        NotificationCenter.default.publisher(for: .ddlDataChanged)
+        NotificationCenter.default.publisher(for: .persistenceDataChanged)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
@@ -77,6 +83,11 @@ final class HomeViewModel: ObservableObject {
 
     func initialLoad() async {
         self.progressDir = await LocalValues.shared.getProgressDir()
+        _Concurrency.Task(priority: .utility) {
+            await KMPTaskHabitMigrationExperiment.ensureReadyForRuntime()
+        }
+        await startKMPTaskListBridgeIfNeeded()
+        await startKMPHabitListBridgeIfNeeded()
         
         // 刷新 Task 和 Habit
         await reload()
@@ -86,8 +97,8 @@ final class HomeViewModel: ObservableObject {
         guard !didInitialLoad else { return }
         didInitialLoad = true
 
-        Task {
-            let syncOK = await repo.syncNow()
+        _Concurrency.Task {
+            let syncOK = await SyncCoordinator.shared.syncNow()
             logger.info("initial background sync result=\(syncOK, privacy: .public)")
         }
     }
@@ -98,7 +109,7 @@ final class HomeViewModel: ObservableObject {
         await refreshCategories()
         await refreshAllHabits(date: selectedDate)
         
-        let syncOK = await repo.syncNow()
+        let syncOK = await SyncCoordinator.shared.syncNow()
         logger.info("pull-to-refresh sync result=\(syncOK, privacy: .public)")
         
         await reload()
@@ -119,28 +130,49 @@ final class HomeViewModel: ObservableObject {
     // MARK: - Habit Logic (對標鸿蒙)
 
     func refreshAllHabits(date: Date) async {
+        if let kmpHabitListBridge {
+            kmpHabitListBridge.refresh()
+            return
+        }
         do {
-            let allRaw = try await habitRepo.getAllHabits()
-            let activeHabits = allRaw.filter { $0.status != .archived }
-            
-            var statusList: [HabitWithDailyStatus] = []
-            for h in activeHabits {
-                if let status = await buildStatusForDate(habit: h, date: date) {
-                    statusList.append(status)
-                }
+            let allRaw: [Habit]
+            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                allRaw = await KMPHabitUIDMutationService.allHabits()
+            } else {
+                allRaw = try await habitRepo.allHabits()
             }
-            
-            self.allHabitsCache = statusList
-            applyHabitFilter()
-            
-            await calculateWeekOverview(centerDate: date, allHabits: activeHabits)
+            await applyHabitList(allRaw, date: date)
         } catch {
             logger.error("refreshAllHabits failed: \(error.localizedDescription)")
         }
     }
+
+    private func applyHabitList(_ allRaw: [Habit], date: Date) async {
+        let activeHabits = allRaw.filter { $0.status != .archived }
+
+        var statusList: [HabitWithDailyStatus] = []
+        var statusReadFailures = 0
+        for habit in activeHabits {
+            if let status = await buildStatusForDate(habit: habit, date: date) {
+                statusList.append(status)
+            } else {
+                statusReadFailures += 1
+            }
+        }
+
+        SyncDebugLog.log(
+            "[KMP][Home] habits source=\(allRaw.count) active=\(activeHabits.count) "
+                + "renderable=\(statusList.count) recordReadFailures=\(statusReadFailures) "
+                + "kmpEnabled=\(KMPPersistenceFeatureFlags.canUseTaskHabitStore)"
+        )
+
+        allHabitsCache = statusList
+        applyHabitFilter()
+        await calculateWeekOverview(centerDate: date, allHabits: activeHabits)
+    }
     
     private func buildStatusForDate(habit: Habit, date: Date) async -> HabitWithDailyStatus? {
-        let bounds = habitRepo.periodBounds(period: habit.period, date: date)
+        let bounds = HabitPeriodBounds.dates(for: habit.period, containing: date)
         let start = bounds.0
         let end = bounds.1
         
@@ -149,7 +181,20 @@ final class HomeViewModel: ObservableObject {
         let queryEnd = habit.goalType == .total ? date : end
         
         do {
-            let records = try await habitRepo.getRecordsForHabitInRange(habitId: habit.id, startDate: queryStart, endDateInclusive: queryEnd)
+            let records: [HabitRecord]
+            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                records = try await KMPHabitUIDMutationService.records(
+                    habit: habit,
+                    from: queryStart,
+                    through: queryEnd
+                )
+            } else {
+                records = try await habitRepo.habitRecords(
+                    habitID: habit.id,
+                    from: queryStart,
+                    through: queryEnd
+                )
+            }
             let done = records.filter { $0.status == .completed }.reduce(0) { $0 + $1.count }
             
             var target = max(1, habit.timesPerPeriod)
@@ -221,7 +266,11 @@ final class HomeViewModel: ObservableObject {
         
         var weekRecords: [HabitRecord] = []
         do {
-            weekRecords = try await habitRepo.getRecordsForDateRange(startDate: monday, endDate: sunday)
+            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                weekRecords = await KMPHabitUIDMutationService.records(from: monday, through: sunday)
+            } else {
+                weekRecords = try await habitRepo.habitRecords(from: monday, through: sunday)
+            }
         } catch {
             logger.error("Failed to fetch records for week overview: \(error.localizedDescription)")
         }
@@ -270,11 +319,12 @@ final class HomeViewModel: ObservableObject {
     
     func archiveHabit(_ habit: Habit) async {
         do {
-            var updated = habit
-            updated.status = .archived
-            try await habitRepo.updateHabit(updated)
+            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                _ = try await KMPHabitUIDMutationService.perform(.archive, habit: habit)
+            } else {
+                _ = try await habitRepo.performHabitStatusAction(id: habit.id, action: .archive)
+            }
             await refreshAllHabits(date: selectedDate)
-            NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
         } catch {
             logger.error("Archive habit failed: \(error.localizedDescription)")
         }
@@ -284,12 +334,13 @@ final class HomeViewModel: ObservableObject {
         guard !habits.isEmpty else { return }
         do {
             for habit in habits {
-                var updated = habit
-                updated.status = .archived
-                try await habitRepo.updateHabit(updated)
+                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                    _ = try await KMPHabitUIDMutationService.perform(.archive, habit: habit)
+                } else {
+                    _ = try await habitRepo.performHabitStatusAction(id: habit.id, action: .archive)
+                }
             }
             await refreshAllHabits(date: selectedDate)
-            NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
         } catch {
             logger.error("Archive habits failed: \(error.localizedDescription)")
         }
@@ -297,9 +348,12 @@ final class HomeViewModel: ObservableObject {
     
     func deleteHabit(_ habit: Habit) async {
         do {
-            try await habitRepo.deleteHabitByDdlId(ddlId: habit.ddlId)
+            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                try await KMPHabitUIDMutationService.delete(habit: habit)
+            } else {
+                try await habitRepo.deleteHabit(carrierID: habit.id)
+            }
             await refreshAllHabits(date: selectedDate)
-            NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
         } catch {
             logger.error("Delete habit failed: \(error.localizedDescription)")
         }
@@ -309,10 +363,13 @@ final class HomeViewModel: ObservableObject {
         guard !habits.isEmpty else { return }
         do {
             for habit in habits {
-                try await habitRepo.deleteHabitByDdlId(ddlId: habit.ddlId)
+                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                    try await KMPHabitUIDMutationService.delete(habit: habit)
+                } else {
+                    try await habitRepo.deleteHabit(carrierID: habit.id)
+                }
             }
             await refreshAllHabits(date: selectedDate)
-            NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
         } catch {
             logger.error("Delete habits failed: \(error.localizedDescription)")
         }
@@ -375,7 +432,11 @@ final class HomeViewModel: ObservableObject {
         let beforeRate = Double(item.doneCount) / Double(item.targetCount)
         
         do {
-            try await habitRepo.toggleRecord(habitId: item.habit.id, date: selectedDate)
+            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                try await KMPHabitUIDMutationService.toggleRecord(habit: item.habit, date: selectedDate)
+            } else {
+                try await habitRepo.toggleHabitRecord(habitID: item.habit.id, date: selectedDate)
+            }
             await refreshAllHabits(date: selectedDate)
             
             if let afterItem = allHabitsCache.first(where: { $0.habit.id == item.habit.id }) {
@@ -395,54 +456,32 @@ final class HomeViewModel: ObservableObject {
     func loadTasks() async { await initialLoad() }
     func refresh() async { await pullToRefresh() }
 
-    func toggleCompleteLocal(_ item: DDLItem) -> Bool {
-        beginSuppressReload()
-        var updated = item
+    func toggleComplete(_ item: DDLItem) async -> Bool {
         do {
-            try updated.transition(using: item.isCompleted ? .restoreActive : .markComplete)
-        } catch {
-            logger.error("toggleCompleteLocal transition failed: \(error.localizedDescription)")
-            return item.isCompleted
-        }
-        updated.completeTime = updated.isCompleted ? Date().toLocalISOString() : ""
-        if let idx = tasks.firstIndex(where: { $0.id == item.id }) {
-            tasks[idx] = updated
-        }
-        sortTasksInPlace()
-        return updated.isCompleted
-    }
-
-    func persistToggleComplete(original: DDLItem) async {
-        var updated = original
-        do {
-            try updated.transition(using: original.isCompleted ? .restoreActive : .markComplete)
+            let action: DDLStateAction = item.isCompleted ? .restoreActive : .markComplete
+            let updated = try await performTaskAction(item: item, action: action)
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                if let idx = tasks.firstIndex(where: { $0.id == item.id }) {
+                    tasks[idx] = updated
+                }
+                sortTasksInPlace()
+            }
+            return updated.isCompleted
         } catch {
             errorText = "状态流转失败：\(error.localizedDescription)"
-            rollbackTo(original)
-            return
-        }
-        updated.completeTime = updated.isCompleted ? Date().toLocalISOString() : ""
-        do {
-            try await repo.updateDDL(updated)
-        } catch {
-            errorText = "更新失败：\(error.localizedDescription)"
-            rollbackTo(original)
+            return item.isCompleted
         }
     }
     
     func toggleArchiveItem(item: DDLItem) async {
-        var updated = item
         do {
-            try updated.transition(using: item.isArchived ? .unarchive : .markArchive)
-        } catch {
-            errorText = "状态流转失败：\(error.localizedDescription)"
-            return
-        }
-        do {
-            try await repo.updateDDL(updated)
+            _ = try await performTaskAction(
+                item: item,
+                action: item.isArchived ? .unarchive : .markArchive
+            )
             await reload()
         } catch {
-            errorText = "更新失败：\(error.localizedDescription)"
+            errorText = "状态流转失败：\(error.localizedDescription)"
         }
     }
     
@@ -450,9 +489,7 @@ final class HomeViewModel: ObservableObject {
         guard !items.isEmpty else { return }
         do {
             for item in items {
-                var updated = item
-                try updated.transition(using: .markArchive)
-                try await repo.updateDDL(updated)
+                _ = try await performTaskAction(item: item, action: .markArchive)
             }
             await reload()
         } catch {
@@ -461,20 +498,14 @@ final class HomeViewModel: ObservableObject {
     }
 
     func toggleGiveUpItem(item: DDLItem) async {
-        var updated = item
         do {
-            try updated.transition(using: item.state.isAbandonedLike ? .restoreActive : .markGiveUp)
-            updated.completeTime = updated.state.isAbandonedLike ? Date().toLocalISOString() : ""
-        } catch {
-            errorText = "状态流转失败：\(error.localizedDescription)"
-            return
-        }
-
-        do {
-            try await repo.updateDDL(updated)
+            _ = try await performTaskAction(
+                item: item,
+                action: item.state.isAbandonedLike ? .restoreActive : .markGiveUp
+            )
             await reload()
         } catch {
-            errorText = "更新失败：\(error.localizedDescription)"
+            errorText = "状态流转失败：\(error.localizedDescription)"
         }
     }
 
@@ -511,7 +542,7 @@ final class HomeViewModel: ObservableObject {
 
     func delete(_ item: DDLItem) async {
         do {
-            try await repo.deleteDDL(item.id)
+            try await deleteTask(item: item)
             await reload()
         } catch {
             errorText = "删除失败：\(error.localizedDescription)"
@@ -522,7 +553,7 @@ final class HomeViewModel: ObservableObject {
         guard !items.isEmpty else { return }
         do {
             for item in items {
-                try await repo.deleteDDL(item.id)
+                try await deleteTask(item: item)
             }
             await reload()
         } catch {
@@ -530,13 +561,33 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
+    private func performTaskAction(item: DDLItem, action: DDLStateAction) async throws -> DDLItem {
+        guard kmpTaskListBridge != nil else {
+            return try await repo.performTaskAction(id: item.id, action: action)
+        }
+
+        let updated = try await KMPTaskUIDMutationService.perform(item: item, action: action)
+        kmpTaskListBridge?.refresh()
+        return updated
+    }
+
+    private func deleteTask(item: DDLItem) async throws {
+        guard kmpTaskListBridge != nil else {
+            try await repo.deleteTask(id: item.id)
+            return
+        }
+
+        try await KMPTaskUIDMutationService.delete(item: item)
+        kmpTaskListBridge?.refresh()
+    }
+
     // MARK: - Reload Pipeline
 
     private func scheduleReload(delay: UInt64 = 0) {
         reloadTask?.cancel()
-        reloadTask = Task { [weak self] in
+        reloadTask = _Concurrency.Task { [weak self] in
             guard let self else { return }
-            try? await Task.sleep(nanoseconds: delay)
+            try? await _Concurrency.Task.sleep(nanoseconds: delay)
             await self.reload()
             await self.refreshCategories()
             await self.refreshAllHabits(date: selectedDate)
@@ -544,6 +595,11 @@ final class HomeViewModel: ObservableObject {
     }
 
     private func reload(force: Bool = false) async {
+        if let kmpTaskListBridge {
+            kmpTaskListBridge.refresh()
+            return
+        }
+
         if isReloading {
             pendingReload = true
             return
@@ -551,8 +607,13 @@ final class HomeViewModel: ObservableObject {
         isReloading = true
         defer { isReloading = false }
         do {
-            let fetchedList = try await repo.getDDLsByType(.task)
+            let fetchedList = try await repo.tasks(of: .task)
             let sortedList = sortedTasks(fetchedList)
+            let mainListVisible = sortedList.filter(\.state.isMainListVisible)
+            SyncDebugLog.log(
+                "[KMP][Home] tasks source=\(sortedList.count) mainListVisible=\(mainListVisible.count) "
+                    + "kmpEnabled=\(KMPPersistenceFeatureFlags.canUseTaskHabitStore)"
+            )
             if !force && sortedList == self.tasks {
                 // skip
             } else {
@@ -569,6 +630,71 @@ final class HomeViewModel: ObservableObject {
             await reload()
         }
     }
+
+    private func startKMPTaskListBridgeIfNeeded() async {
+        guard KMPPersistenceFeatureFlags.canUseTaskHabitStore,
+              kmpTaskListBridge == nil else {
+            return
+        }
+
+        let bridge = await KMPTaskListViewModelBridge.make()
+        kmpTaskListBridge = bridge
+        bridge.start { [weak self] state in
+            self?.consumeKMPTaskListState(state)
+        }
+    }
+
+    private func consumeKMPTaskListState(_ state: TaskListUiState) {
+        isLoading = state.isLoading
+        guard !state.isLoading else { return }
+
+        let projected = state.tasks
+            .filter { !$0.isDeleted }
+            .map {
+                $0.ddlProjection(
+                    legacyID: LegacyKMPIDMap.reserveLegacyID(resource: .task, uid: $0.uid)
+                )
+            }
+        let sortedList = sortedTasks(projected)
+        let mainListVisible = sortedList.filter(\.state.isMainListVisible)
+        SyncDebugLog.log(
+            "[KMP][Home][TaskListViewModel] tasks=\(sortedList.count) "
+                + "mainListVisible=\(mainListVisible.count)"
+        )
+        tasks = sortedList
+        errorText = state.error
+    }
+
+    private func startKMPHabitListBridgeIfNeeded() async {
+        guard KMPPersistenceFeatureFlags.canUseTaskHabitStore,
+              kmpHabitListBridge == nil else {
+            return
+        }
+
+        let bridge = await KMPHabitListViewModelBridge.make()
+        kmpHabitListBridge = bridge
+        bridge.start { [weak self] state in
+            _Concurrency.Task { @MainActor [weak self] in
+                await self?.consumeKMPHabitListState(state)
+            }
+        }
+    }
+
+    private func consumeKMPHabitListState(_ state: HabitListUiState) async {
+        guard !state.isLoading else { return }
+
+        let projected = state.habits
+            .filter { !$0.isDeleted }
+            .map {
+                $0.projection(
+                    legacyID: LegacyKMPIDMap.reserveLegacyID(resource: .habit, uid: $0.uid)
+                )
+            }
+        await applyHabitList(projected, date: selectedDate)
+        if let error = state.error {
+            errorText = error
+        }
+    }
     
     private func beginSuppressReload(window: TimeInterval = 0.6) {
         suppressReloadUntil = Date().addingTimeInterval(window)
@@ -577,7 +703,7 @@ final class HomeViewModel: ObservableObject {
     func stageRebuildFromCurrentSnapshot(snapshot: [DDLItem], blankDelayMs: Int) async {
         tasks = []
         // 给 UI 一个空档，以便重新创建视图
-        try? await Task.sleep(nanoseconds: UInt64(blankDelayMs * 1_000_000))
+        try? await _Concurrency.Task.sleep(nanoseconds: UInt64(blankDelayMs * 1_000_000))
         tasks = snapshot
     }
 }

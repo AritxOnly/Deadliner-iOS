@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if canImport(Shared)
+import Shared
+#endif
 
 // UI 可编辑字段集合（避免 DDLItem 直接塞进 init 导致 @State 初始化麻烦）
 struct TaskDraft: Equatable {
@@ -50,7 +53,7 @@ struct TaskEditorSheetView: View {
 
     @AppStorage("settings.ai.enabled") private var aiEnabled: Bool = true
 
-    let repository: TaskRepository
+    let repository: any TaskPersistenceStore
     let mode: TaskSheetMode
     var onDone: (() -> Void)? = nil
     var onSaved: (() -> Void)? = nil
@@ -82,7 +85,7 @@ struct TaskEditorSheetView: View {
     @State private var showPaywall: Bool = false
 
     init(
-        repository: TaskRepository,
+        repository: any TaskPersistenceStore = PersistenceStores.tasks,
         mode: TaskSheetMode,
         initialDraft: TaskDraft = .empty(),
         onDone: (() -> Void)? = nil,
@@ -140,7 +143,7 @@ struct TaskEditorSheetView: View {
                                 if userTier == .free {
                                     showPaywall = true
                                 } else {
-                                    Task { await onAITriggered() }
+                                    _Concurrency.Task { await onAITriggered() }
                                 }
                             } label: {
                                 HStack(spacing: 4) {
@@ -208,7 +211,7 @@ struct TaskEditorSheetView: View {
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        Task { await save() }
+                        _Concurrency.Task { await save() }
                     } label: { Image(systemName: "checkmark") }
                     .disabled(!isSaveEnabled)
                     .buttonStyle(.glassProminent)
@@ -226,20 +229,20 @@ struct TaskEditorSheetView: View {
         }
         .sheet(isPresented: $showCategoryPicker) {
             CategoryPickerSheet(selectedUID: $selectedCategoryUID) {
-                Task { await loadCategories() }
+                _Concurrency.Task { await loadCategories() }
             }
             .presentationDetents([.medium, .large])
         }
         .onChange(of: saveTrigger) { oldValue, newValue in
             guard embedsInParentNavigationStack, newValue != oldValue else { return }
-            Task { await save() }
+            _Concurrency.Task { await save() }
         }
         .onAppear {
             onSaveEnabledChange?(isSaveEnabled)
             guard autoRunAIOnAppear else { return }
             guard !isAILoading else { return }
             guard !aiInputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-            Task { await onAITriggered() }
+            _Concurrency.Task { await onAITriggered() }
         }
         .task {
             await loadCategories()
@@ -362,10 +365,7 @@ struct TaskEditorSheetView: View {
                     categoryUID: selectedCategoryUID
                 )
 
-                let ddlId = try await repository.insertDDL(params)
-                if let newItem = try await repository.getDDLById(ddlId) {
-                    NotificationManager.shared.scheduleTaskNotification(for: newItem)
-                }
+                try await createTask(params)
                 
                 showToast("创建成功")
                 onSaved?()
@@ -381,8 +381,7 @@ struct TaskEditorSheetView: View {
                 updated.isStared = isStarred
                 updated.categoryUID = selectedCategoryUID
 
-                try await repository.updateDDL(updated)
-                NotificationManager.shared.scheduleTaskNotification(for: updated)
+                try await updateTask(updated)
                 
                 showToast("保存成功")
                 onSaved?()
@@ -392,6 +391,67 @@ struct TaskEditorSheetView: View {
         } catch {
             showToast("保存失败：\(error.localizedDescription)")
         }
+    }
+
+    private func createTask(_ params: DDLInsertParams) async throws {
+        guard KMPPersistenceFeatureFlags.canUseTaskHabitStore else {
+            _ = try await repository.createTask(params)
+            return
+        }
+
+        let uid = UUID().uuidString.lowercased()
+        let now = Date().toLocalISOString()
+        let task = Task_(
+            uid: uid,
+            title: params.name,
+            note: params.note,
+            startAt: params.startTime.isEmpty ? nil : params.startTime,
+            dueAt: params.endTime.isEmpty ? nil : params.endTime,
+            state: .active,
+            completedAt: nil,
+            categoryUid: params.categoryUID,
+            isStarred: params.isStared,
+            calendarEventId: params.calendarEventId.map { KotlinLong(value: $0) },
+            createdAt: now,
+            updatedAt: now,
+            isDeleted: false,
+            subtasks: []
+        )
+        let store = await KMPPersistenceRuntime.shared.taskStore()
+        await store.create(task)
+        _ = LegacyKMPIDMap.reserveLegacyID(resource: .task, uid: uid)
+    }
+
+    private func updateTask(_ item: DDLItem) async throws {
+        guard KMPPersistenceFeatureFlags.canUseTaskHabitStore else {
+            try await repository.updateTask(item)
+            return
+        }
+
+        guard let uid = LegacyKMPIDMap.uid(resource: .task, legacyID: item.id) else {
+            throw KMPTaskProjectionError.missingUID(item.id)
+        }
+        let store = await KMPPersistenceRuntime.shared.taskStore()
+        guard let existing = await store.task(uid: uid), !existing.isDeleted else {
+            throw KMPTaskProjectionError.missingUID(item.id)
+        }
+        let updated = Task_(
+            uid: uid,
+            title: item.name,
+            note: item.note,
+            startAt: item.startTime.isEmpty ? nil : item.startTime,
+            dueAt: item.endTime.isEmpty ? nil : item.endTime,
+            state: existing.state,
+            completedAt: existing.completedAt,
+            categoryUid: item.categoryUID,
+            isStarred: item.isStared,
+            calendarEventId: item.calendarEvent == 0 ? nil : KotlinLong(value: item.calendarEvent),
+            createdAt: existing.createdAt,
+            updatedAt: Date().toLocalISOString(),
+            isDeleted: false,
+            subtasks: existing.subtasks
+        )
+        await store.update(updated)
     }
 
     @MainActor

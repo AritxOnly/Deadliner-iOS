@@ -135,6 +135,14 @@ struct SettingsView: View {
                 .settingsRowEntrance(isVisible: animateRows, index: 3)
             }
 
+            Section("数据迁移") {
+                Label("数据源：KMP", systemImage: "externaldrive.fill.badge.checkmark")
+                    .foregroundStyle(.green)
+                Text("旧版 SwiftData 数据仅会在首次启动时读取并迁移；迁移完成后不会再作为运行时数据源。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             // MARK: - 4. 效率引擎
             Section("效率引擎") {
                 NavigationLink(destination: AISettingsView()) {
@@ -287,4 +295,5 @@ struct SettingsView: View {
         versionTapCount = 0
         showGuideUnlockedAlert = true
     }
+
 }

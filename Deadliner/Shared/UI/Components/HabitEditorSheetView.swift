@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if canImport(Shared)
+import Shared
+#endif
 
 struct HabitDraft: Equatable {
     var name: String
@@ -53,7 +56,7 @@ struct HabitEditorSheetView: View {
     @AppStorage("userTier") private var userTier: UserTier = .free
     @AppStorage("settings.ai.enabled") private var aiEnabled: Bool = true
     
-    let habitRepository: HabitRepository = .shared
+    let habitRepository: any HabitPersistenceStore = PersistenceStores.habits
     let mode: HabitSheetMode
     var onDone: (() -> Void)? = nil
     var onSaved: (() -> Void)? = nil
@@ -167,7 +170,7 @@ struct HabitEditorSheetView: View {
                                 if userTier == .free {
                                     showPaywall = true
                                 } else {
-                                    Task { await onAITriggered() }
+                                    _Concurrency.Task { await onAITriggered() }
                                 }
                             } label: {
                                 HStack(spacing: 4) {
@@ -300,7 +303,7 @@ struct HabitEditorSheetView: View {
                 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        Task { await save() }
+                        _Concurrency.Task { await save() }
                     } label: { Image(systemName: "checkmark") }
                     .disabled(!isSaveEnabled)
                     .buttonStyle(.glassProminent)
@@ -318,20 +321,20 @@ struct HabitEditorSheetView: View {
         }
         .sheet(isPresented: $showCategoryPicker) {
             CategoryPickerSheet(selectedUID: $selectedCategoryUID) {
-                Task { await loadCategories() }
+                _Concurrency.Task { await loadCategories() }
             }
             .presentationDetents([.medium, .large])
         }
         .onChange(of: saveTrigger) { oldValue, newValue in
             guard embedsInParentNavigationStack, newValue != oldValue else { return }
-            Task { await save() }
+            _Concurrency.Task { await save() }
         }
         .onAppear {
             onSaveEnabledChange?(isSaveEnabled)
             guard autoRunAIOnAppear else { return }
             guard !isAILoading else { return }
             guard !aiInputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-            Task { await onAITriggered() }
+            _Concurrency.Task { await onAITriggered() }
         }
         .task {
             await loadCategories()
@@ -439,16 +442,35 @@ struct HabitEditorSheetView: View {
         do {
             switch mode {
             case .add:
-                _ = try await habitRepository.createHabitWithCarrier(
-                    name: trimmedName,
-                    period: period,
-                    timesPerPeriod: Int(timesPerPeriod) ?? 1,
-                    goalType: goalType,
-                    totalTarget: goalType == .total ? (Int(totalTarget) ?? 100) : nil,
-                    description: description,
-                    categoryUID: selectedCategoryUID,
-                    alarmTime: alarmStr
-                )
+                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                    _ = await KMPHabitUIDMutationService.create(
+                        name: trimmedName,
+                        period: period,
+                        timesPerPeriod: Int(timesPerPeriod) ?? 1,
+                        goalType: goalType,
+                        totalTarget: goalType == .total ? (Int(totalTarget) ?? 100) : nil,
+                        description: description,
+                        color: nil,
+                        iconKey: nil,
+                        categoryUID: selectedCategoryUID,
+                        sortOrder: 0,
+                        alarmTime: alarmStr
+                    )
+                } else {
+                    _ = try await habitRepository.createHabitWithCarrier(
+                        name: trimmedName,
+                        period: period,
+                        timesPerPeriod: Int(timesPerPeriod) ?? 1,
+                        goalType: goalType,
+                        totalTarget: goalType == .total ? (Int(totalTarget) ?? 100) : nil,
+                        description: description,
+                        color: nil,
+                        iconKey: nil,
+                        categoryUID: selectedCategoryUID,
+                        sortOrder: 0,
+                        alarmTime: alarmStr
+                    )
+                }
                 
                 showToast("创建成功")
                 onSaved?()
@@ -466,7 +488,11 @@ struct HabitEditorSheetView: View {
                 updatedHabit.alarmTime = alarmStr
                 updatedHabit.categoryUID = selectedCategoryUID
                 
-                try await habitRepository.updateHabit(updatedHabit)
+                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                    try await KMPHabitUIDMutationService.update(updatedHabit)
+                } else {
+                    try await habitRepository.updateHabit(updatedHabit)
+                }
                 
                 showToast("保存成功")
                 onSaved?()

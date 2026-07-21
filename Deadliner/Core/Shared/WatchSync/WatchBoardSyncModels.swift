@@ -51,18 +51,18 @@ struct WatchBoardActionEnvelope: Codable, Sendable {
 
 enum WatchBoardAction: Codable, Sendable {
     case snapshotRefreshRequest
-    case taskToggle(Int64)
-    case taskPostponeDay(Int64)
-    case taskGiveUp(Int64)
-    case taskDelete(Int64)
-    case habitToggle(Int64)
-    case habitClearToday(Int64)
-    case habitArchive(Int64)
-    case ideaDelete(UUID)
+    case taskToggle(String)
+    case taskPostponeDay(String)
+    case taskGiveUp(String)
+    case taskDelete(String)
+    case habitToggle(String)
+    case habitClearToday(String)
+    case habitArchive(String)
+    case ideaDelete(String)
 
     private enum CodingKeys: String, CodingKey {
         case kind
-        case int64Value
+        case uid
         case uuidValue
     }
 
@@ -86,21 +86,31 @@ enum WatchBoardAction: Codable, Sendable {
         case .snapshotRefreshRequest:
             self = .snapshotRefreshRequest
         case .taskToggle:
-            self = .taskToggle(try container.decode(Int64.self, forKey: .int64Value))
+            self = .taskToggle(try container.decode(String.self, forKey: .uid))
         case .taskPostponeDay:
-            self = .taskPostponeDay(try container.decode(Int64.self, forKey: .int64Value))
+            self = .taskPostponeDay(try container.decode(String.self, forKey: .uid))
         case .taskGiveUp:
-            self = .taskGiveUp(try container.decode(Int64.self, forKey: .int64Value))
+            self = .taskGiveUp(try container.decode(String.self, forKey: .uid))
         case .taskDelete:
-            self = .taskDelete(try container.decode(Int64.self, forKey: .int64Value))
+            self = .taskDelete(try container.decode(String.self, forKey: .uid))
         case .habitToggle:
-            self = .habitToggle(try container.decode(Int64.self, forKey: .int64Value))
+            self = .habitToggle(try container.decode(String.self, forKey: .uid))
         case .habitClearToday:
-            self = .habitClearToday(try container.decode(Int64.self, forKey: .int64Value))
+            self = .habitClearToday(try container.decode(String.self, forKey: .uid))
         case .habitArchive:
-            self = .habitArchive(try container.decode(Int64.self, forKey: .int64Value))
+            self = .habitArchive(try container.decode(String.self, forKey: .uid))
         case .ideaDelete:
-            self = .ideaDelete(try container.decode(UUID.self, forKey: .uuidValue))
+            // `uuidValue` is the pre-KMP Capture wire key. Keep decoding it so
+            // queued actions from older Watch builds are safely replayable.
+            let legacyUID = try container.decodeIfPresent(String.self, forKey: .uuidValue)
+            let uid = try container.decodeIfPresent(String.self, forKey: .uid)
+            guard let uid = uid ?? legacyUID else {
+                throw DecodingError.keyNotFound(
+                    CodingKeys.uid,
+                    .init(codingPath: container.codingPath, debugDescription: "Missing Capture UID")
+                )
+            }
+            self = .ideaDelete(uid)
         }
     }
 
@@ -112,28 +122,28 @@ enum WatchBoardAction: Codable, Sendable {
             try container.encode(Kind.snapshotRefreshRequest, forKey: .kind)
         case .taskToggle(let value):
             try container.encode(Kind.taskToggle, forKey: .kind)
-            try container.encode(value, forKey: .int64Value)
+            try container.encode(value, forKey: .uid)
         case .taskPostponeDay(let value):
             try container.encode(Kind.taskPostponeDay, forKey: .kind)
-            try container.encode(value, forKey: .int64Value)
+            try container.encode(value, forKey: .uid)
         case .taskGiveUp(let value):
             try container.encode(Kind.taskGiveUp, forKey: .kind)
-            try container.encode(value, forKey: .int64Value)
+            try container.encode(value, forKey: .uid)
         case .taskDelete(let value):
             try container.encode(Kind.taskDelete, forKey: .kind)
-            try container.encode(value, forKey: .int64Value)
+            try container.encode(value, forKey: .uid)
         case .habitToggle(let value):
             try container.encode(Kind.habitToggle, forKey: .kind)
-            try container.encode(value, forKey: .int64Value)
+            try container.encode(value, forKey: .uid)
         case .habitClearToday(let value):
             try container.encode(Kind.habitClearToday, forKey: .kind)
-            try container.encode(value, forKey: .int64Value)
+            try container.encode(value, forKey: .uid)
         case .habitArchive(let value):
             try container.encode(Kind.habitArchive, forKey: .kind)
-            try container.encode(value, forKey: .int64Value)
+            try container.encode(value, forKey: .uid)
         case .ideaDelete(let value):
             try container.encode(Kind.ideaDelete, forKey: .kind)
-            try container.encode(value, forKey: .uuidValue)
+            try container.encode(value, forKey: .uid)
         }
     }
 }

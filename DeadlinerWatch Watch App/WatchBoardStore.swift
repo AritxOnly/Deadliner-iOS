@@ -37,7 +37,7 @@ final class WatchBoardStore: ObservableObject {
         sessionBridge.requestRefresh()
     }
 
-    func toggleTaskCompletion(id: Int64) {
+    func toggleTaskCompletion(id: String) {
         send(.taskToggle(id))
         mutateTaskSnapshot(id: id) { item in
             item.isCompleted.toggle()
@@ -45,7 +45,7 @@ final class WatchBoardStore: ObservableObject {
         }
     }
 
-    func postponeTaskOneDay(id: Int64) {
+    func postponeTaskOneDay(id: String) {
         send(.taskPostponeDay(id))
         mutateTaskSnapshot(id: id) { item in
             item.isCompleted = false
@@ -54,24 +54,24 @@ final class WatchBoardStore: ObservableObject {
         }
     }
 
-    func giveUpTask(id: Int64) {
+    func giveUpTask(id: String) {
         send(.taskGiveUp(id))
-        removeItem(id: String(id), from: .tasks)
+        removeItem(id: id, from: .tasks)
     }
 
-    func deleteTask(id: Int64) {
+    func deleteTask(id: String) {
         send(.taskDelete(id))
-        removeItem(id: String(id), from: .tasks)
+        removeItem(id: id, from: .tasks)
     }
 
-    func toggleHabitCompletion(id: Int64) {
+    func toggleHabitCompletion(id: String) {
         send(.habitToggle(id))
         mutateHabitSnapshot(id: id) { item in
             item.isCompleted.toggle()
         }
     }
 
-    func clearHabitProgress(id: Int64) {
+    func clearHabitProgress(id: String) {
         send(.habitClearToday(id))
         mutateHabitSnapshot(id: id) { item in
             item.isCompleted = false
@@ -79,14 +79,14 @@ final class WatchBoardStore: ObservableObject {
         }
     }
 
-    func archiveHabit(id: Int64) {
+    func archiveHabit(id: String) {
         send(.habitArchive(id))
-        removeItem(id: String(id), from: .habits)
+        removeItem(id: id, from: .habits)
     }
 
-    func deleteIdea(id: UUID) {
+    func deleteIdea(id: String) {
         send(.ideaDelete(id))
-        removeItem(id: id.uuidString, from: .ideas)
+        removeItem(id: id, from: .ideas)
     }
 
     private func send(_ action: WatchBoardAction) {
@@ -103,16 +103,16 @@ final class WatchBoardStore: ObservableObject {
         }
     }
 
-    private func mutateTaskSnapshot(id: Int64, mutate: (inout WatchTaskBoardItem) -> Void) {
-        mutateSnapshotRow(page: .tasks, itemId: String(id)) { row in
+    private func mutateTaskSnapshot(id: String, mutate: (inout WatchTaskBoardItem) -> Void) {
+        mutateSnapshotRow(page: .tasks, itemId: id) { row in
             guard case .task(var item) = row else { return row }
             mutate(&item)
             return .task(item)
         }
     }
 
-    private func mutateHabitSnapshot(id: Int64, mutate: (inout WatchHabitBoardItem) -> Void) {
-        mutateSnapshotRow(page: .habits, itemId: String(id)) { row in
+    private func mutateHabitSnapshot(id: String, mutate: (inout WatchHabitBoardItem) -> Void) {
+        mutateSnapshotRow(page: .habits, itemId: id) { row in
             guard case .habit(var item) = row else { return row }
             mutate(&item)
             return .habit(item)
@@ -269,6 +269,9 @@ final class WatchSessionBridge: NSObject, ObservableObject {
     private func consumeSnapshotData(_ data: Data) {
         do {
             let decoded = try JSONDecoder().decode(WatchBoardSyncSnapshot.self, from: data)
+            guard snapshot.map({ $0.generatedAt <= decoded.generatedAt }) ?? true else {
+                return
+            }
             snapshot = decoded
             UserDefaults.standard.set(data, forKey: cacheKey)
             lastErrorText = nil
@@ -426,10 +429,9 @@ struct WatchBoardPageSnapshot: Identifiable {
         rows = dto.items.compactMap { item in
             switch dto.page {
             case .tasks:
-                guard let intId = Int64(item.id) else { return nil }
                 return .task(
                     WatchTaskBoardItem(
-                        id: intId,
+                        id: item.id,
                         title: item.title,
                         dueText: item.subtitle ?? "",
                         badgeText: item.badgeText ?? "",
@@ -439,10 +441,9 @@ struct WatchBoardPageSnapshot: Identifiable {
                     )
                 )
             case .habits:
-                guard let intId = Int64(item.id) else { return nil }
                 return .habit(
                     WatchHabitBoardItem(
-                        id: intId,
+                        id: item.id,
                         title: item.title,
                         subtitle: item.subtitle ?? "",
                         progressText: item.badgeText ?? "",
@@ -450,10 +451,9 @@ struct WatchBoardPageSnapshot: Identifiable {
                     )
                 )
             case .ideas:
-                guard let uuid = UUID(uuidString: item.id) else { return nil }
                 return .idea(
                     WatchIdeaBoardItem(
-                        id: uuid,
+                        id: item.id,
                         text: item.title,
                         updatedText: item.subtitle ?? ""
                     )
@@ -488,13 +488,13 @@ enum WatchBoardRow: Identifiable {
         case .habit(let item):
             return "habit-\(item.id)"
         case .idea(let item):
-            return "idea-\(item.id.uuidString)"
+            return "idea-\(item.id)"
         }
     }
 }
 
 struct WatchTaskBoardItem {
-    let id: Int64
+    let id: String
     let title: String
     let dueText: String
     var badgeText: String
@@ -504,7 +504,7 @@ struct WatchTaskBoardItem {
 }
 
 struct WatchHabitBoardItem {
-    let id: Int64
+    let id: String
     let title: String
     let subtitle: String
     var progressText: String
@@ -512,7 +512,7 @@ struct WatchHabitBoardItem {
 }
 
 struct WatchIdeaBoardItem: Identifiable, Hashable {
-    let id: UUID
+    let id: String
     let text: String
     let updatedText: String
 }

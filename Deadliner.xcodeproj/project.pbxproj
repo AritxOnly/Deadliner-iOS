@@ -7,16 +7,19 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		C0D3A1003A19000100D34EAA /* Vendor/DeadlinerCore/ffi_uniffi.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0D3A1013A19000100D34EAA /* Vendor/DeadlinerCore/ffi_uniffi.xcframework */; };
 		C0D3A1023A19000100D34EAA /* DeadlinerCoreBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A1033A19000100D34EAA /* DeadlinerCoreBridge.swift */; };
 		C0D3A1043A19000100D34EAA /* ffi_uniffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A1053A19000100D34EAA /* ffi_uniffi.swift */; };
 		C0D3A1093A19000100D34EAA /* ToolCallExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A10A3A19000100D34EAA /* ToolCallExecutor.swift */; };
+		C0D3A2003A19000100D34EAA /* Vendor/KMP/shared.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0D3A2013A19000100D34EAA /* Vendor/KMP/shared.xcframework */; };
+		C0D3A2023A19000100D34EAA /* Vendor/KMP/shared.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C0D3A2013A19000100D34EAA /* Vendor/KMP/shared.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		C0D3A2043A19000100D34EAA /* Vendor/KMP/shared.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0D3A2013A19000100D34EAA /* Vendor/KMP/shared.xcframework */; };
 		E52763CF2F42F09F002162DF /* DeadlinerDefault.icon in Resources */ = {isa = PBXBuildFile; fileRef = E52763CE2F42F09F002162DF /* DeadlinerDefault.icon */; };
 		E52763D12F42F125002162DF /* DeadlinerDefault.icon in Resources */ = {isa = PBXBuildFile; fileRef = E52763CE2F42F09F002162DF /* DeadlinerDefault.icon */; };
 		E53876182F5A5AC200E5D81A /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E53876172F5A5AC200E5D81A /* WidgetKit.framework */; };
 		E538761A2F5A5AC200E5D81A /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E53876192F5A5AC200E5D81A /* SwiftUI.framework */; };
 		E538762B2F5A5AC300E5D81A /* DeadlinerWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E53876162F5A5AC200E5D81A /* DeadlinerWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E53876402F5A5AC200E5D81A /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E538763F2F5A5AC200E5D81A /* AppIntents.framework */; };
+		E579FEDC300DB291002FE512 /* Vendor/DeadlinerCore/ffi_uniffi.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0D3A1013A19000100D34EAA /* Vendor/DeadlinerCore/ffi_uniffi.xcframework */; };
 		E5A1475B2F512B7D001845F7 /* DeadlinerSummer.icon in Resources */ = {isa = PBXBuildFile; fileRef = E5A1475A2F512B7D001845F7 /* DeadlinerSummer.icon */; };
 		E5A1475C2F512B7D001845F7 /* DeadlinerSpring.icon in Resources */ = {isa = PBXBuildFile; fileRef = E5A147592F512B7D001845F7 /* DeadlinerSpring.icon */; };
 		E5A1475E2F51DFA3001845F7 /* DeadlinerAutumn.icon in Resources */ = {isa = PBXBuildFile; fileRef = E5A1475D2F51DFA3001845F7 /* DeadlinerAutumn.icon */; };
@@ -75,6 +78,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		C0D3A2033A19000100D34EAA /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				C0D3A2023A19000100D34EAA /* Vendor/KMP/shared.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E53876302F5A5AC300E5D81A /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -104,6 +118,7 @@
 		C0D3A1033A19000100D34EAA /* DeadlinerCoreBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeadlinerCoreBridge.swift; sourceTree = "<group>"; };
 		C0D3A1053A19000100D34EAA /* ffi_uniffi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ffi_uniffi.swift; sourceTree = "<group>"; };
 		C0D3A10A3A19000100D34EAA /* ToolCallExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolCallExecutor.swift; sourceTree = "<group>"; };
+		C0D3A2013A19000100D34EAA /* Vendor/KMP/shared.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Vendor/KMP/shared.xcframework; sourceTree = "<group>"; };
 		E52762E22F3F6189002162DF /* Deadliner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Deadliner.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E52762F12F3F618B002162DF /* DeadlinerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DeadlinerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E52762FB2F3F618B002162DF /* DeadlinerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DeadlinerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -146,7 +161,6 @@
 				Core/Persistence/SharedModelContainer.swift,
 				Core/Shared/DateParsing/DeadlineDateParser.swift,
 				Data/Persistence/Entities.swift,
-				"Data/Persistence/Mappers/DDLItemEntity+Mapping.swift",
 				Shared/UI/Components/LinearProgressView.swift,
 			);
 			target = E53876152F5A5AC200E5D81A /* DeadlinerWidgetExtension */;
@@ -217,7 +231,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C0D3A1003A19000100D34EAA /* Vendor/DeadlinerCore/ffi_uniffi.xcframework in Frameworks */,
+				E579FEDC300DB291002FE512 /* Vendor/DeadlinerCore/ffi_uniffi.xcframework in Frameworks */,
+				C0D3A2003A19000100D34EAA /* Vendor/KMP/shared.xcframework in Frameworks */,
 				E5A859692F9F8C8500C850B5 /* Lottie in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -240,6 +255,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0D3A2043A19000100D34EAA /* Vendor/KMP/shared.xcframework in Frameworks */,
 				E53876402F5A5AC200E5D81A /* AppIntents.framework in Frameworks */,
 				E538761A2F5A5AC200E5D81A /* SwiftUI.framework in Frameworks */,
 				E53876182F5A5AC200E5D81A /* WidgetKit.framework in Frameworks */,
@@ -334,6 +350,7 @@
 			isa = PBXGroup;
 			children = (
 				C0D3A1013A19000100D34EAA /* Vendor/DeadlinerCore/ffi_uniffi.xcframework */,
+				C0D3A2013A19000100D34EAA /* Vendor/KMP/shared.xcframework */,
 				E53876172F5A5AC200E5D81A /* WidgetKit.framework */,
 				E53876192F5A5AC200E5D81A /* SwiftUI.framework */,
 			);
@@ -374,6 +391,7 @@
 				E52762DE2F3F6189002162DF /* Sources */,
 				E52762DF2F3F6189002162DF /* Frameworks */,
 				E52762E02F3F6189002162DF /* Resources */,
+				C0D3A2033A19000100D34EAA /* Embed Frameworks */,
 				E53876302F5A5AC300E5D81A /* Embed Foundation Extensions */,
 				E5D56E5A2FD579A300859548 /* Embed Watch Content */,
 			);
@@ -885,6 +903,7 @@
 				INFOPLIST_KEY_CFBundleURLTypes = "({CFBundleURLName=top.aritxonly.deadliner;CFBundleURLSchemes=(deadliner);})";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "Deadliner 需要访问你的日历，以便将任务与日历日程关联并提供相关提醒。";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Deadliner 需要使用麦克风来进行语音输入。";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Deadliner 需要语音识别权限，将语音实时转换成文本输入。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -898,6 +917,10 @@
 				);
 				MARKETING_VERSION = 1.1.0;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lsqlite3",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = top.aritxonly.deadliner;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -932,6 +955,7 @@
 				INFOPLIST_KEY_CFBundleURLTypes = "({CFBundleURLName=top.aritxonly.deadliner;CFBundleURLSchemes=(deadliner);})";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "Deadliner 需要访问你的日历，以便将任务与日历日程关联并提供相关提醒。";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Deadliner 需要使用麦克风来进行语音输入。";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Deadliner 需要语音识别权限，将语音实时转换成文本输入。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -945,6 +969,10 @@
 				);
 				MARKETING_VERSION = 1.1.0;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lsqlite3",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = top.aritxonly.deadliner;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1061,6 +1089,10 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lsqlite3",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = top.aritxonly.deadliner.DeadlinerWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1097,6 +1129,10 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lsqlite3",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = top.aritxonly.deadliner.DeadlinerWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

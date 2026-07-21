@@ -51,10 +51,9 @@ struct RichMainView: View {
     @State private var searchFocusRequestToken = 0
     @State private var searchUsesLocalAtmosphere = false
 
-    private let repo: TaskRepository = TaskRepository.shared
     private let widgetLaunchDefaults = UserDefaults(suiteName: "group.top.aritxonly.deadliner.group")
     private let widgetLaunchKey = "widget.pending_add_entry_type"
-    private let widgetLaunchTaskDetailIdKey = "widget.pending_task_detail_id"
+    private let widgetLaunchTaskDetailUIDKey = "widget.pending_task_detail_uid"
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -106,7 +105,7 @@ struct RichMainView: View {
         }
         .sheet(isPresented: $showAddEntrySheet) {
             AddEntrySheetView(
-                repository: repo,
+                repository: PersistenceStores.tasks,
                 initialSelection: addEntrySelection
             )
             .presentationDetents([.large])
@@ -413,20 +412,14 @@ struct RichMainView: View {
         case "open_home_or_urgent":
             selectedTab = .home
             homeTaskSegment = .tasks
-            let rawTaskId = widgetLaunchDefaults?.object(forKey: widgetLaunchTaskDetailIdKey)
-            let taskId: Int64? = {
-                if let v = rawTaskId as? Int64 { return v }
-                if let v = rawTaskId as? Int { return Int64(v) }
-                if let v = rawTaskId as? NSNumber { return v.int64Value }
-                return nil
-            }()
-            if let taskId {
-                widgetLaunchDefaults?.removeObject(forKey: widgetLaunchTaskDetailIdKey)
+            if let taskUID = widgetLaunchDefaults?.string(forKey: widgetLaunchTaskDetailUIDKey) {
+                widgetLaunchDefaults?.removeObject(forKey: widgetLaunchTaskDetailUIDKey)
+                let taskID = LegacyKMPIDMap.reserveLegacyID(resource: .task, uid: taskUID)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                     NotificationCenter.default.post(
                         name: .ddlOpenTaskDetail,
                         object: nil,
-                        userInfo: ["taskId": taskId]
+                        userInfo: ["taskId": taskID]
                     )
                 }
             }

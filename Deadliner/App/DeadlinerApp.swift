@@ -6,10 +6,8 @@
 //
 
 import SwiftUI
-import SwiftData
 
 private enum AppReleaseGate {
-    // TODO: Turn this off before shipping the post-Rust public build.
     static let unlockGeekForCurrentRelease = false
 }
 
@@ -20,8 +18,6 @@ struct DeadlinerApp: App {
     @AppStorage("userTier") private var userTier: UserTier = .free
     @StateObject private var themeStore = ThemeStore()
     
-    let sharedModelContainer: ModelContainer = SharedModelContainer.shared
-
     init() {
         // Keep only logs for current app launch session.
         AILog.clearForNewLaunchSession()
@@ -32,6 +28,11 @@ struct DeadlinerApp: App {
         AIStdStreamCapture.shared.startIfNeeded()
         AILog.log("[Session] New launch session started")
         SyncDebugLog.log("[Session] New launch session started")
+        do {
+            try KMPSharedDatabaseBootstrap.prepareIfNeeded()
+        } catch {
+            SyncDebugLog.log("[KMP] Shared database bootstrap failed: \(error.localizedDescription)")
+        }
         PhoneWatchSyncBridge.shared.start()
     }
 
@@ -40,14 +41,43 @@ struct DeadlinerApp: App {
             AppRootView()
                 .environmentObject(themeStore)
                 .task {
+                    // Adopt an already-migrated KMP database before deciding
+                    // whether a one-time legacy import is still needed.
+                    _ = await KMPPersistenceExperiment.adoptExistingStoreIfPresent()
+                    _ = await KMPTaskHabitMigrationExperiment.adoptExistingStoreIfPresent()
+
                     do {
-                        try await PersistenceRuntime.shared.start()
                         try await DeadlinerCoreBridge.shared.initializeIfNeeded()
                     } catch {
                         AILog.log("Core init failed on launch task: \(error.localizedDescription)")
                         SyncDebugLog.log("Core init failed on launch task: \(error.localizedDescription)")
                         assertionFailure("DB init failed: \(error)")
                     }
+
+                    do {
+                        if let report = try await KMPPersistenceExperiment.prepareOnLaunchIfEnabled() {
+                            let message =
+                                "[KMP] Category migration valid=\(report.isValid) source=\(report.sourceCount) "
+                                    + "imported=\(report.importedCount) updated=\(report.updatedCount)"
+                            SyncDebugLog.log(message)
+                            print(message)
+                        }
+                    } catch {
+                        SyncDebugLog.log("[KMP] Category migration failed: \(error.localizedDescription)")
+                    }
+
+                    // Keep the first frame responsive on upgraded devices.
+                    // Feature stores are KMP-only and receive a change event
+                    // after the background import completes.
+                    _Concurrency.Task(priority: .utility) {
+                        await KMPTaskHabitMigrationExperiment.ensureReadyForRuntime()
+                    }
+
+                    #if DEBUG
+                    // This scans both SwiftData and KMP stores in full. Keep it
+                    // out of release startup, especially on upgraded devices.
+                    await KMPTaskHabitMigrationDiagnostics.logLegacyComparison()
+                    #endif
 
                     if AppReleaseGate.unlockGeekForCurrentRelease {
                         userTier = .geek
@@ -61,8 +91,8 @@ struct DeadlinerApp: App {
                     // 启动时自动校验一次会员权益（先本地，后限时网络），弱网不阻塞体验
                     await StoreManager.shared.refreshEntitlementsOnLaunch()
                     
-                    // 刷新习惯提醒
-                    HabitRepository.shared.scheduleReminderRefresh()
+                    await KMPTaskReminderScheduler.shared.scheduleRefresh()
+                    await KMPHabitReminderScheduler.shared.scheduleRefresh()
                     await PhoneWatchSyncBridge.shared.pushLatestSnapshot(reason: "launchTask")
                 }
                 .onAppear {
@@ -70,9 +100,9 @@ struct DeadlinerApp: App {
                     applyAutoSeasonIconIfNeeded()
                     Task {
                         do {
-                            try await PersistenceRuntime.shared.start()
                             try await DeadlinerCoreBridge.shared.initializeIfNeeded()
-                            HabitRepository.shared.scheduleReminderRefresh()
+                            await KMPTaskReminderScheduler.shared.scheduleRefresh()
+                            await KMPHabitReminderScheduler.shared.scheduleRefresh()
                             await PhoneWatchSyncBridge.shared.pushLatestSnapshot(reason: "onAppear")
                         } catch {
                             AILog.log("Core init failed on appear: \(error.localizedDescription)")
@@ -88,9 +118,9 @@ struct DeadlinerApp: App {
                     Task { await StoreManager.shared.refreshEntitlementsOnLaunch() }
                     Task {
                         do {
-                            try await PersistenceRuntime.shared.start()
                             try await DeadlinerCoreBridge.shared.initializeIfNeeded()
-                            HabitRepository.shared.scheduleReminderRefresh()
+                            await KMPTaskReminderScheduler.shared.scheduleRefresh()
+                            await KMPHabitReminderScheduler.shared.scheduleRefresh()
                             await PhoneWatchSyncBridge.shared.pushLatestSnapshot(reason: "sceneActive")
                         } catch {
                             AILog.log("Core init failed on active: \(error.localizedDescription)")
@@ -102,7 +132,6 @@ struct DeadlinerApp: App {
 
             
         }
-        .modelContainer(sharedModelContainer)
     }
     
     private func applyAutoSeasonIconIfNeeded() {

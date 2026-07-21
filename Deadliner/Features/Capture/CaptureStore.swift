@@ -10,27 +10,47 @@ import Foundation
 
 @MainActor
 final class CaptureStore: ObservableObject {
+    static let shared = CaptureStore()
+
     @Published private(set) var items: [CaptureInboxItem] = []
 
-    private let defaults: UserDefaults
-    private let legacyDefaults: UserDefaults
     private let storageKey = "capture.inbox.items"
-    private let encoder = JSONEncoder()
+    private let migrationKey = "persistence.kmp.capture-import-v1"
     private let decoder = JSONDecoder()
 
-    init(defaults: UserDefaults? = nil) {
-        self.legacyDefaults = .standard
-        self.defaults = defaults ?? UserDefaults(suiteName: SharedModelContainer.appGroupId) ?? .standard
-        migrateLegacyStorageIfNeeded()
-        load()
+    init() {
+        let shouldImportLegacy = !UserDefaults.standard.bool(forKey: migrationKey)
+        let legacySnapshot = Self.loadLegacyItems(storageKey: storageKey, decoder: decoder)
+        let legacyItems = shouldImportLegacy ? legacySnapshot : []
+        SyncDebugLog.log(
+            "[KMP][Capture] bootstrap marker=\(shouldImportLegacy ? "missing" : "present") "
+                + "legacyItems=\(legacySnapshot.count) importItems=\(legacyItems.count)"
+        )
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await PersistenceStores.captures.importLegacyCaptures(legacyItems)
+                if shouldImportLegacy {
+                    UserDefaults.standard.set(true, forKey: migrationKey)
+                }
+                await reload()
+                // The Watch bridge may have created its first snapshot before
+                // this asynchronous KMP read completed. Publish only after the
+                // in-memory projection is ready so it sends the loaded ideas.
+                PersistenceChangePublisher.publish(.init(resourceKinds: [.capture]))
+            } catch {
+                print("CaptureStore KMP bootstrap failed: \(error)")
+            }
+        }
     }
 
     func addItem(text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        items.insert(CaptureInboxItem(text: trimmed), at: 0)
-        persist()
+        let item = CaptureInboxItem(text: trimmed)
+        items.insert(item, at: 0)
+        persistCreate(item)
     }
 
     func updateItem(id: UUID, text: String) {
@@ -40,62 +60,85 @@ final class CaptureStore: ObservableObject {
 
         items[index].text = trimmed
         items[index].updatedAt = Date()
-        persist()
+        persistUpdate(items[index])
     }
 
-    func deleteItem(id: UUID) {
-        items.removeAll { $0.id == id }
-        persist()
+    func deleteItem(uid: String) {
+        items.removeAll { $0.uid == uid }
+        persistDelete(uid: uid)
     }
 
-    func deleteItems(ids: Set<UUID>) {
-        guard !ids.isEmpty else { return }
-        items.removeAll { ids.contains($0.id) }
-        persist()
-    }
-
-    func consumeItem(id: UUID) {
-        deleteItem(id: id)
-    }
-
-    func consumeItems(ids: Set<UUID>) {
-        deleteItems(ids: ids)
-    }
-
-    func reload() {
-        load()
-    }
-
-    private func load() {
-        guard let data = defaults.data(forKey: storageKey) else {
-            items = []
-            return
+    func deleteItems(uids: Set<String>) {
+        guard !uids.isEmpty else { return }
+        items.removeAll { uids.contains($0.uid) }
+        for uid in uids {
+            persistDelete(uid: uid)
         }
+    }
 
+    func consumeItem(uid: String) {
+        deleteItem(uid: uid)
+    }
+
+    func consumeItems(uids: Set<String>) {
+        deleteItems(uids: uids)
+    }
+
+    func reload() async {
         do {
-            items = try decoder.decode([CaptureInboxItem].self, from: data)
-                .sorted { $0.updatedAt > $1.updatedAt }
+            items = try await PersistenceStores.captures.unconsumedItems()
+            SyncDebugLog.log("[KMP][Capture] reload items=\(items.count)")
         } catch {
-            items = []
+            SyncDebugLog.log("[KMP][Capture] reload failed: \(error.localizedDescription)")
+            print("CaptureStore KMP reload failed: \(error)")
         }
     }
 
-    private func persist() {
-        do {
-            let data = try encoder.encode(items)
-            defaults.set(data, forKey: storageKey)
-            NotificationCenter.default.post(name: .captureInboxChanged, object: nil)
-        } catch {
-            print("CaptureStore persist failed: \(error)")
+    private func persistCreate(_ item: CaptureInboxItem) {
+        Task {
+            do {
+                try await PersistenceStores.captures.createCapture(item)
+            } catch {
+                print("CaptureStore KMP create failed: \(error)")
+                await reload()
+            }
         }
     }
 
-    private func migrateLegacyStorageIfNeeded() {
-        guard defaults !== legacyDefaults else { return }
-        guard defaults.data(forKey: storageKey) == nil,
-              let legacyData = legacyDefaults.data(forKey: storageKey) else {
-            return
+    private func persistUpdate(_ item: CaptureInboxItem) {
+        Task {
+            do {
+                try await PersistenceStores.captures.updateCapture(item)
+            } catch {
+                print("CaptureStore KMP update failed: \(error)")
+                await reload()
+            }
         }
-        defaults.set(legacyData, forKey: storageKey)
+    }
+
+    private func persistDelete(uid: String) {
+        Task {
+            do {
+                try await PersistenceStores.captures.deleteCapture(uid: uid, updatedAt: Date())
+            } catch {
+                print("CaptureStore KMP delete failed: \(error)")
+                await reload()
+            }
+        }
+    }
+
+    private static func loadLegacyItems(storageKey: String, decoder: JSONDecoder) -> [CaptureInboxItem] {
+        let stores = [
+            UserDefaults(suiteName: SharedModelContainer.appGroupId),
+            UserDefaults.standard,
+        ]
+        for defaults in stores {
+            guard let data = defaults?.data(forKey: storageKey),
+                  let items = try? decoder.decode([CaptureInboxItem].self, from: data) else {
+                continue
+            }
+            return items
+        }
+        return []
     }
 }

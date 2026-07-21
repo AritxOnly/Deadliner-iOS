@@ -968,7 +968,12 @@ extension AIFunctionView {
         do {
             let params = try makeDDLInsertParams(from: task)
 
-            let insertedId = try await TaskRepository.shared.insertDDL(params)
+            let insertedId: Int64
+            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                insertedId = try await KMPTaskUIDMutationService.create(params)
+            } else {
+                insertedId = try await PersistenceStores.tasks.createTask(params)
+            }
 
             let key = makeTaskKey(task)
             addedTaskKeys.insert(key)
@@ -992,18 +997,40 @@ extension AIFunctionView {
         do {
             let periodEnum = HabitPeriod(rawValue: habit.period.uppercased()) ?? .daily
             let goalTypeEnum = HabitGoalType(rawValue: habit.goalType.uppercased()) ?? .perPeriod
-            let creation = try await HabitRepository.shared.createHabitWithCarrier(
-                name: habit.name,
-                period: periodEnum,
-                timesPerPeriod: habit.timesPerPeriod,
-                goalType: goalTypeEnum,
-                totalTarget: habit.totalTarget,
-                description: ""
-            )
+            let habitID: Int64
+            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                habitID = await KMPHabitUIDMutationService.create(
+                    name: habit.name,
+                    period: periodEnum,
+                    timesPerPeriod: habit.timesPerPeriod,
+                    goalType: goalTypeEnum,
+                    totalTarget: habit.totalTarget,
+                    description: "",
+                    color: nil,
+                    iconKey: nil,
+                    categoryUID: nil,
+                    sortOrder: 0,
+                    alarmTime: nil
+                ).id
+            } else {
+                habitID = try await PersistenceStores.habits.createHabitWithCarrier(
+                    name: habit.name,
+                    period: periodEnum,
+                    timesPerPeriod: habit.timesPerPeriod,
+                    goalType: goalTypeEnum,
+                    totalTarget: habit.totalTarget,
+                    description: "",
+                    color: nil,
+                    iconKey: nil,
+                    categoryUID: nil,
+                    sortOrder: 0,
+                    alarmTime: nil
+                ).ddlID
+            }
 
             let key = makeHabitKey(habit)
             addedHabitKeys.insert(key)
-            createdHabitDdlIDsByKey[key] = creation.ddlID
+            createdHabitDdlIDsByKey[key] = habitID
 
             withAnimation(.spring()) {
                 displayItems.append(DisplayItem(kind: .aiChat("已开启习惯：\(habit.name)")))
@@ -1036,7 +1063,11 @@ extension AIFunctionView {
         defer { repoBusy = false }
 
         do {
-            try await TaskRepository.shared.deleteDDL(taskId)
+            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                try await KMPTaskUIDMutationService.delete(id: taskId)
+            } else {
+                try await PersistenceStores.tasks.deleteTask(id: taskId)
+            }
             addedTaskKeys.remove(key)
             createdTaskIDsByKey.removeValue(forKey: key)
             withAnimation(.spring()) {
@@ -1058,8 +1089,11 @@ extension AIFunctionView {
         defer { repoBusy = false }
 
         do {
-            try await HabitRepository.shared.deleteHabitByDdlId(ddlId: ddlId)
-            try await TaskRepository.shared.deleteDDL(ddlId)
+            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                try await KMPHabitUIDMutationService.delete(legacyID: ddlId)
+            } else {
+                try await PersistenceStores.habits.deleteHabit(carrierID: ddlId)
+            }
             addedHabitKeys.remove(key)
             createdHabitDdlIDsByKey.removeValue(forKey: key)
             withAnimation(.spring()) {
@@ -1145,17 +1179,39 @@ extension AIFunctionView {
             do {
                 let periodEnum = HabitPeriod(rawValue: proposal.period.uppercased()) ?? .daily
                 let goalTypeEnum = HabitGoalType(rawValue: proposal.goalType.uppercased()) ?? .perPeriod
-                let creation = try await HabitRepository.shared.createHabitWithCarrier(
-                    name: proposal.name,
-                    period: periodEnum,
-                    timesPerPeriod: proposal.timesPerPeriod,
-                    goalType: goalTypeEnum,
-                    totalTarget: proposal.totalTarget,
-                    description: ""
-                )
+                let habitID: Int64
+                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                    habitID = await KMPHabitUIDMutationService.create(
+                        name: proposal.name,
+                        period: periodEnum,
+                        timesPerPeriod: proposal.timesPerPeriod,
+                        goalType: goalTypeEnum,
+                        totalTarget: proposal.totalTarget,
+                        description: "",
+                        color: nil,
+                        iconKey: nil,
+                        categoryUID: nil,
+                        sortOrder: 0,
+                        alarmTime: nil
+                    ).id
+                } else {
+                    habitID = try await PersistenceStores.habits.createHabitWithCarrier(
+                        name: proposal.name,
+                        period: periodEnum,
+                        timesPerPeriod: proposal.timesPerPeriod,
+                        goalType: goalTypeEnum,
+                        totalTarget: proposal.totalTarget,
+                        description: "",
+                        color: nil,
+                        iconKey: nil,
+                        categoryUID: nil,
+                        sortOrder: 0,
+                        alarmTime: nil
+                    ).ddlID
+                }
                 let key = makeHabitKey(proposal)
                 addedHabitKeys.insert(key)
-                createdHabitDdlIDsByKey[key] = creation.ddlID
+                createdHabitDdlIDsByKey[key] = habitID
                 successCount += 1
             } catch {
                 continue
@@ -1379,7 +1435,12 @@ extension AIFunctionView {
         for proposal in proposals {
             do {
                 let params = try makeDDLInsertParams(from: proposal)
-                let insertedId = try await TaskRepository.shared.insertDDL(params)
+                let insertedId: Int64
+                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                    insertedId = try await KMPTaskUIDMutationService.create(params)
+                } else {
+                    insertedId = try await PersistenceStores.tasks.createTask(params)
+                }
                 let key = makeTaskKey(proposal)
                 addedTaskKeys.insert(key)
                 createdTaskIDsByKey[key] = insertedId

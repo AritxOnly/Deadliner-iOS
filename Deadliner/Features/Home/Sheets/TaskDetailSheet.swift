@@ -15,6 +15,7 @@ struct TaskDetailSheetView: View {
 
     @State private var currentItem: DDLItem
     @StateObject private var planViewModel: TaskDetailPlanViewModel
+    private let taskStore: any TaskPersistenceStore = PersistenceStores.tasks
 
     @State private var editSheetItem: DDLItem? = nil
     @State private var isSavingStar = false
@@ -177,7 +178,7 @@ struct TaskDetailSheetView: View {
         }
         .sheet(item: $editSheetItem) { editItem in
             EditTaskSheetView(
-                repository: TaskRepository.shared,
+                repository: PersistenceStores.tasks,
                 item: editItem,
                 onDone: {
                     Task { await reloadItem() }
@@ -560,7 +561,11 @@ struct TaskDetailSheetView: View {
         let oldItem = currentItem
         currentItem.isStared.toggle()
         do {
-            try await TaskRepository.shared.updateDDL(currentItem)
+            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                try await KMPTaskUIDMutationService.update(currentItem)
+            } else {
+                try await taskStore.updateTask(currentItem)
+            }
         } catch {
             currentItem = oldItem
             errorText = "星标更新失败：\(error.localizedDescription)"
@@ -570,7 +575,13 @@ struct TaskDetailSheetView: View {
 
     private func reloadItem() async {
         do {
-            if let latest = try await TaskRepository.shared.getDDLById(currentItem.id) {
+            let latest: DDLItem?
+            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                latest = await KMPTaskUIDMutationService.task(id: currentItem.id)
+            } else {
+                latest = try await taskStore.task(id: currentItem.id)
+            }
+            if let latest {
                 currentItem = latest
             }
             try await planViewModel.load()

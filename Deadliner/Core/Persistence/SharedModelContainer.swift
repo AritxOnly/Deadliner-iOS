@@ -1,5 +1,5 @@
 //
-//  SharedModelContainer.swift
+//  Legacy SwiftData model container used only by the KMP migration reader.
 //  Deadliner
 //
 

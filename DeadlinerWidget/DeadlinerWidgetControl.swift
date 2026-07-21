@@ -6,41 +6,8 @@
 //
 
 import AppIntents
-import SwiftData
 import SwiftUI
 import WidgetKit
-
-private enum WidgetModelContainerFactory {
-    static func makeSafe() -> ModelContainer? {
-        let schema = Schema([
-            DDLItemEntity.self,
-            SubTaskEntity.self,
-            HabitEntity.self,
-            HabitRecordEntity.self,
-            SyncStateEntity.self
-        ])
-
-        if let groupURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: SharedModelContainer.appGroupId
-        ) {
-            let sqliteURL = groupURL.appendingPathComponent("default.store")
-            let config = ModelConfiguration(
-                "DeadlinerModel",
-                schema: schema,
-                url: sqliteURL,
-                cloudKitDatabase: .none
-            )
-            return try? ModelContainer(for: schema, configurations: [config])
-        }
-
-        let fallbackConfig = ModelConfiguration(
-            "DeadlinerModel",
-            schema: schema,
-            cloudKitDatabase: .none
-        )
-        return try? ModelContainer(for: schema, configurations: [fallbackConfig])
-    }
-}
 
 struct DeadlinerWidgetControl: ControlWidget {
     static let kind: String = "com.aritxonly.Deadliner.DeadlinerWidget"
@@ -130,48 +97,11 @@ private struct TaskStatusControlValueProvider: AppIntentControlValueProvider {
     }
 
     func currentValue(configuration: TaskStatusControlConfigurationIntent) async throws -> TaskStatusControlValue {
-        do {
-            return try await MainActor.run {
-                guard let container = WidgetModelContainerFactory.makeSafe() else {
-                    return TaskStatusControlValue(
-                        remainingCount: 0,
-                        urgentCount: 0,
-                        launchTarget: configuration.launchTarget ?? .urgentFirst
-                    )
-                }
-                let context = ModelContext(container)
-                let fd = FetchDescriptor<DDLItemEntity>()
-                let allEntities = try context.fetch(fd)
-
-                let taskTypeRaw = "task"
-                let validTasks = allEntities.filter { entity in
-                    entity.isTombstoned == false && entity.typeRaw == taskTypeRaw
-                }
-
-                let visibleTasks = validTasks.filter { entity in
-                    let state = entity.resolvedState()
-                    return !state.isArchivedLike && !state.isAbandonedLike
-                }
-                let remainingTasks = visibleTasks.filter { !$0.isCompleted }
-                let now = Date()
-                let tomorrow = now.addingTimeInterval(24 * 3600)
-                let urgent = remainingTasks.filter { item in
-                    guard let date = DeadlineDateParser.safeParseOptional(item.endTime) else { return false }
-                    return date > now && date <= tomorrow
-                }.count
-
-                return TaskStatusControlValue(
-                    remainingCount: remainingTasks.count,
-                    urgentCount: urgent,
-                    launchTarget: configuration.launchTarget ?? .urgentFirst
-                )
-            }
-        } catch {
-            return TaskStatusControlValue(
-                remainingCount: 0,
-                urgentCount: 0,
-                launchTarget: configuration.launchTarget ?? .urgentFirst
-            )
-        }
+        let snapshot = KMPWidgetSnapshotReader.load()
+        return TaskStatusControlValue(
+            remainingCount: snapshot.remaining,
+            urgentCount: snapshot.urgent,
+            launchTarget: configuration.launchTarget ?? .urgentFirst
+        )
     }
 }

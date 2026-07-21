@@ -106,18 +106,18 @@ final class OverviewViewModel: ObservableObject {
     @Published var overviewCardOrder: [OverviewCard] = [.activeStats, .completionTime, .historyStats]
     @Published var trendCardOrder: [TrendCard] = [.contributionHeatmap, .dailyTrend, .monthlyTrend, .weeklyTrend]
     
-    private let repo: TaskRepository
+    private let taskStore: any TaskPersistenceStore
     private var cancellables = Set<AnyCancellable>()
     
-    init(repo: TaskRepository = .shared) {
-        self.repo = repo
+    init(taskStore: any TaskPersistenceStore = PersistenceStores.tasks) {
+        self.taskStore = taskStore
         
         Task {
             await loadSortOrder()
             await loadData()
         }
         
-        NotificationCenter.default.publisher(for: .ddlDataChanged)
+        NotificationCenter.default.publisher(for: .persistenceDataChanged)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
@@ -169,7 +169,12 @@ final class OverviewViewModel: ObservableObject {
     func loadData() async {
         isLoading = true
         do {
-            let items = try await repo.getDDLsByType(.task)
+            let items: [DDLItem]
+            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
+                items = await KMPTaskUIDMutationService.allTasks()
+            } else {
+                items = try await taskStore.tasks(of: .task)
+            }
             self.allItems = items
             let now = Date()
             

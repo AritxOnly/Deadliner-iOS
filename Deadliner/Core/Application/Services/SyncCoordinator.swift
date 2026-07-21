@@ -8,10 +8,9 @@ import WidgetKit
 import os
 
 actor SyncCoordinator {
-    static let shared = SyncCoordinator(db: .shared)
+    static let shared = SyncCoordinator()
     private static let taskStatusControlKind = "com.aritxonly.Deadliner.DeadlinerTaskStatusControl"
 
-    private let db: DatabaseHelper
     private let logger = Logger(subsystem: "Deadliner", category: "SyncCoordinator")
 
     private var syncDebounceTask: Task<Void, Never>?
@@ -19,9 +18,7 @@ actor SyncCoordinator {
     private var isSyncing = false
     private var hasPendingSync = false
 
-    private init(db: DatabaseHelper) {
-        self.db = db
-    }
+    private init() {}
 
     private func inBasicMode() async -> Bool {
         await LocalValues.shared.getBasicMode()
@@ -44,12 +41,22 @@ actor SyncCoordinator {
         guard await syncProvider() == .webDAV else { return nil }
         guard let cfg = await webDAVConfig() else { return nil }
         let web = WebDAVClient(baseURL: cfg.url, username: cfg.user, password: cfg.pass)
-        return SyncServiceFactory.make(db: db, web: web, impl: .v2)
+        #if canImport(Shared)
+        let database = await KMPPersistenceRuntime.shared.coreDatabase()
+        switch await LocalValues.shared.getWebDAVSyncProtocol() {
+        case .v2Compatibility:
+            return KMPV2WebDAVSyncService(database: database, web: web)
+        case .kmpChangeLog:
+            return KMPWebDAVSyncService(database: database, web: web)
+        }
+        #else
+        return nil
+        #endif
     }
 
     private func publishDataChanged() async {
         await MainActor.run {
-            NotificationCenter.default.post(name: .ddlDataChanged, object: nil)
+            PersistenceChangePublisher.publish(.init(resourceKinds: [.task, .taskSubtask, .habit, .habitRecord, .habitSchedule, .category]))
         }
     }
 
@@ -93,10 +100,6 @@ actor SyncCoordinator {
         if result.hasLocalChanges {
             await handleLocalChanges()
         }
-        if result.success {
-            await pruneExpiredTombstonesIfNeeded()
-        }
-
         if hasPendingSync {
             hasPendingSync = false
             await performSync()
@@ -128,10 +131,6 @@ actor SyncCoordinator {
         if result.hasLocalChanges {
             await handleLocalChanges()
         }
-        if result.success {
-            await pruneExpiredTombstonesIfNeeded()
-        }
-
         if hasPendingSync {
             hasPendingSync = false
             await performSync()
@@ -143,29 +142,8 @@ actor SyncCoordinator {
         WidgetCenter.shared.reloadAllTimelines()
         ControlCenter.shared.reloadControls(ofKind: Self.taskStatusControlKind)
 
-        do {
-            let allTasks = try await db.getDDLsByType(.task)
-            NotificationManager.shared.refreshAllTaskNotifications(tasks: allTasks)
-            HabitRepository.shared.scheduleReminderRefresh()
-        } catch {
-            logger.error("Failed to refresh local state after sync: \(error.localizedDescription)")
-        }
+        await KMPTaskReminderScheduler.shared.scheduleRefresh()
+        await KMPHabitReminderScheduler.shared.scheduleRefresh()
     }
 
-    private func pruneExpiredTombstonesIfNeeded() async {
-        let retentionDays = await LocalValues.shared.getTombstoneRetentionDays()
-        guard retentionDays > 0 else { return }
-
-        do {
-            let deleted = try await db.pruneExpiredTombstones(olderThan: retentionDays)
-            if deleted > 0 {
-                logger.info("Pruned \(deleted, privacy: .public) expired tombstones")
-                await publishDataChanged()
-                WidgetCenter.shared.reloadAllTimelines()
-                ControlCenter.shared.reloadControls(ofKind: Self.taskStatusControlKind)
-            }
-        } catch {
-            logger.error("Failed to prune expired tombstones: \(error.localizedDescription)")
-        }
-    }
 }

@@ -2,7 +2,8 @@
 //  Entities.swift
 //  Deadliner
 //
-//  Created by Aritx 音唯 on 2026/2/16.
+//  Legacy schema retained only so installed SwiftData stores can be read once
+//  and imported into KMP. No runtime feature code writes these models.
 //
 
 import Foundation

@@ -162,10 +162,21 @@
         "enabled" : true,
         "strength" : 0.27
       },
-      "shadow" : {
-        "kind" : "layer-color",
-        "opacity" : 1.2
-      },
+      "shadow-specializations" : [
+        {
+          "value" : {
+            "kind" : "layer-color",
+            "opacity" : 1.2
+          }
+        },
+        {
+          "appearance" : "dark",
+          "value" : {
+            "kind" : "layer-color",
+            "opacity" : 0.5
+          }
+        }
+      ],
       "specular" : true,
       "translucency-specializations" : [
         {

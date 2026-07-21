@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import SwiftData
 import os
 
 enum HomeBoardPresentationStyle {
@@ -146,11 +145,6 @@ struct HomeBoardCoreView: View {
             homeToolbar
         }
         .task {
-            do {
-                try await PersistenceRuntime.shared.start()
-            } catch {
-                assertionFailure("Home init DB failed: \(error)")
-            }
             await vm.initialLoad()
             // 初始加载完成后触发一次动画
             enterAnimToken += 1
@@ -181,12 +175,14 @@ struct HomeBoardCoreView: View {
         .onChange(of: categoryFilter) { _, _ in
             clearSelection()
             sanitizeSelection()
+            logCategoryFilter()
         }
         .onChange(of: selection.isActive) { _, newValue in
             onSelectionModeChange?(newValue)
         }
         .onAppear {
             vm.searchQuery = query
+            logCategoryFilter()
             onSelectionModeChange?(selection.isActive)
             onAtmosphereToneChange?(state.currentAtmosphereTone)
             tryOpenPendingTaskDetailIfNeeded()
@@ -261,7 +257,7 @@ struct HomeBoardCoreView: View {
             ConfettiOverlay(controller: confetti)
         }
         .sheet(item: $editSheetItem) { item in
-            EditTaskSheetView(repository: TaskRepository.shared, item: item)
+            EditTaskSheetView(repository: PersistenceStores.tasks, item: item)
         }
         .sheet(item: $editSheetHabit) { habit in
             HabitEditorSheetView(
@@ -274,6 +270,16 @@ struct HomeBoardCoreView: View {
                 .presentationDetents([.medium, .large], selection: $detailSheetDetent)
                 .presentationDragIndicator(.visible)
         }
+    }
+
+    private func logCategoryFilter() {
+        let scope: String
+        if categoryFilter.isAll {
+            scope = "all"
+        } else {
+            scope = "categories=\(categoryFilter.categoryUIDs.count), uncategorized=\(categoryFilter.includesUncategorized)"
+        }
+        SyncDebugLog.log("[KMP][Home] categoryFilter \(scope)")
     }
 
     private func classicSingleColumnLayout(state: HomeBoardDerivedState) -> some View {
@@ -390,24 +396,11 @@ struct HomeBoardCoreView: View {
                             toggleTaskSelection(row.item.id)
                         },
                         onComplete: {
-                            let wasCompleted = row.item.isCompleted
-                            let isNowCompleted = withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            Task { @MainActor in
+                                let isNowCompleted = await vm.toggleComplete(row.item)
                                 listAnimToken += 1
-                                return vm.toggleCompleteLocal(row.item)
+                                if isNowCompleted { confetti.fire() }
                             }
-
-                            if isNowCompleted { confetti.fire() }
-
-                            if wasCompleted && !isNowCompleted {
-                                Task { @MainActor in
-                                    isStagingRebuild = true
-                                    let snapshot = vm.tasks
-                                    await vm.stageRebuildFromCurrentSnapshot(snapshot: snapshot, blankDelayMs: 90)
-                                    enterAnimToken += 1 // 触发重排后的上浮
-                                    isStagingRebuild = false
-                                }
-                            }
-                            Task { await vm.persistToggleComplete(original: row.item) }
                         },
                         onDelete: {
                             pendingDeleteItems = [row.item]

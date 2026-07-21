@@ -8,6 +8,10 @@
 import Foundation
 import UserNotifications
 
+#if canImport(Shared)
+import Shared
+#endif
+
 class NotificationManager {
     static let shared = NotificationManager()
     
@@ -69,6 +73,66 @@ class NotificationManager {
     private func taskIdentifier(for id: Int64) -> String {
         return "TASK_\(id)"
     }
+
+    #if canImport(Shared)
+    func scheduleKMPTaskNotification(for task: Task_) {
+        cancelKMPTaskNotification(uid: task.uid)
+
+        guard task.state == .active,
+              let dueAt = task.dueAt,
+              let dueDate = DeadlineDateParser.safeParseOptional(dueAt)
+        else { return }
+
+        let triggerDate = dueDate.addingTimeInterval(-12 * 3600)
+        guard triggerDate > Date() else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "任务即将到期"
+        content.body = "任务「\(task.title)」还有 12 小时截止，请抓紧完成！"
+        content.sound = .default
+
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: triggerDate)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: kmpTaskIdentifier(for: task.uid),
+            content: content,
+            trigger: trigger
+        )
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                print("❌ 无法添加 KMP 任务通知: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func cancelKMPTaskNotification(uid: String) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(
+            withIdentifiers: [kmpTaskIdentifier(for: uid)]
+        )
+    }
+
+    func cancelAllKMPTaskNotifications() {
+        UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
+            let identifiers = requests
+                .filter { $0.identifier.hasPrefix("KMP_TASK_") }
+                .map(\.identifier)
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+        }
+    }
+
+    func cancelAllLegacyTaskNotifications() {
+        UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
+            let identifiers = requests
+                .filter { $0.identifier.hasPrefix("TASK_") }
+                .map(\.identifier)
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+        }
+    }
+
+    private func kmpTaskIdentifier(for uid: String) -> String {
+        "KMP_TASK_\(uid)"
+    }
+    #endif
     
     // MARK: - Habit Notifications
     
@@ -96,6 +160,25 @@ class NotificationManager {
         
         UNUserNotificationCenter.current().add(request)
     }
+
+    func scheduleKMPHabitInstance(uid: String, name: String, date: Date) {
+        guard date > Date() else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "习惯打卡提醒"
+        content.body = "是时候完成「\(name)」啦！"
+        content.sound = .default
+
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let dateKey = String(format: "%04d%02d%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
+        let request = UNNotificationRequest(
+            identifier: "KMP_HABIT_\(uid)_\(dateKey)",
+            content: content,
+            trigger: trigger
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
     
     func cancelAllHabitNotifications() {
         UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
@@ -103,6 +186,15 @@ class NotificationManager {
                 .filter { $0.identifier.hasPrefix("HABIT_") }
                 .map { $0.identifier }
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: habitIds)
+        }
+    }
+
+    func cancelAllKMPHabitNotifications() {
+        UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
+            let identifiers = requests
+                .filter { $0.identifier.hasPrefix("KMP_HABIT_") }
+                .map(\.identifier)
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
         }
     }
     
