@@ -8,8 +8,8 @@
 import Foundation
 
 struct HabitRecord: Identifiable, Equatable, Sendable {
-    let id: Int64
-    let habitId: Int64
+    let id: String
+    let habitId: String
     
     var date: String // "YYYY-MM-DD"
     var count: Int

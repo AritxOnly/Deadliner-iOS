@@ -259,7 +259,8 @@ struct FocusMainView: View {
                     .scaledToFill()
                     .frame(width: 42, height: 42)
                     .clipShape(Circle())
-                    .overlay(Circle().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5))
+                    .glassEffect(.regular.interactive(), in: Circle())
+//                    .overlay(Circle().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5))
                     .contentShape(Circle())
                 }
                 .accessibilityLabel("用户与设置")
@@ -446,12 +447,11 @@ struct FocusMainView: View {
             taskSegment = .tasks
             if let taskUID = widgetLaunchDefaults?.string(forKey: widgetLaunchTaskDetailUIDKey) {
                 widgetLaunchDefaults?.removeObject(forKey: widgetLaunchTaskDetailUIDKey)
-                let taskID = LegacyKMPIDMap.reserveLegacyID(resource: .task, uid: taskUID)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                     NotificationCenter.default.post(
                         name: .ddlOpenTaskDetail,
                         object: nil,
-                        userInfo: ["taskId": taskID]
+                        userInfo: ["taskId": taskUID]
                     )
                 }
             }

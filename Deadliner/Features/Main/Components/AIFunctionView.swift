@@ -33,7 +33,6 @@ struct AIFunctionView: View {
     @StateObject private var memoryBank = MemoryBank.shared
     
     @State private var pendingToolRequest: AIToolRequest?
-    @State private var pendingCreateToolConfirmation: AIToolRequest?
     @State private var toolOriginalUserText: String = ""
     @State private var lastSubmittedToolName: String?
     @State private var submittedToolRequestIDs: Set<String> = []
@@ -45,9 +44,9 @@ struct AIFunctionView: View {
     @State private var showReadTasksApprovalDialog: Bool = false
 
     @State private var addedTaskKeys: Set<String> = []      // 用于把卡片变“已添加”
-    @State private var createdTaskIDsByKey: [String: Int64] = [:]
+    @State private var createdTaskIDsByKey: [String: String] = [:]
     @State private var addedHabitKeys: Set<String> = []
-    @State private var createdHabitDdlIDsByKey: [String: Int64] = [:]
+    @State private var createdHabitDdlIDsByKey: [String: String] = [:]
 
     @State private var repoBusy: Bool = false               // 防连点
     
@@ -189,9 +188,6 @@ struct AIFunctionView: View {
         .sheet(isPresented: $showFeedbackShareSheet) {
             ActivityView(activityItems: feedbackShareItems)
         }
-        .sheet(item: $pendingCreateToolConfirmation) { req in
-            createToolConfirmationSheet(for: req)
-        }
         .onChange(of: speechInput.composedText) { _, newValue in
             inputText = newValue
         }
@@ -202,8 +198,8 @@ struct AIFunctionView: View {
         }
         .task {
             do {
-                try await DeadlinerCoreBridge.shared.initializeIfNeeded()
-                DeadlinerCoreBridge.shared.setEventHandler { event in
+                try await KMPLifiCoreBridge.shared.initializeIfNeeded()
+                KMPLifiCoreBridge.shared.setEventHandler { event in
                     handleCoreEvent(event)
                 }
             } catch {
@@ -212,7 +208,7 @@ struct AIFunctionView: View {
             }
         }
         .onDisappear {
-            DeadlinerCoreBridge.shared.clearEventHandler()
+            KMPLifiCoreBridge.shared.clearEventHandler()
             Task { await speechInput.cancelRecording() }
             onScrollProgressChange?(0)
         }
@@ -501,9 +497,7 @@ extension AIFunctionView {
 
                 Button {
                     let normalized = ToolCallExecutor.shared.normalizeToolName(req.tool)
-                    if normalized == "create_habit" {
-                        pendingCreateToolConfirmation = req
-                    } else if normalized == "read_tasks" && !autoApproveReadTasks && !sessionAutoApproveReadTasks {
+                    if normalized == "read_tasks" && !autoApproveReadTasks && !sessionAutoApproveReadTasks {
                         pendingReadTasksApprovalRequest = req
                         showReadTasksApprovalDialog = true
                     } else {
@@ -530,60 +524,6 @@ extension AIFunctionView {
                 .stroke(proposalCardStroke, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: proposalCardRadius, style: .continuous))
-    }
-
-    private func createToolConfirmationSheet(for req: AIToolRequest) -> some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(ToolCallExecutor.shared.normalizeToolName(req.tool) == "create_task" ? "请确认本次批量创建任务清单" : "请确认本次批量创建习惯清单")
-                    .font(.headline)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 10) {
-                        if ToolCallExecutor.shared.normalizeToolName(req.tool) == "create_task" {
-                            ForEach(Array(req.createTaskItems.enumerated()), id: \.offset) { idx, item in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("\(idx + 1). \(item.name)").font(.subheadline.bold())
-                                    Text("截止：\((item.dueTime?.isEmpty == false) ? item.dueTime! : "未指定")").font(.caption).foregroundColor(.secondary)
-                                    Text("备注：\((item.note?.isEmpty == false) ? item.note! : "无")").font(.caption).foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(10)
-                                .background(Color(uiColor: .secondarySystemBackground))
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            }
-                        } else {
-                            ForEach(Array(req.createHabitItems.enumerated()), id: \.offset) { idx, item in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("\(idx + 1). \(item.name)").font(.subheadline.bold())
-                                    Text("周期：\(item.period) · 频次：\(item.timesPerPeriod)").font(.caption).foregroundColor(.secondary)
-                                    let target = item.goalType.uppercased() == "TOTAL" ? " · totalTarget：\(item.totalTarget.map(String.init) ?? "缺失")" : ""
-                                    Text("目标类型：\(item.goalType)\(target)").font(.caption).foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(10)
-                                .background(Color(uiColor: .secondarySystemBackground))
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            }
-                        }
-                    }
-                }
-                HStack(spacing: 12) {
-                    Button("取消", role: .cancel) {
-                        pendingCreateToolConfirmation = nil
-                    }
-                    .frame(maxWidth: .infinity)
-                    .buttonStyle(.bordered)
-                    Button("确认并提交整批") {
-                        pendingCreateToolConfirmation = nil
-                        pendingToolRequest = req
-                        Task { await approveAndRunTool(req) }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .buttonStyle(.borderedProminent)
-                }
-            }
-            .padding()
-        }
     }
 
     private func toolResultBubble(_ res: AIToolResult) -> some View {
@@ -956,7 +896,7 @@ extension AIFunctionView {
         }
 
         toolOriginalUserText = query
-        await DeadlinerCoreBridge.shared.processInput(query)
+        await KMPLifiCoreBridge.shared.processInput(query)
     }
     
     @MainActor
@@ -966,14 +906,9 @@ extension AIFunctionView {
         defer { repoBusy = false }
 
         do {
-            let params = try makeDDLInsertParams(from: task)
+            let params = try makeTaskInsertParams(from: task)
 
-            let insertedId: Int64
-            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                insertedId = try await KMPTaskUIDMutationService.create(params)
-            } else {
-                insertedId = try await PersistenceStores.tasks.createTask(params)
-            }
+            let insertedId = try await PersistenceStores.tasks.createTask(params)
 
             let key = makeTaskKey(task)
             addedTaskKeys.insert(key)
@@ -997,36 +932,19 @@ extension AIFunctionView {
         do {
             let periodEnum = HabitPeriod(rawValue: habit.period.uppercased()) ?? .daily
             let goalTypeEnum = HabitGoalType(rawValue: habit.goalType.uppercased()) ?? .perPeriod
-            let habitID: Int64
-            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                habitID = await KMPHabitUIDMutationService.create(
-                    name: habit.name,
-                    period: periodEnum,
-                    timesPerPeriod: habit.timesPerPeriod,
-                    goalType: goalTypeEnum,
-                    totalTarget: habit.totalTarget,
-                    description: "",
-                    color: nil,
-                    iconKey: nil,
-                    categoryUID: nil,
-                    sortOrder: 0,
-                    alarmTime: nil
-                ).id
-            } else {
-                habitID = try await PersistenceStores.habits.createHabitWithCarrier(
-                    name: habit.name,
-                    period: periodEnum,
-                    timesPerPeriod: habit.timesPerPeriod,
-                    goalType: goalTypeEnum,
-                    totalTarget: habit.totalTarget,
-                    description: "",
-                    color: nil,
-                    iconKey: nil,
-                    categoryUID: nil,
-                    sortOrder: 0,
-                    alarmTime: nil
-                ).ddlID
-            }
+            let habitID = try await PersistenceStores.habits.createHabitWithCarrier(
+                name: habit.name,
+                period: periodEnum,
+                timesPerPeriod: habit.timesPerPeriod,
+                goalType: goalTypeEnum,
+                totalTarget: habit.totalTarget,
+                description: "",
+                color: nil,
+                iconKey: nil,
+                categoryUID: nil,
+                sortOrder: 0,
+                alarmTime: nil
+            ).habitUID
 
             let key = makeHabitKey(habit)
             addedHabitKeys.insert(key)
@@ -1063,11 +981,7 @@ extension AIFunctionView {
         defer { repoBusy = false }
 
         do {
-            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                try await KMPTaskUIDMutationService.delete(id: taskId)
-            } else {
-                try await PersistenceStores.tasks.deleteTask(id: taskId)
-            }
+            try await PersistenceStores.tasks.deleteTask(id: taskId)
             addedTaskKeys.remove(key)
             createdTaskIDsByKey.removeValue(forKey: key)
             withAnimation(.spring()) {
@@ -1089,11 +1003,7 @@ extension AIFunctionView {
         defer { repoBusy = false }
 
         do {
-            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                try await KMPHabitUIDMutationService.delete(legacyID: ddlId)
-            } else {
-                try await PersistenceStores.habits.deleteHabit(carrierID: ddlId)
-            }
+            try await PersistenceStores.habits.deleteHabit(carrierID: ddlId)
             addedHabitKeys.remove(key)
             createdHabitDdlIDsByKey.removeValue(forKey: key)
             withAnimation(.spring()) {
@@ -1124,7 +1034,7 @@ extension AIFunctionView {
         }
 
         // 1) 本地执行 ToolCallAdapter
-        let execution = await ToolCallExecutor.shared.execute(toolName: req.tool, argsJson: req.argsJson)
+        let execution = await KMPLifiCoreBridge.shared.executeToolRequest(req)
         AILog.log("[ToolResult] id=\(req.id) tool=\(execution.normalizedToolName) result=\(execution.resultJson)")
         lastSubmittedToolName = execution.normalizedToolName
 
@@ -1166,9 +1076,13 @@ extension AIFunctionView {
             }
         }
 
-        // 2) 回灌给 Rust Core，让其继续下一阶段
+        // 2) 回灌给 KMP LiFi，让其继续下一阶段
         print("[AIFunctionView] submitToolResult id=\(req.id) tool=\(execution.normalizedToolName) payloadJson=\(execution.resultJson)")
-        await DeadlinerCoreBridge.shared.submitToolResult(id: req.id, resultJson: execution.resultJson)
+        await KMPLifiCoreBridge.shared.submitToolResult(
+            id: req.id,
+            tool: execution.normalizedToolName,
+            resultJson: execution.resultJson
+        )
     }
 
     @MainActor
@@ -1176,40 +1090,23 @@ extension AIFunctionView {
         guard !proposals.isEmpty else { return }
         var successCount = 0
         for proposal in proposals {
+            let key = makeHabitKey(proposal)
             do {
                 let periodEnum = HabitPeriod(rawValue: proposal.period.uppercased()) ?? .daily
                 let goalTypeEnum = HabitGoalType(rawValue: proposal.goalType.uppercased()) ?? .perPeriod
-                let habitID: Int64
-                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                    habitID = await KMPHabitUIDMutationService.create(
-                        name: proposal.name,
-                        period: periodEnum,
-                        timesPerPeriod: proposal.timesPerPeriod,
-                        goalType: goalTypeEnum,
-                        totalTarget: proposal.totalTarget,
-                        description: "",
-                        color: nil,
-                        iconKey: nil,
-                        categoryUID: nil,
-                        sortOrder: 0,
-                        alarmTime: nil
-                    ).id
-                } else {
-                    habitID = try await PersistenceStores.habits.createHabitWithCarrier(
-                        name: proposal.name,
-                        period: periodEnum,
-                        timesPerPeriod: proposal.timesPerPeriod,
-                        goalType: goalTypeEnum,
-                        totalTarget: proposal.totalTarget,
-                        description: "",
-                        color: nil,
-                        iconKey: nil,
-                        categoryUID: nil,
-                        sortOrder: 0,
-                        alarmTime: nil
-                    ).ddlID
-                }
-                let key = makeHabitKey(proposal)
+                let habitID = try await PersistenceStores.habits.createHabitWithCarrier(
+                    name: proposal.name,
+                    period: periodEnum,
+                    timesPerPeriod: proposal.timesPerPeriod,
+                    goalType: goalTypeEnum,
+                    totalTarget: proposal.totalTarget,
+                    description: "",
+                    color: nil,
+                    iconKey: nil,
+                    categoryUID: nil,
+                    sortOrder: 0,
+                    alarmTime: nil
+                ).habitUID
                 addedHabitKeys.insert(key)
                 createdHabitDdlIDsByKey[key] = habitID
                 successCount += 1
@@ -1225,7 +1122,7 @@ extension AIFunctionView {
     }
 
     @MainActor
-    private func handleCoreEvent(_ event: DeadlinerCoreBridgeEvent) {
+    private func handleCoreEvent(_ event: KMPLifiCoreEvent) {
         switch event {
         case .thinking(let agentName, let phase, let message):
             if let message, !message.isEmpty {
@@ -1433,15 +1330,10 @@ extension AIFunctionView {
         guard !proposals.isEmpty else { return }
         var successCount = 0
         for proposal in proposals {
+            let key = makeTaskKey(proposal)
             do {
-                let params = try makeDDLInsertParams(from: proposal)
-                let insertedId: Int64
-                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                    insertedId = try await KMPTaskUIDMutationService.create(params)
-                } else {
-                    insertedId = try await PersistenceStores.tasks.createTask(params)
-                }
-                let key = makeTaskKey(proposal)
+                let params = try makeTaskInsertParams(from: proposal)
+                let insertedId = try await PersistenceStores.tasks.createTask(params)
                 addedTaskKeys.insert(key)
                 createdTaskIDsByKey[key] = insertedId
                 successCount += 1
@@ -1475,13 +1367,13 @@ extension AIFunctionView {
             timestamp: iso.string(from: Date()),
             timezone: TimeZone.current.identifier,
             locale: Locale.current.identifier,
-            lastCoreEventSummary: DeadlinerCoreBridge.shared.lastEventSummary ?? "(none)",
+            lastCoreEventSummary: KMPLifiCoreBridge.shared.lastEventSummary ?? "(none)",
             sessionSummary: sessionSummary.isEmpty ? "(empty)" : sessionSummary,
             memoryFragmentsCount: memoryBank.fragments.count,
             memoryProfile: memoryBank.userProfile,
             transcriptLines: makeFeedbackTranscriptLines(maxItems: 120),
-            coreLastFinishJson: DeadlinerCoreBridge.shared.getLastFinishJson(),
-            coreLastMemorySyncJson: DeadlinerCoreBridge.shared.getLastMemorySyncJson()
+            coreLastFinishJson: KMPLifiCoreBridge.shared.getLastFinishJson(),
+            coreLastMemorySyncJson: KMPLifiCoreBridge.shared.getLastMemorySyncJson()
         )
 
         let items = await AIFeedbackService.makeShareItems(context: context)

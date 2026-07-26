@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct AddTaskSheetView: View {
-    let repository: any TaskPersistenceStore
+    let repository: any KMPTaskUIStore
     var onDone: (() -> Void)? = nil
     var principalToolbarContent: AnyView? = nil
     var embedsInParentNavigationStack: Bool = false
@@ -33,7 +33,7 @@ struct AddEntrySheetView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var themeStore: ThemeStore
 
-    let repository: any TaskPersistenceStore
+    let repository: any KMPTaskUIStore
     var onDone: (() -> Void)? = nil
 
     @State private var selection: TaskSegment
@@ -43,7 +43,7 @@ struct AddEntrySheetView: View {
     @State private var isHabitSaveEnabled: Bool = false
 
     init(
-        repository: any TaskPersistenceStore = PersistenceStores.tasks,
+        repository: any KMPTaskUIStore = PersistenceStores.tasks,
         initialSelection: TaskSegment = .tasks,
         onDone: (() -> Void)? = nil
     ) {

@@ -8,8 +8,8 @@
 import Foundation
 
 struct DDLItem: Identifiable, Equatable, Sendable {
-    // 与历史“legacyId”对齐，作为领域层主键
-    let id: Int64
+    /// KMP Task aggregate UID. UI must never derive an Int64 surrogate ID.
+    let id: String
 
     var name: String
     var startTime: String

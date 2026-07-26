@@ -1,37 +1,30 @@
 //
-//  KMPTaskLegacyProjectionStore.swift
+//  KMPTaskPresentationStore.swift
 //  Deadliner
 //
-//  Temporary Home-facing projection while SwiftUI moves from Int64 to KMP UID.
+//  UID-first Task UI store backed directly by the KMP aggregate.
 //
 
 #if canImport(Shared)
 import Foundation
 import Shared
 
-enum KMPTaskProjectionError: LocalizedError {
-    case unsupportedDeadlineType
-    case missingUID(Int64)
+enum KMPTaskPresentationError: LocalizedError {
+    case missingTask(String)
     case invalidAction(DDLStateAction)
 
     var errorDescription: String? {
         switch self {
-        case .unsupportedDeadlineType:
-            return "KMP Task store only accepts task records."
-        case let .missingUID(legacyID):
-            return "No KMP UID is mapped for legacy task \(legacyID)."
+        case let .missingTask(uid):
+            return "KMP task \(uid) no longer exists."
         case .invalidAction:
             return "The requested task action is not valid for its current KMP state."
         }
     }
 }
 
-actor KMPTaskLegacyProjectionStore: TaskPersistenceStore {
-    func createTask(_ params: DDLInsertParams) async throws -> Int64 {
-        guard params.type == .task else {
-            throw KMPTaskProjectionError.unsupportedDeadlineType
-        }
-
+actor KMPTaskPresentationStore: KMPTaskUIStore {
+    func createTask(_ params: TaskInsertParams) async throws -> String {
         let uid = UUID().uuidString.lowercased()
         let now = Date().toLocalISOString()
         let task = Task_(
@@ -53,25 +46,18 @@ actor KMPTaskLegacyProjectionStore: TaskPersistenceStore {
         let store = await KMPPersistenceRuntime.shared.taskStore()
         await store.create(task)
         trace("create", uid: uid)
-        return LegacyKMPIDMap.reserveLegacyID(resource: .task, uid: uid)
+        return uid
     }
 
-    func task(id: Int64) async throws -> DDLItem? {
-        guard let uid = LegacyKMPIDMap.uid(resource: .task, legacyID: id) else {
-            return nil
-        }
+    func task(id: String) async throws -> DDLItem? {
         let store = await KMPPersistenceRuntime.shared.taskStore()
-        guard let task = await store.task(uid: uid), !task.isDeleted else {
-            return nil
-        }
-        return task.ddlProjection(legacyID: id)
+        guard let task = await store.task(uid: id), !task.isDeleted else { return nil }
+        return task.ddlProjection()
     }
 
     func allTasks() async throws -> [DDLItem] {
         let store = await KMPPersistenceRuntime.shared.taskStore()
-        return await store.allTasks().map { task in
-            task.ddlProjection(legacyID: LegacyKMPIDMap.reserveLegacyID(resource: .task, uid: task.uid))
-        }
+        return await store.allTasks().map { $0.ddlProjection() }
     }
 
     func tasks(of type: DeadlineType) async throws -> [DDLItem] {
@@ -80,57 +66,48 @@ actor KMPTaskLegacyProjectionStore: TaskPersistenceStore {
     }
 
     func updateTask(_ item: DDLItem) async throws {
-        guard let uid = LegacyKMPIDMap.uid(resource: .task, legacyID: item.id) else {
-            throw KMPTaskProjectionError.missingUID(item.id)
-        }
         let store = await KMPPersistenceRuntime.shared.taskStore()
-        guard let existing = await store.task(uid: uid), !existing.isDeleted else {
-            throw KMPTaskProjectionError.missingUID(item.id)
+        guard let existing = await store.task(uid: item.id), !existing.isDeleted else {
+            throw KMPTaskPresentationError.missingTask(item.id)
         }
         guard existing.state == item.state.kmpTaskState else {
-            throw KMPTaskProjectionError.invalidAction(.restoreActive)
+            throw KMPTaskPresentationError.invalidAction(.restoreActive)
         }
-        await store.update(item.kmpValue(uid: uid, createdAt: existing.createdAt))
-        trace("update", uid: uid)
+        await store.update(item.kmpValue(createdAt: existing.createdAt))
+        trace("update", uid: item.id)
     }
 
-    func performTaskAction(id: Int64, action: DDLStateAction) async throws -> DDLItem {
-        guard let uid = LegacyKMPIDMap.uid(resource: .task, legacyID: id) else {
-            throw KMPTaskProjectionError.missingUID(id)
-        }
+    func performTaskAction(id: String, action: DDLStateAction) async throws -> DDLItem {
         let store = await KMPPersistenceRuntime.shared.taskStore()
         let result = await store.perform(
             action: action.kmpTaskAction,
-            taskUID: uid,
+            taskUID: id,
             occurredAt: Date().toLocalISOString()
         )
         guard result.outcome == .applied, let task = result.task else {
-            throw KMPTaskProjectionError.invalidAction(action)
+            throw KMPTaskPresentationError.invalidAction(action)
         }
-        trace("action", uid: uid)
-        return task.ddlProjection(legacyID: id)
+        trace("action", uid: id)
+        return task.ddlProjection()
     }
 
-    func deleteTask(id: Int64) async throws {
-        guard let uid = LegacyKMPIDMap.uid(resource: .task, legacyID: id) else {
-            throw KMPTaskProjectionError.missingUID(id)
-        }
+    func deleteTask(id: String) async throws {
         let store = await KMPPersistenceRuntime.shared.taskStore()
-        await store.delete(uid: uid, updatedAt: Date().toLocalISOString())
-        trace("delete", uid: uid)
+        await store.delete(uid: id, updatedAt: Date().toLocalISOString())
+        trace("delete", uid: id)
     }
 
     private func trace(_ operation: String, uid: String) {
-        let message = "[KMP] Home Task \(operation) uid=\(uid)"
+        let message = "[KMP] Task UI \(operation) uid=\(uid)"
         SyncDebugLog.log(message)
         print(message)
     }
 }
 
 extension Task_ {
-    func ddlProjection(legacyID: Int64) -> DDLItem {
+    func ddlProjection() -> DDLItem {
         DDLItem(
-            id: legacyID,
+            id: uid,
             name: title,
             startTime: startAt ?? "",
             endTime: dueAt ?? "",
@@ -163,10 +140,10 @@ private extension TaskSubtask {
 }
 
 extension DDLItem {
-    func kmpValue(uid: String, createdAt: String) -> Task_ {
+    func kmpValue(createdAt: String) -> Task_ {
         let now = Date().toLocalISOString()
         return Task_(
-            uid: uid,
+            uid: id,
             title: name,
             note: note,
             startAt: startTime.emptyToNil,
@@ -179,7 +156,7 @@ extension DDLItem {
             createdAt: createdAt,
             updatedAt: now,
             isDeleted: false,
-            subtasks: subTasks.map { $0.kmpValue(taskUID: uid, now: now) }
+            subtasks: subTasks.map { $0.kmpValue(taskUID: id, now: now) }
         )
     }
 }
@@ -211,7 +188,7 @@ extension DDLState {
     }
 }
 
-private extension DDLStateAction {
+extension DDLStateAction {
     var kmpTaskAction: TaskAction {
         switch self {
         case .markComplete: .markComplete
@@ -234,8 +211,6 @@ private extension TaskState {
 }
 
 private extension String {
-    var emptyToNil: String? {
-        isEmpty ? nil : self
-    }
+    var emptyToNil: String? { isEmpty ? nil : self }
 }
 #endif

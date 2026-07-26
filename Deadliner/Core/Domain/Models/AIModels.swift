@@ -451,13 +451,13 @@ public struct ReadTasksResultPayload: Codable {
 }
 
 public struct TaskDigestItem: Codable, Identifiable {
-    public let id: Int64
+    public let id: String
     public let name: String
     public let due: String          // "yyyy-MM-dd HH:mm" or ""
     public let status: String       // "OPEN" | "DONE"
     public let notePreview: String  // <= 40 chars
 
-    public init(id: Int64, name: String, due: String, status: String, notePreview: String) {
+    public init(id: String, name: String, due: String, status: String, notePreview: String) {
         self.id = id
         self.name = name
         self.due = due

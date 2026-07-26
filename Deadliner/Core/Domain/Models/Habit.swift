@@ -8,8 +8,8 @@
 import Foundation
 
 struct Habit: Identifiable, Equatable, Sendable {
-    let id: Int64
-    let ddlId: Int64
+    /// KMP Habit aggregate UID. `ddlId` existed only for the old carrier row.
+    let id: String
     
     var name: String
     var description: String?

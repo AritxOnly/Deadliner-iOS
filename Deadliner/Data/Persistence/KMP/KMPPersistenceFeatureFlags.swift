@@ -112,7 +112,7 @@ private actor KMPCategoryRuntimeStore: CategoryPersistenceStore {
 
 extension KMPPersistenceFeatureFlags {
     static func categoryStore() -> any CategoryPersistenceStore { KMPCategoryRuntimeStore() }
-    static func taskStore() -> any TaskPersistenceStore { KMPTaskLegacyProjectionStore() }
-    static func habitStore() -> any HabitPersistenceStore { KMPHabitLegacyProjectionStore() }
+    static func taskStore() -> any KMPTaskUIStore { KMPTaskPresentationStore() }
+    static func habitStore() -> any KMPHabitUIStore { KMPHabitPresentationStore() }
 }
 #endif

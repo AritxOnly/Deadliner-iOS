@@ -13,7 +13,7 @@ struct SearchCategoryDetailView: View {
     let activeHabits: [Habit]
     let archivedTasks: [DDLItem]
     let archivedHabits: [Habit]
-    let habitStatusMap: [Int64: HabitWithDailyStatus]
+    let habitStatusMap: [String: HabitWithDailyStatus]
     let categoryMap: [String: TaskCategory]
     let taskActions: SearchTaskActions
     let habitActions: SearchHabitActions

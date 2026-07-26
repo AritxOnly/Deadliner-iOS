@@ -9,34 +9,34 @@ import Foundation
 
 struct HomeBoardSelectionState: Equatable {
     var isActive = false
-    var taskIDs = Set<Int64>()
-    var habitIDs = Set<Int64>()
+    var taskIDs = Set<String>()
+    var habitIDs = Set<String>()
 
     var isEmpty: Bool {
         taskIDs.isEmpty && habitIDs.isEmpty
     }
 
-    func containsTask(_ id: Int64) -> Bool {
+    func containsTask(_ id: String) -> Bool {
         taskIDs.contains(id)
     }
 
-    func containsHabit(_ id: Int64) -> Bool {
+    func containsHabit(_ id: String) -> Bool {
         habitIDs.contains(id)
     }
 
-    mutating func enterTask(_ id: Int64) {
+    mutating func enterTask(_ id: String) {
         isActive = true
         taskIDs = [id]
         habitIDs.removeAll()
     }
 
-    mutating func enterHabit(_ id: Int64) {
+    mutating func enterHabit(_ id: String) {
         isActive = true
         habitIDs = [id]
         taskIDs.removeAll()
     }
 
-    mutating func toggleTask(_ id: Int64) {
+    mutating func toggleTask(_ id: String) {
         if taskIDs.contains(id) {
             taskIDs.remove(id)
         } else {
@@ -44,7 +44,7 @@ struct HomeBoardSelectionState: Equatable {
         }
     }
 
-    mutating func toggleHabit(_ id: Int64) {
+    mutating func toggleHabit(_ id: String) {
         if habitIDs.contains(id) {
             habitIDs.remove(id)
         } else {
@@ -52,7 +52,7 @@ struct HomeBoardSelectionState: Equatable {
         }
     }
 
-    mutating func sanitize(validTaskIDs: Set<Int64>, validHabitIDs: Set<Int64>) {
+    mutating func sanitize(validTaskIDs: Set<String>, validHabitIDs: Set<String>) {
         taskIDs = taskIDs.intersection(validTaskIDs)
         habitIDs = habitIDs.intersection(validHabitIDs)
         if isActive && isEmpty {

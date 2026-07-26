@@ -10,24 +10,23 @@ import Foundation
 
 enum PersistenceHabitStatusAction: Sendable { case archive, restore }
 
-struct HabitCarrierCreation: Sendable {
-    let habitID: Int64
-    let ddlID: Int64
+struct HabitCreation: Sendable {
+    let habitUID: String
 }
 
-protocol TaskPersistenceStore {
+protocol KMPTaskUIStore {
     @discardableResult
-    func createTask(_ params: DDLInsertParams) async throws -> Int64
+    func createTask(_ params: TaskInsertParams) async throws -> String
 
-    func task(id: Int64) async throws -> DDLItem?
+    func task(id: String) async throws -> DDLItem?
     func allTasks() async throws -> [DDLItem]
     func tasks(of type: DeadlineType) async throws -> [DDLItem]
     func updateTask(_ task: DDLItem) async throws
-    func performTaskAction(id: Int64, action: DDLStateAction) async throws -> DDLItem
-    func deleteTask(id: Int64) async throws
+    func performTaskAction(id: String, action: DDLStateAction) async throws -> DDLItem
+    func deleteTask(id: String) async throws
 }
 
-protocol HabitPersistenceStore {
+protocol KMPHabitUIStore {
     @discardableResult
     func createHabitWithCarrier(
         name: String,
@@ -41,16 +40,16 @@ protocol HabitPersistenceStore {
         categoryUID: String?,
         sortOrder: Int,
         alarmTime: String?
-    ) async throws -> HabitCarrierCreation
+    ) async throws -> HabitCreation
 
     func allHabits() async throws -> [Habit]
     func updateHabit(_ habit: Habit) async throws
-    func performHabitStatusAction(id: Int64, action: PersistenceHabitStatusAction) async throws -> Habit
-    func deleteHabit(carrierID: Int64) async throws
-    func habitRecords(habitID: Int64, from startDate: Date, through endDate: Date) async throws -> [HabitRecord]
+    func performHabitStatusAction(id: String, action: PersistenceHabitStatusAction) async throws -> Habit
+    func deleteHabit(carrierID: String) async throws
+    func habitRecords(habitID: String, from startDate: Date, through endDate: Date) async throws -> [HabitRecord]
     func habitRecords(from startDate: Date, through endDate: Date) async throws -> [HabitRecord]
-    func toggleHabitRecord(habitID: Int64, date: Date) async throws
-    func clearHabitRecords(habitID: Int64, date: Date) async throws
+    func toggleHabitRecord(habitID: String, date: Date) async throws
+    func clearHabitRecords(habitID: String, date: Date) async throws
 }
 
 protocol CategoryPersistenceStore {

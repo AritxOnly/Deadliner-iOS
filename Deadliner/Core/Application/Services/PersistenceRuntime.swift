@@ -56,8 +56,8 @@ final class PersistenceRuntime {
 }
 
 enum PersistenceStores {
-    static let tasks: any TaskPersistenceStore = KMPPersistenceFeatureFlags.taskStore()
-    static let habits: any HabitPersistenceStore = KMPPersistenceFeatureFlags.habitStore()
+    static let tasks: any KMPTaskUIStore = KMPPersistenceFeatureFlags.taskStore()
+    static let habits: any KMPHabitUIStore = KMPPersistenceFeatureFlags.habitStore()
     static let categories: any CategoryPersistenceStore = KMPPersistenceFeatureFlags.categoryStore()
     static let captures: any CapturePersistenceStore = KMPSharedCaptureStore()
     static let memories: any MemoryPersistenceStore = KMPSharedMemoryStore()

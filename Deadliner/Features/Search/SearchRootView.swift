@@ -25,7 +25,7 @@ struct RichSearchTabView: View {
     @State private var archivedTasks: [DDLItem] = []
     @State private var archivedHabits: [Habit] = []
     @State private var categories: [TaskCategory] = []
-    @State private var habitStatusMap: [Int64: HabitWithDailyStatus] = [:]
+    @State private var habitStatusMap: [String: HabitWithDailyStatus] = [:]
     @State private var isLoading = true
     @State private var selectedTaskForEdit: DDLItem?
     @State private var selectedHabitForEdit: Habit?
@@ -41,8 +41,8 @@ struct RichSearchTabView: View {
     @State private var reloadSequence = 0
     @AppStorage("search.browse.category_layout") private var browseCategoryLayoutRaw = BrowseCategoryLayout.cards.rawValue
 
-    private let taskRepo: any TaskPersistenceStore = PersistenceStores.tasks
-    private let habitRepo: any HabitPersistenceStore = PersistenceStores.habits
+    private let taskRepo: any KMPTaskUIStore = PersistenceStores.tasks
+    private let habitRepo: any KMPHabitUIStore = PersistenceStores.habits
     private let categoryRepo: any CategoryPersistenceStore = PersistenceStores.categories
 
     private var categoryMap: [String: TaskCategory] {
@@ -283,8 +283,13 @@ struct RichSearchTabView: View {
                 }
             }
             .onChange(of: focusRequestToken) { _, _ in
-                guard #available(iOS 27.0, *) else { return }
-                isSearchFieldFocused = true
+                // Tab reselect can arrive before searchable has reattached
+                // after a navigation transition. Yield once so this works for
+                // both the regular and toolbar-principal search placements.
+                Task { @MainActor in
+                    await Task.yield()
+                    isSearchFieldFocused = true
+                }
             }
             .onAppear {
                 usesLocalAtmosphere = false
@@ -542,12 +547,7 @@ struct RichSearchTabView: View {
     private func loadTasksWithTiming() async throws -> (values: [DDLItem], durationMs: Int) {
         let startedAt = Date()
         SyncDebugLog.log("[KMP][Browse] tasks-start")
-        let values: [DDLItem]
-        if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-            values = await KMPTaskUIDMutationService.allTasks()
-        } else {
-            values = try await taskRepo.tasks(of: .task)
-        }
+        let values = try await taskRepo.tasks(of: .task)
         let durationMs = Int(Date().timeIntervalSince(startedAt) * 1_000)
         SyncDebugLog.log("[KMP][Browse] tasks-finish count=\(values.count) ms=\(durationMs)")
         return (values, durationMs)
@@ -556,12 +556,7 @@ struct RichSearchTabView: View {
     private func loadHabitsWithTiming() async throws -> (values: [Habit], durationMs: Int) {
         let startedAt = Date()
         SyncDebugLog.log("[KMP][Browse] habits-start")
-        let values: [Habit]
-        if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-            values = await KMPHabitUIDMutationService.allHabits()
-        } else {
-            values = try await habitRepo.allHabits()
-        }
+        let values = try await habitRepo.allHabits()
         let durationMs = Int(Date().timeIntervalSince(startedAt) * 1_000)
         SyncDebugLog.log("[KMP][Browse] habits-finish count=\(values.count) ms=\(durationMs)")
         return (values, durationMs)
@@ -570,18 +565,10 @@ struct RichSearchTabView: View {
     private func loadHabitRecordsWithTiming() async throws -> (values: [HabitRecord], durationMs: Int) {
         let startedAt = Date()
         SyncDebugLog.log("[KMP][Browse] records-start")
-        let values: [HabitRecord]
-        if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-            values = await KMPHabitUIDMutationService.records(
-                from: Date(timeIntervalSince1970: 0),
-                through: Date()
-            )
-        } else {
-            values = try await habitRepo.habitRecords(
-                from: Date(timeIntervalSince1970: 0),
-                through: Date()
-            )
-        }
+        let values = try await habitRepo.habitRecords(
+            from: Date(timeIntervalSince1970: 0),
+            through: Date()
+        )
         let durationMs = Int(Date().timeIntervalSince(startedAt) * 1_000)
         SyncDebugLog.log("[KMP][Browse] records-finish count=\(values.count) ms=\(durationMs)")
         return (values, durationMs)
@@ -607,9 +594,9 @@ struct RichSearchTabView: View {
     private func buildHabitStatuses(
         for habits: [Habit],
         records: [HabitRecord]
-    ) -> [Int64: HabitWithDailyStatus] {
+    ) -> [String: HabitWithDailyStatus] {
         let recordsByHabitID = Dictionary(grouping: records, by: \.habitId)
-        var result: [Int64: HabitWithDailyStatus] = [:]
+        var result: [String: HabitWithDailyStatus] = [:]
 
         for habit in habits {
             if let status = buildStatusForToday(
@@ -727,14 +714,7 @@ struct RichSearchTabView: View {
 
     private func toggleTaskCompletion(_ item: DDLItem) async {
         do {
-            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                _ = try await KMPTaskUIDMutationService.perform(
-                    item: item,
-                    action: item.isCompleted ? .restoreActive : .markComplete
-                )
-            } else {
-                _ = try await taskRepo.performTaskAction(id: item.id, action: item.isCompleted ? .restoreActive : .markComplete)
-            }
+            _ = try await taskRepo.performTaskAction(id: item.id, action: item.isCompleted ? .restoreActive : .markComplete)
             await reload()
         } catch {
             print("RichSearchTab toggleTaskCompletion failed: \(error)")
@@ -743,11 +723,7 @@ struct RichSearchTabView: View {
 
     private func archiveTask(_ item: DDLItem) async {
         do {
-            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                _ = try await KMPTaskUIDMutationService.perform(item: item, action: .markArchive)
-            } else {
-                _ = try await taskRepo.performTaskAction(id: item.id, action: .markArchive)
-            }
+            _ = try await taskRepo.performTaskAction(id: item.id, action: .markArchive)
             await reload()
         } catch {
             print("RichSearchTab archiveTask failed: \(error)")
@@ -756,14 +732,7 @@ struct RichSearchTabView: View {
 
     private func toggleTaskGiveUp(_ item: DDLItem) async {
         do {
-            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                _ = try await KMPTaskUIDMutationService.perform(
-                    item: item,
-                    action: item.state.isAbandonedLike ? .restoreActive : .markGiveUp
-                )
-            } else {
-                _ = try await taskRepo.performTaskAction(id: item.id, action: item.state.isAbandonedLike ? .restoreActive : .markGiveUp)
-            }
+            _ = try await taskRepo.performTaskAction(id: item.id, action: item.state.isAbandonedLike ? .restoreActive : .markGiveUp)
             await reload()
         } catch {
             print("RichSearchTab toggleTaskGiveUp failed: \(error)")
@@ -772,11 +741,7 @@ struct RichSearchTabView: View {
 
     private func unarchiveTask(_ item: DDLItem) async {
         do {
-            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                _ = try await KMPTaskUIDMutationService.perform(item: item, action: .unarchive)
-            } else {
-                _ = try await taskRepo.performTaskAction(id: item.id, action: .unarchive)
-            }
+            _ = try await taskRepo.performTaskAction(id: item.id, action: .unarchive)
             await reload()
         } catch {
             print("RichSearchTab unarchiveTask failed: \(error)")
@@ -785,11 +750,7 @@ struct RichSearchTabView: View {
 
     private func archiveHabit(_ habit: Habit) async {
         do {
-            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                _ = try await KMPHabitUIDMutationService.perform(.archive, habit: habit)
-            } else {
-                _ = try await habitRepo.performHabitStatusAction(id: habit.id, action: .archive)
-            }
+            _ = try await habitRepo.performHabitStatusAction(id: habit.id, action: .archive)
             await reload()
         } catch {
             print("RichSearchTab archiveHabit failed: \(error)")
@@ -798,11 +759,7 @@ struct RichSearchTabView: View {
 
     private func unarchiveHabit(_ habit: Habit) async {
         do {
-            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                _ = try await KMPHabitUIDMutationService.perform(.restore, habit: habit)
-            } else {
-                _ = try await habitRepo.performHabitStatusAction(id: habit.id, action: .restore)
-            }
+            _ = try await habitRepo.performHabitStatusAction(id: habit.id, action: .restore)
             await reload()
         } catch {
             print("RichSearchTab unarchiveHabit failed: \(error)")
@@ -811,11 +768,7 @@ struct RichSearchTabView: View {
 
     private func toggleHabit(_ status: HabitWithDailyStatus) async {
         do {
-            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                try await KMPHabitUIDMutationService.toggleRecord(habit: status.habit, date: Date())
-            } else {
-                try await habitRepo.toggleHabitRecord(habitID: status.habit.id, date: Date())
-            }
+            try await habitRepo.toggleHabitRecord(habitID: status.habit.id, date: Date())
             await reload()
         } catch {
             print("RichSearchTab toggleHabit failed: \(error)")
@@ -828,17 +781,9 @@ struct RichSearchTabView: View {
         do {
             switch target {
             case .task(let item):
-                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                    try await KMPTaskUIDMutationService.delete(item: item)
-                } else {
-                    try await taskRepo.deleteTask(id: item.id)
-                }
+                try await taskRepo.deleteTask(id: item.id)
             case .habit(let habit):
-                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                    try await KMPHabitUIDMutationService.delete(habit: habit)
-                } else {
-                    try await habitRepo.deleteHabit(carrierID: habit.id)
-                }
+                try await habitRepo.deleteHabit(carrierID: habit.id)
             case .inspiration(let item):
                 captureStore.deleteItem(uid: item.uid)
             }

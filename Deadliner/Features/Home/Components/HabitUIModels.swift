@@ -16,7 +16,7 @@ struct DayOverview: Identifiable, Equatable {
 }
 
 struct HabitWithDailyStatus: Identifiable, Equatable {
-    var id: Int64 { habit.id }
+    var id: String { habit.id }
     let habit: Habit
     var doneCount: Int
     var targetCount: Int

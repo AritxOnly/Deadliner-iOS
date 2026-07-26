@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-func makeDDLInsertParams(from task: AITask) throws -> DDLInsertParams {
+func makeTaskInsertParams(from task: AITask) throws -> TaskInsertParams {
     let startDate = Date()
     let startISO = startDate.toLocalISOString()
 
@@ -22,7 +22,7 @@ func makeDDLInsertParams(from task: AITask) throws -> DDLInsertParams {
     
     let finalEndDate = max(endDate, startDate.addingTimeInterval(60))
 
-    return DDLInsertParams(
+    return TaskInsertParams(
         name: task.name,
         startTime: startISO,
         endTime: finalEndDate.toLocalISOString(),
@@ -31,7 +31,6 @@ func makeDDLInsertParams(from task: AITask) throws -> DDLInsertParams {
         note: task.note ?? "",
         isStared: false,
         subTasks: [],
-        type: .task,
         calendarEventId: nil
     )
 }

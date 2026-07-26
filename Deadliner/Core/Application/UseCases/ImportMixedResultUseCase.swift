@@ -8,9 +8,9 @@
 import Foundation
 
 final class ImportMixedResultUseCase {
-    private let taskStore: TaskPersistenceStore
+    private let taskStore: KMPTaskUIStore
 
-    init(taskStore: TaskPersistenceStore) {
+    init(taskStore: KMPTaskUIStore) {
         self.taskStore = taskStore
     }
 
@@ -23,12 +23,8 @@ final class ImportMixedResultUseCase {
 
         var inserted = 0
         for t in tasks {
-            let params = try makeDDLInsertParams(from: t)   // 把你 AIFunctionView 的逻辑搬过来
-            if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                _ = try await KMPTaskUIDMutationService.create(params)
-            } else {
-                _ = try await taskStore.createTask(params)
-            }
+            let params = try makeTaskInsertParams(from: t)
+            _ = try await taskStore.createTask(params)
             inserted += 1
         }
 

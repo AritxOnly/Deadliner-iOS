@@ -101,8 +101,8 @@ struct HomeBoardDerivedState {
     let habitRows: [HomeHabitRowState]
     let dashboardHeader: ExperimentalDashboardHeader
     let currentAtmosphereTone: ImmersiveSurfaceTone
-    let validTaskIDs: Set<Int64>
-    let validHabitIDs: Set<Int64>
+    let validTaskIDs: Set<String>
+    let validHabitIDs: Set<String>
 
     init(
         query: String,

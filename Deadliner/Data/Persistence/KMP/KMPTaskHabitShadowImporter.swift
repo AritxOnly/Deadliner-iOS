@@ -151,15 +151,6 @@ private actor KMPTaskHabitShadowImporter {
         let source = try await DatabaseHelper.shared.taskHabitMigrationSnapshots()
         let taskStore = await KMPPersistenceRuntime.shared.taskStore()
         let habitStore = await KMPPersistenceRuntime.shared.habitStore()
-        for task in source.tasks {
-            LegacyKMPIDMap.record(resource: .task, legacyID: task.legacyID, uid: task.uid)
-        }
-        for habit in source.habits {
-            LegacyKMPIDMap.record(resource: .habit, legacyID: habit.legacyID, uid: habit.uid)
-            for record in habit.records {
-                LegacyKMPIDMap.record(resource: .habitRecord, legacyID: record.legacyID, uid: record.uid)
-            }
-        }
         // A failed/abandoned preview may have left an older KMP snapshot in
         // the App Group. Before the first valid cutover only, the legacy
         // snapshot is the canonical migration source. Tombstone entries that

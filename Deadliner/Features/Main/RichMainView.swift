@@ -414,12 +414,11 @@ struct RichMainView: View {
             homeTaskSegment = .tasks
             if let taskUID = widgetLaunchDefaults?.string(forKey: widgetLaunchTaskDetailUIDKey) {
                 widgetLaunchDefaults?.removeObject(forKey: widgetLaunchTaskDetailUIDKey)
-                let taskID = LegacyKMPIDMap.reserveLegacyID(resource: .task, uid: taskUID)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                     NotificationCenter.default.post(
                         name: .ddlOpenTaskDetail,
                         object: nil,
-                        userInfo: ["taskId": taskID]
+                        userInfo: ["taskId": taskUID]
                     )
                 }
             }

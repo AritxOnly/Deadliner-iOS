@@ -56,7 +56,7 @@ struct HabitEditorSheetView: View {
     @AppStorage("userTier") private var userTier: UserTier = .free
     @AppStorage("settings.ai.enabled") private var aiEnabled: Bool = true
     
-    let habitRepository: any HabitPersistenceStore = PersistenceStores.habits
+    let habitRepository: any KMPHabitUIStore = PersistenceStores.habits
     let mode: HabitSheetMode
     var onDone: (() -> Void)? = nil
     var onSaved: (() -> Void)? = nil
@@ -384,7 +384,7 @@ struct HabitEditorSheetView: View {
         defer { isAILoading = false }
         
         do {
-            let habits = try await AIService.shared.extractHabits(text: text)
+            let habits = try await KMPLifiCoreBridge.shared.extractHabits(text)
             guard let firstHabit = habits.first else {
                 showToast("未能从文本中识别出习惯内容哦")
                 return
@@ -442,35 +442,19 @@ struct HabitEditorSheetView: View {
         do {
             switch mode {
             case .add:
-                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                    _ = await KMPHabitUIDMutationService.create(
-                        name: trimmedName,
-                        period: period,
-                        timesPerPeriod: Int(timesPerPeriod) ?? 1,
-                        goalType: goalType,
-                        totalTarget: goalType == .total ? (Int(totalTarget) ?? 100) : nil,
-                        description: description,
-                        color: nil,
-                        iconKey: nil,
-                        categoryUID: selectedCategoryUID,
-                        sortOrder: 0,
-                        alarmTime: alarmStr
-                    )
-                } else {
-                    _ = try await habitRepository.createHabitWithCarrier(
-                        name: trimmedName,
-                        period: period,
-                        timesPerPeriod: Int(timesPerPeriod) ?? 1,
-                        goalType: goalType,
-                        totalTarget: goalType == .total ? (Int(totalTarget) ?? 100) : nil,
-                        description: description,
-                        color: nil,
-                        iconKey: nil,
-                        categoryUID: selectedCategoryUID,
-                        sortOrder: 0,
-                        alarmTime: alarmStr
-                    )
-                }
+                _ = try await habitRepository.createHabitWithCarrier(
+                    name: trimmedName,
+                    period: period,
+                    timesPerPeriod: Int(timesPerPeriod) ?? 1,
+                    goalType: goalType,
+                    totalTarget: goalType == .total ? (Int(totalTarget) ?? 100) : nil,
+                    description: description,
+                    color: nil,
+                    iconKey: nil,
+                    categoryUID: selectedCategoryUID,
+                    sortOrder: 0,
+                    alarmTime: alarmStr
+                )
                 
                 showToast("创建成功")
                 onSaved?()
@@ -488,11 +472,7 @@ struct HabitEditorSheetView: View {
                 updatedHabit.alarmTime = alarmStr
                 updatedHabit.categoryUID = selectedCategoryUID
                 
-                if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-                    try await KMPHabitUIDMutationService.update(updatedHabit)
-                } else {
-                    try await habitRepository.updateHabit(updatedHabit)
-                }
+                try await habitRepository.updateHabit(updatedHabit)
                 
                 showToast("保存成功")
                 onSaved?()

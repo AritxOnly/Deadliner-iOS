@@ -53,7 +53,7 @@ struct TaskEditorSheetView: View {
 
     @AppStorage("settings.ai.enabled") private var aiEnabled: Bool = true
 
-    let repository: any TaskPersistenceStore
+    let repository: any KMPTaskUIStore
     let mode: TaskSheetMode
     var onDone: (() -> Void)? = nil
     var onSaved: (() -> Void)? = nil
@@ -85,7 +85,7 @@ struct TaskEditorSheetView: View {
     @State private var showPaywall: Bool = false
 
     init(
-        repository: any TaskPersistenceStore = PersistenceStores.tasks,
+        repository: any KMPTaskUIStore = PersistenceStores.tasks,
         mode: TaskSheetMode,
         initialDraft: TaskDraft = .empty(),
         onDone: (() -> Void)? = nil,
@@ -292,7 +292,7 @@ struct TaskEditorSheetView: View {
         defer { isAILoading = false }
 
         do {
-            let tasks = try await AIService.shared.extractTasks(text: text)
+            let tasks = try await KMPLifiCoreBridge.shared.extractTasks(text)
             guard let firstTask = tasks.first else {
                 showToast("未能从文本中识别出任务内容哦")
                 return
@@ -351,7 +351,7 @@ struct TaskEditorSheetView: View {
         do {
             switch mode {
             case .add:
-                let params = DDLInsertParams(
+                let params = TaskInsertParams(
                     name: trimmed,
                     startTime: startTime.toLocalISOString(),
                     endTime: endTime.toLocalISOString(),
@@ -360,7 +360,6 @@ struct TaskEditorSheetView: View {
                     note: note,
                     isStared: isStarred,
                     subTasks: [],
-                    type: .task,
                     calendarEventId: nil,
                     categoryUID: selectedCategoryUID
                 )
@@ -393,65 +392,12 @@ struct TaskEditorSheetView: View {
         }
     }
 
-    private func createTask(_ params: DDLInsertParams) async throws {
-        guard KMPPersistenceFeatureFlags.canUseTaskHabitStore else {
-            _ = try await repository.createTask(params)
-            return
-        }
-
-        let uid = UUID().uuidString.lowercased()
-        let now = Date().toLocalISOString()
-        let task = Task_(
-            uid: uid,
-            title: params.name,
-            note: params.note,
-            startAt: params.startTime.isEmpty ? nil : params.startTime,
-            dueAt: params.endTime.isEmpty ? nil : params.endTime,
-            state: .active,
-            completedAt: nil,
-            categoryUid: params.categoryUID,
-            isStarred: params.isStared,
-            calendarEventId: params.calendarEventId.map { KotlinLong(value: $0) },
-            createdAt: now,
-            updatedAt: now,
-            isDeleted: false,
-            subtasks: []
-        )
-        let store = await KMPPersistenceRuntime.shared.taskStore()
-        await store.create(task)
-        _ = LegacyKMPIDMap.reserveLegacyID(resource: .task, uid: uid)
+    private func createTask(_ params: TaskInsertParams) async throws {
+        _ = try await repository.createTask(params)
     }
 
     private func updateTask(_ item: DDLItem) async throws {
-        guard KMPPersistenceFeatureFlags.canUseTaskHabitStore else {
-            try await repository.updateTask(item)
-            return
-        }
-
-        guard let uid = LegacyKMPIDMap.uid(resource: .task, legacyID: item.id) else {
-            throw KMPTaskProjectionError.missingUID(item.id)
-        }
-        let store = await KMPPersistenceRuntime.shared.taskStore()
-        guard let existing = await store.task(uid: uid), !existing.isDeleted else {
-            throw KMPTaskProjectionError.missingUID(item.id)
-        }
-        let updated = Task_(
-            uid: uid,
-            title: item.name,
-            note: item.note,
-            startAt: item.startTime.isEmpty ? nil : item.startTime,
-            dueAt: item.endTime.isEmpty ? nil : item.endTime,
-            state: existing.state,
-            completedAt: existing.completedAt,
-            categoryUid: item.categoryUID,
-            isStarred: item.isStared,
-            calendarEventId: item.calendarEvent == 0 ? nil : KotlinLong(value: item.calendarEvent),
-            createdAt: existing.createdAt,
-            updatedAt: Date().toLocalISOString(),
-            isDeleted: false,
-            subtasks: existing.subtasks
-        )
-        await store.update(updated)
+        try await repository.updateTask(item)
     }
 
     @MainActor

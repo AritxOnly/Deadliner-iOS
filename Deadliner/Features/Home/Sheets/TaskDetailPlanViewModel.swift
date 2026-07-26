@@ -14,11 +14,11 @@ final class TaskDetailPlanViewModel: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var isMutating = false
 
-    let taskId: Int64
+    let taskId: String
 
-    private let taskStore: any TaskPersistenceStore
+    private let taskStore: any KMPTaskUIStore
 
-    init(taskId: Int64, taskStore: any TaskPersistenceStore = PersistenceStores.tasks) {
+    init(taskId: String, taskStore: any KMPTaskUIStore = PersistenceStores.tasks) {
         self.taskId = taskId
         self.taskStore = taskStore
     }
@@ -99,12 +99,7 @@ final class TaskDetailPlanViewModel: ObservableObject {
     }
 
     private func task() async throws -> DDLItem {
-        let item: DDLItem?
-        if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-            item = await KMPTaskUIDMutationService.task(id: taskId)
-        } else {
-            item = try await taskStore.task(id: taskId)
-        }
+        let item = try await taskStore.task(id: taskId)
         guard let item else {
             throw TaskDetailPlanError.taskNotFound
         }
@@ -112,11 +107,7 @@ final class TaskDetailPlanViewModel: ObservableObject {
     }
 
     private func update(_ item: DDLItem) async throws {
-        if KMPPersistenceFeatureFlags.canUseTaskHabitStore {
-            try await KMPTaskUIDMutationService.update(item)
-        } else {
-            try await taskStore.updateTask(item)
-        }
+        try await taskStore.updateTask(item)
     }
 }
 

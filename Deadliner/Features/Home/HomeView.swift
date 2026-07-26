@@ -63,7 +63,7 @@ struct HomeBoardCoreView: View {
     @State private var editSheetHabit: Habit? = nil
     @State private var detailSheetItem: DDLItem? = nil
     @State private var detailSheetDetent: PresentationDetent = .medium
-    @State private var pendingOpenTaskDetailId: Int64? = nil
+    @State private var pendingOpenTaskDetailId: String? = nil
     
     @State private var selection = HomeBoardSelectionState()
     @State private var scrollProgress: CGFloat = 0
@@ -191,7 +191,7 @@ struct HomeBoardCoreView: View {
             onAtmosphereToneChange?(newValue)
         }
         .onReceive(NotificationCenter.default.publisher(for: .ddlOpenTaskDetail)) { notification in
-            let rawId = notification.userInfo?["taskId"] as? Int64
+            let rawId = notification.userInfo?["taskId"] as? String
             pendingOpenTaskDetailId = rawId
             tryOpenPendingTaskDetailIfNeeded()
         }
@@ -602,23 +602,23 @@ struct HomeBoardCoreView: View {
         }
     }
 
-    private func enterTaskSelection(with id: Int64) {
+    private func enterTaskSelection(with id: String) {
         withAnimation(.smooth(duration: 0.24, extraBounce: 0)) {
             selection.enterTask(id)
         }
     }
 
-    private func enterHabitSelection(with id: Int64) {
+    private func enterHabitSelection(with id: String) {
         withAnimation(.smooth(duration: 0.24, extraBounce: 0)) {
             selection.enterHabit(id)
         }
     }
 
-    private func toggleTaskSelection(_ id: Int64) {
+    private func toggleTaskSelection(_ id: String) {
         selection.toggleTask(id)
     }
 
-    private func toggleHabitSelection(_ id: Int64) {
+    private func toggleHabitSelection(_ id: String) {
         selection.toggleHabit(id)
     }
 

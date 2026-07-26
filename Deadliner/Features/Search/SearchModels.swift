@@ -104,7 +104,7 @@ struct SearchTaskResult: Identifiable, RichSearchSortable {
     let task: DDLItem
     let sortScore: Int
 
-    var id: Int64 { task.id }
+    var id: String { task.id }
     var sortTitle: String { task.name }
 }
 
@@ -112,7 +112,7 @@ struct SearchHabitResult: Identifiable, RichSearchSortable {
     let habit: Habit
     let sortScore: Int
 
-    var id: Int64 { habit.id }
+    var id: String { habit.id }
     var sortTitle: String { habit.name }
 }
 
