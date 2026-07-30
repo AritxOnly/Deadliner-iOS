@@ -2,11 +2,15 @@
 //  MemoryModels.swift
 //  Deadliner
 //
-//  Created by Aritx 音唯 on 2026/2/22.
+//  KMP is the runtime authority for AI memory and profile data. UserDefaults
+//  is read only once here to import installations created before the cutover.
 //
 
-import Foundation
 import Combine
+import Foundation
+#if canImport(Shared)
+import Shared
+#endif
 
 struct MemoryFragment: Codable, Identifiable {
     var id = UUID()
@@ -16,446 +20,262 @@ struct MemoryFragment: Codable, Identifiable {
     let importance: Int
 }
 
+@MainActor
 final class MemoryBank: ObservableObject {
     static let shared = MemoryBank()
 
     @Published private(set) var fragments: [MemoryFragment] = []
+    @Published private(set) var userProfile = ""
 
-    @Published private(set) var userProfile: String = ""
-    @Published private(set) var revision: UInt64 = 0
-
-    private let storageKey = "deadliner_local_memories"
-    private let storageProfileKey = "deadliner_user_profile"
-    private let storageRevisionKey = "deadliner_memory_revision"
-    private let kmpMigrationKey = "persistence.kmp.memory-import-v1"
-    
-    private let maxFragments = 60
-    private let maxAgeDays = 120
-    private var persistenceChangeObserver: AnyCancellable?
+    private let legacyFragmentsKey = "deadliner_local_memories"
+    private let legacyProfileKey = "deadliner_user_profile"
+    // v4 repeats the idempotent merge for devices marked complete before all
+    // legacy defaults and Rust snapshot sources were reliably read. Existing
+    // KMP fragments are preserved because imports are UID-based.
+    private let migrationKey = "persistence.kmp.lifi-memory-import-v4"
 
     private init() {
-        if !UserDefaults.standard.bool(forKey: kmpMigrationKey) {
-            loadFromDisk()
-        }
-        loadProfileFromDisk()
-        loadRevisionFromDisk()
-        persistenceChangeObserver = NotificationCenter.default.publisher(for: .persistenceDataChanged)
-            .sink { [weak self] notification in
-                guard let event = notification.object as? PersistenceChangeEvent,
-                      event.resourceKinds.contains(.memory) else {
-                    return
-                }
-                Task { await self?.reloadKMPMemory() }
-            }
-        Task { [weak self] in
-            await self?.bootstrapKMPMemory()
+        _Concurrency.Task { await bootstrap() }
+    }
+
+    func refresh() async {
+        do {
+            let persisted = try await PersistenceStores.memories.fragments()
+            fragments = persisted.sorted { $0.timestamp > $1.timestamp }
+            let database = await KMPPersistenceRuntime.shared.coreDatabase()
+            userProfile = database.profiles.getProfile() ?? ""
+        } catch {
+            AILog.log("[KMP] Memory refresh failed: \(error.localizedDescription)")
         }
     }
 
-    private func applyOnMain(_ work: @escaping () -> Void) {
-        if Thread.isMainThread {
-            work()
-        } else {
-            DispatchQueue.main.sync(execute: work)
-        }
+    /// Ensures old local data is imported exactly once before KMP LiFi starts.
+    func ensureKMPMemoryMigration() async {
+        await bootstrap()
     }
 
     func saveMemory(content: String, category: String = "Auto") {
-        let newFrag = MemoryFragment(content: content, category: category, timestamp: Date(), importance: 3)
-        guard !fragments.contains(where: { $0.content == content }) else { return }
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !fragments.contains(where: { $0.content == trimmed }) else { return }
+        let fragment = MemoryFragment(content: trimmed, category: category, timestamp: Date(), importance: 3)
+        fragments.append(fragment)
+        _Concurrency.Task {
+            do { try await PersistenceStores.memories.createMemory(fragment) }
+            catch { await self.refresh() }
+        }
+    }
 
-        applyOnMain {
-            self.fragments.append(newFrag)
-            self.pruneMemories()
-            self.bumpRevision()
-            self.saveToDisk()
+    func setUserProfileAllowEmpty(_ profile: String) {
+        let trimmed = profile.trimmingCharacters(in: .whitespacesAndNewlines)
+        userProfile = trimmed
+        _Concurrency.Task {
+            let database = await KMPPersistenceRuntime.shared.coreDatabase()
+            database.profiles.updateProfile(profileText: trimmed)
         }
     }
 
     func saveUserProfile(_ profile: String) {
-        let trimmed = profile.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-
-        applyOnMain {
-            self.userProfile = trimmed
-            self.bumpRevision()
-            self.saveProfileToDisk()
-        }
+        guard !profile.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        setUserProfileAllowEmpty(profile)
     }
-    
+
+    /// Compatibility context for the still-local editor extraction helper.
+    /// It reads only the KMP-backed projection held for SwiftUI; LiFi itself
+    /// never consumes this value.
     func getLongTermContext(maxProfileChars: Int = 420, maxBullets: Int = 6, maxTotalChars: Int = 900) -> String {
-        var parts: [String] = []
-
-        let p = String(userProfile.prefix(maxProfileChars)).trimmingCharacters(in: .whitespacesAndNewlines)
-        if !p.isEmpty {
-            parts.append("【用户画像】\n\(p)")
-        } else {
-            parts.append("【用户画像】\n(暂无)")
-        }
-
-        if !fragments.isEmpty, maxBullets > 0 {
-            let bullets = fragments.suffix(maxBullets).map { "- \($0.content)" }.joined(separator: "\n")
-            parts.append("【近期用户偏好/事实】\n\(bullets)")
-        }
-
-        let joined = parts.joined(separator: "\n\n")
-        return String(joined.prefix(maxTotalChars))
-    }
-
-    // MARK: - Local Persistence
-    private func saveToDisk() {
-        let snapshot = fragments
-        Task { [weak self] in
-            await self?.persistKMPMemorySnapshot(snapshot)
-        }
-    }
-
-    private func loadFromDisk() {
-        if let data = UserDefaults.standard.data(forKey: storageKey),
-           let decoded = try? JSONDecoder().decode([MemoryFragment].self, from: data) {
-            self.fragments = decoded
-        }
-    }
-
-    private func saveProfileToDisk() {
-        UserDefaults.standard.set(userProfile, forKey: storageProfileKey)
-    }
-
-    private func loadProfileFromDisk() {
-        if let s = UserDefaults.standard.string(forKey: storageProfileKey) {
-            self.userProfile = s
-        }
-    }
-
-    private func saveRevisionToDisk() {
-        UserDefaults.standard.set(revision, forKey: storageRevisionKey)
-    }
-
-    private func loadRevisionFromDisk() {
-        self.revision = UInt64(UserDefaults.standard.integer(forKey: storageRevisionKey))
-    }
-
-    func clearAllMemories() {
-        fragments.removeAll()
-        userProfile = ""
-        revision = 0
-        UserDefaults.standard.removeObject(forKey: storageProfileKey)
-        UserDefaults.standard.removeObject(forKey: storageRevisionKey)
-        saveToDisk()
-    }
-    
-    // MARK: - Editing / Deleting
-
-    func setUserProfileAllowEmpty(_ profile: String) {
-        let trimmed = profile.trimmingCharacters(in: .whitespacesAndNewlines)
-        applyOnMain {
-            self.userProfile = trimmed
-            self.bumpRevision()
-            self.saveProfileToDisk()
-        }
+        let profile = String(userProfile.prefix(maxProfileChars))
+        let bullets = fragments.prefix(maxBullets).map { "- \($0.content)" }.joined(separator: "\n")
+        let profileText = profile.isEmpty ? "(暂无)" : profile
+        let context = "【用户画像】\n\(profileText)\n\n【近期用户偏好/事实】\n\(bullets)"
+        return String(context.prefix(maxTotalChars))
     }
 
     func deleteFragment(id: UUID) {
-        applyOnMain {
-            self.fragments.removeAll { $0.id == id }
-            self.bumpRevision()
-            self.saveToDisk()
-        }
-    }
-
-    func updateFragment(id: UUID, newContent: String, newCategory: String? = nil, newImportance: Int? = nil) {
-        let trimmed = newContent.trimmingCharacters(in: .whitespacesAndNewlines)
-        applyOnMain {
-            guard let idx = self.fragments.firstIndex(where: { $0.id == id }) else { return }
-            let old = self.fragments[idx]
-            let updated = MemoryFragment(
-                id: old.id,
-                content: trimmed.isEmpty ? old.content : trimmed,
-                category: newCategory ?? old.category,
-                timestamp: old.timestamp,
-                importance: newImportance ?? old.importance
-            )
-            self.fragments[idx] = updated
-            self.bumpRevision()
-            self.saveToDisk()
+        guard let fragment = fragments.first(where: { $0.id == id }) else { return }
+        fragments.removeAll { $0.id == id }
+        _Concurrency.Task {
+            do { try await PersistenceStores.memories.deleteMemory(uid: fragment.id.uuidString, updatedAt: Date()) }
+            catch { await self.refresh() }
         }
     }
 
     func upsertFragment(_ fragment: MemoryFragment) {
-        applyOnMain {
-            if let idx = self.fragments.firstIndex(where: { $0.id == fragment.id }) {
-                self.fragments[idx] = fragment
+        if let index = fragments.firstIndex(where: { $0.id == fragment.id }) {
+            fragments[index] = fragment
+            _Concurrency.Task {
+                do { try await PersistenceStores.memories.updateMemory(fragment) }
+                catch { await self.refresh() }
+            }
+        } else {
+            fragments.append(fragment)
+            _Concurrency.Task {
+                do { try await PersistenceStores.memories.createMemory(fragment) }
+                catch { await self.refresh() }
+            }
+        }
+    }
+
+    func clearAllMemories() {
+        let existing = fragments
+        fragments.removeAll()
+        userProfile = ""
+        _Concurrency.Task {
+            do {
+                for fragment in existing {
+                    try await PersistenceStores.memories.deleteMemory(uid: fragment.id.uuidString, updatedAt: Date())
+                }
+                let database = await KMPPersistenceRuntime.shared.coreDatabase()
+                database.profiles.updateProfile(profileText: "")
+            } catch {
+                await self.refresh()
+            }
+        }
+    }
+
+    /// Updates the SwiftUI projection after a KMP callback. No snapshot is
+    /// written back: the KMP LiFi adapter has already persisted the change.
+    func applyKMPCommittedResult(addedMemories: [String], updatedProfile: String?, newRevision _: UInt64) {
+        for content in addedMemories where !fragments.contains(where: { $0.content == content }) {
+            fragments.append(MemoryFragment(content: content, category: "Auto", timestamp: Date(), importance: 3))
+        }
+        if let updatedProfile { userProfile = updatedProfile }
+        _Concurrency.Task { await refresh() }
+    }
+
+    private func bootstrap() async {
+        guard !UserDefaults.standard.bool(forKey: migrationKey) else {
+            await refresh()
+            return
+        }
+
+        let legacySnapshot = loadLegacySnapshot()
+
+        do {
+            let beforeImport = (try await PersistenceStores.memories.fragments()).count
+            try await PersistenceStores.memories.importLegacyMemories(legacySnapshot.fragments)
+            let database = await KMPPersistenceRuntime.shared.coreDatabase()
+            let importedProfile: Bool
+            if database.profiles.getProfile() == nil,
+               !legacySnapshot.profile.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                database.profiles.updateProfile(profileText: legacySnapshot.profile)
+                importedProfile = true
             } else {
-                self.fragments.append(fragment)
+                importedProfile = false
             }
-            self.pruneMemories()
-            self.bumpRevision()
-            self.saveToDisk()
-        }
-    }
-
-    func replaceAllFragments(_ newList: [MemoryFragment]) {
-        applyOnMain {
-            self.fragments = newList
-            self.bumpRevision()
-            self.saveToDisk()
-        }
-    }
-
-    func exportSnapshotJson() -> String {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let snapshot = MemorySnapshotDTO(
-            revision: revision,
-            fragments: fragments,
-            userProfile: userProfile
-        )
-        guard let data = try? encoder.encode(snapshot),
-              let json = String(data: data, encoding: .utf8) else {
-            return #"{"revision":0,"fragments":[],"userProfile":""}"#
-        }
-        return json
-    }
-
-    func applyCommittedResult(
-        addedMemories: [String],
-        updatedProfile: String?,
-        newRevision: UInt64
-    ) {
-        applyOnMain {
-            for content in addedMemories {
-                let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { continue }
-                guard !self.fragments.contains(where: { $0.content == trimmed }) else { continue }
-                self.fragments.append(MemoryFragment(
-                    content: trimmed,
-                    category: "Auto",
-                    timestamp: Date(),
-                    importance: 3
-                ))
-            }
-
-            if let updatedProfile {
-                let trimmedProfile = updatedProfile.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmedProfile.isEmpty {
-                    self.userProfile = trimmedProfile
-                }
-            }
-
-            self.pruneMemories()
-            self.revision = max(self.revision, newRevision)
-            self.saveToDisk()
-            self.saveProfileToDisk()
-            self.saveRevisionToDisk()
-        }
-    }
-
-    @discardableResult
-    func applySnapshotJson(_ json: String) -> Bool {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-
-        guard let data = json.data(using: .utf8),
-              let snapshot = try? decoder.decode(MemorySnapshotDTO.self, from: data) else {
-            return false
-        }
-
-        if snapshot.revision < revision {
-            return false
-        }
-
-        let applyState = {
-            self.fragments = snapshot.fragments
-            self.userProfile = snapshot.userProfile
-            self.revision = snapshot.revision
-            self.pruneMemories()
-            self.saveToDisk()
-            self.saveProfileToDisk()
-            self.saveRevisionToDisk()
-        }
-
-        if Thread.isMainThread {
-            applyState()
-        } else {
-            DispatchQueue.main.sync(execute: applyState)
-        }
-
-        return true
-    }
-
-    @discardableResult
-    func applySyncPayloadJson(_ json: String) -> Bool {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-
-        guard let data = json.data(using: .utf8),
-              let payload = try? decoder.decode(MemorySyncPayloadDTO.self, from: data),
-              payload.baseRevision == revision else {
-            return false
-        }
-
-        var updatedFragments = fragments
-        var updatedProfile = userProfile
-
-        for operation in payload.operations {
-            switch operation {
-            case .upsertFragment(let fragment):
-                if let idx = updatedFragments.firstIndex(where: { $0.id == fragment.id }) {
-                    updatedFragments[idx] = fragment
-                } else {
-                    updatedFragments.append(fragment)
-                }
-            case .deleteFragment(let fragmentID):
-                updatedFragments.removeAll { $0.id == fragmentID }
-            case .replaceUserProfile(let profile):
-                updatedProfile = profile
-            }
-        }
-
-        let applyState = {
-            self.fragments = updatedFragments
-            self.userProfile = updatedProfile
-            self.revision = payload.nextRevision
-            self.pruneMemories()
-            self.saveToDisk()
-            self.saveProfileToDisk()
-            self.saveRevisionToDisk()
-        }
-
-        if Thread.isMainThread {
-            applyState()
-        } else {
-            DispatchQueue.main.sync(execute: applyState)
-        }
-
-        return true
-    }
-    
-    private func pruneMemories() {
-        // 1) 先按时间过期淘汰
-        let now = Date()
-        let cutoff = now.addingTimeInterval(TimeInterval(-maxAgeDays) * 86400)
-        fragments = fragments.filter { $0.timestamp >= cutoff }
-
-        // 2) 超容量：优先删“低重要度 + 更旧”的
-        if fragments.count > maxFragments {
-            fragments.sort {
-                if $0.importance != $1.importance { return $0.importance > $1.importance }
-                return $0.timestamp > $1.timestamp
-            }
-            fragments = Array(fragments.prefix(maxFragments))
-        }
-    }
-
-    private func bumpRevision() {
-        revision += 1
-        saveRevisionToDisk()
-    }
-
-    private func bootstrapKMPMemory() async {
-        do {
-            if !UserDefaults.standard.bool(forKey: kmpMigrationKey) {
-                try await PersistenceStores.memories.importLegacyMemories(fragments)
-                UserDefaults.standard.set(true, forKey: kmpMigrationKey)
-            }
-            let persisted = try await PersistenceStores.memories.fragments()
-            applyPersistedMemory(persisted)
+            let afterImport = (try await PersistenceStores.memories.fragments()).count
+            AILog.log(
+                "[KMP] Legacy memory import source=\(legacySnapshot.fragments.count) "
+                    + "before=\(beforeImport) after=\(afterImport) profileImported=\(importedProfile)"
+            )
+            UserDefaults.standard.set(true, forKey: migrationKey)
+            await refresh()
         } catch {
-            print("MemoryBank KMP bootstrap failed: \(error)")
+            AILog.log("[KMP] Legacy memory import failed: \(error.localizedDescription)")
         }
     }
 
-    private func reloadKMPMemory() async {
-        do {
-            applyPersistedMemory(try await PersistenceStores.memories.fragments())
-        } catch {
-            print("MemoryBank KMP reload failed: \(error)")
-        }
-    }
+    /// The pre-KMP app wrote MemoryBank to standard defaults. During the Rust
+    /// LiFi period the same snapshot was also persisted under DeadlinerAI, so
+    /// an upgrade must merge both sources rather than assuming one is current.
+    private func loadLegacySnapshot() -> (fragments: [MemoryFragment], profile: String) {
+        let defaults = [
+            UserDefaults.standard,
+            UserDefaults(suiteName: KMPSharedDatabaseLocation.appGroupID),
+        ].compactMap { $0 }
 
-    private func applyPersistedMemory(_ persisted: [MemoryFragment]) {
-        applyOnMain {
-            self.fragments = persisted
-            self.pruneMemories()
-        }
-    }
+        var fragments: [MemoryFragment] = []
+        var knownIDs = Set<UUID>()
+        var knownContents = Set<String>()
+        var profiles: [String] = []
 
-    private func persistKMPMemorySnapshot(_ snapshot: [MemoryFragment]) async {
-        do {
-            let persisted = try await PersistenceStores.memories.fragments()
-            let persistedIDs = Set(persisted.map { $0.id.uuidString })
-            let snapshotIDs = Set(snapshot.map { $0.id.uuidString })
-
-            for fragment in snapshot {
-                if persistedIDs.contains(fragment.id.uuidString) {
-                    try await PersistenceStores.memories.updateMemory(fragment)
-                } else {
-                    try await PersistenceStores.memories.createMemory(fragment)
+        func append(_ candidates: [MemoryFragment]) {
+            for fragment in candidates {
+                let content = fragment.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !content.isEmpty,
+                      knownIDs.insert(fragment.id).inserted,
+                      knownContents.insert(content).inserted else {
+                    continue
                 }
+                fragments.append(fragment)
             }
-            for fragment in persisted where !snapshotIDs.contains(fragment.id.uuidString) {
-                try await PersistenceStores.memories.deleteMemory(uid: fragment.id.uuidString, updatedAt: Date())
-            }
-        } catch {
-            print("MemoryBank KMP persist failed: \(error)")
         }
+
+        for store in defaults {
+            if let data = store.data(forKey: legacyFragmentsKey) {
+                append(Self.decodeLegacyFragments(from: data))
+            }
+            if let profile = store.string(forKey: legacyProfileKey),
+               !profile.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                profiles.append(profile)
+            }
+        }
+
+        for url in Self.legacyRustMemoryURLs() {
+            guard let data = try? Data(contentsOf: url),
+                  let snapshot = Self.decodeLegacyRustSnapshot(from: data) else {
+                continue
+            }
+            append(snapshot.fragments)
+            if let profile = snapshot.profile,
+               !profile.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                profiles.append(profile)
+            }
+        }
+
+        AILog.log("[KMP] Legacy memory sources fragments=\(fragments.count) profiles=\(profiles.count)")
+        return (fragments, profiles.first ?? "")
+    }
+
+    private static func decodeLegacyFragments(from data: Data) -> [MemoryFragment] {
+        for decoder in legacyMemoryDecoders() {
+            if let fragments = try? decoder.decode([MemoryFragment].self, from: data) {
+                return fragments
+            }
+        }
+        return []
+    }
+
+    private static func decodeLegacyRustSnapshot(from data: Data) -> LegacyRustMemorySnapshot? {
+        for decoder in legacyMemoryDecoders() {
+            if let snapshot = try? decoder.decode(LegacyRustMemorySnapshot.self, from: data) {
+                return snapshot
+            }
+        }
+        return nil
+    }
+
+    private static func legacyMemoryDecoders() -> [JSONDecoder] {
+        let defaultsDecoder = JSONDecoder()
+        let iso8601Decoder = JSONDecoder()
+        iso8601Decoder.dateDecodingStrategy = .iso8601
+        return [defaultsDecoder, iso8601Decoder]
+    }
+
+    private static func legacyRustMemoryURLs() -> [URL] {
+        let fileManager = FileManager.default
+        let roots = [
+            fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first,
+            fileManager.urls(for: .documentDirectory, in: .userDomainMask).first,
+        ].compactMap { $0 }
+        return roots.map { $0.appendingPathComponent("DeadlinerAI/memories.json") }
     }
 }
 
-private struct MemorySnapshotDTO: Codable {
-    let revision: UInt64
+private struct LegacyRustMemorySnapshot: Decodable {
     let fragments: [MemoryFragment]
-    let userProfile: String
-}
-
-private struct MemorySyncPayloadDTO: Codable {
-    let baseRevision: UInt64
-    let nextRevision: UInt64
-    let operations: [MemorySyncOperationDTO]
-}
-
-private enum MemorySyncOperationDTO: Codable {
-    case upsertFragment(MemoryFragment)
-    case deleteFragment(UUID)
-    case replaceUserProfile(String)
+    let profile: String?
 
     private enum CodingKeys: String, CodingKey {
-        case type
-        case fragment
-        case fragmentID
-        case profile
-    }
-
-    private enum OperationType: String, Codable {
-        case upsertFragment = "UpsertFragment"
-        case deleteFragment = "DeleteFragment"
-        case replaceUserProfile = "ReplaceUserProfile"
+        case fragments
+        case userProfile
+        case user_profile
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        switch try container.decode(OperationType.self, forKey: .type) {
-        case .upsertFragment:
-            self = .upsertFragment(try container.decode(MemoryFragment.self, forKey: .fragment))
-        case .deleteFragment:
-            self = .deleteFragment(try container.decode(UUID.self, forKey: .fragmentID))
-        case .replaceUserProfile:
-            self = .replaceUserProfile(try container.decode(String.self, forKey: .profile))
-        }
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        switch self {
-        case .upsertFragment(let fragment):
-            try container.encode(OperationType.upsertFragment, forKey: .type)
-            try container.encode(fragment, forKey: .fragment)
-        case .deleteFragment(let fragmentID):
-            try container.encode(OperationType.deleteFragment, forKey: .type)
-            try container.encode(fragmentID, forKey: .fragmentID)
-        case .replaceUserProfile(let profile):
-            try container.encode(OperationType.replaceUserProfile, forKey: .type)
-            try container.encode(profile, forKey: .profile)
-        }
+        fragments = try container.decodeIfPresent([MemoryFragment].self, forKey: .fragments) ?? []
+        let camelCaseProfile = try container.decodeIfPresent(String.self, forKey: .userProfile)
+        let snakeCaseProfile = try container.decodeIfPresent(String.self, forKey: .user_profile)
+        profile = camelCaseProfile ?? snakeCaseProfile
     }
 }

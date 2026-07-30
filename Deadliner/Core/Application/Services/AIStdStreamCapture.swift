@@ -6,10 +6,13 @@
 import Foundation
 import Darwin
 
-final class AIStdStreamCapture {
-    static let shared = AIStdStreamCapture()
+/// Application-wide stdout/stderr tee. It captures Swift `print`, Kotlin
+/// `println`, and `NSLog` into the unified local log buffer while preserving
+/// Xcode console output.
+final class AppStdStreamCapture {
+    static let shared = AppStdStreamCapture()
 
-    private let queue = DispatchQueue(label: "deadliner.ai.stdout.capture")
+    private let queue = DispatchQueue(label: "deadliner.app.stdout.capture")
     private var readSource: DispatchSourceRead?
 
     private var isStarted = false
@@ -26,7 +29,7 @@ final class AIStdStreamCapture {
         guard !isStarted else { return }
         isStarted = true
 
-        // Disable stdio buffering so Rust/Swift prints can be flushed immediately.
+        // Disable stdio buffering so Swift/Kotlin prints can be flushed immediately.
         setvbuf(stdout, nil, _IONBF, 0)
         setvbuf(stderr, nil, _IONBF, 0)
 
@@ -38,6 +41,7 @@ final class AIStdStreamCapture {
 
         pipeReadFD = fds[0]
         pipeWriteFD = fds[1]
+        _ = fcntl(pipeReadFD, F_SETFL, fcntl(pipeReadFD, F_GETFL) | O_NONBLOCK)
         stdoutBackupFD = dup(STDOUT_FILENO)
         stderrBackupFD = dup(STDERR_FILENO)
 
@@ -75,7 +79,7 @@ final class AIStdStreamCapture {
             if count > 0 {
                 let data = Data(buffer[0..<count])
                 mirrorToOriginalConsole(data: data)
-                collectForAILog(data: data)
+                collectForAppLog(data: data)
             } else {
                 break
             }
@@ -94,7 +98,7 @@ final class AIStdStreamCapture {
         }
     }
 
-    private func collectForAILog(data: Data) {
+    private func collectForAppLog(data: Data) {
         guard let chunk = String(data: data, encoding: .utf8), !chunk.isEmpty else { return }
 
         pendingLine += chunk
@@ -107,7 +111,11 @@ final class AIStdStreamCapture {
         for line in parts.dropLast() {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
-            AILog.log(trimmed)
+            // Kotlin's iOS runtime writes through stdout. Preserve it in the
+            // same durable log, but distinguish it from unstructured Swift
+            // prints so a report can be filtered by runtime boundary.
+            let domain: AppLogDomain = trimmed.contains("[KMP]") || trimmed.contains("Kotlin") ? .kmp : .stdio
+            AppLog.log(trimmed, category: domain.rawValue)
         }
 
         pendingLine = parts.last ?? ""
@@ -119,3 +127,6 @@ final class AIStdStreamCapture {
         }
     }
 }
+
+/// Source compatibility for callers not yet migrated to the app-wide name.
+typealias AIStdStreamCapture = AppStdStreamCapture

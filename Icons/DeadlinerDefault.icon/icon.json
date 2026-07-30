@@ -119,6 +119,15 @@
           "glass" : true,
           "image-name" : "Base1 2.png",
           "name" : "Base1 2",
+          "opacity-specializations" : [
+            {
+              "value" : 0.65
+            },
+            {
+              "appearance" : "dark",
+              "value" : 0.95
+            }
+          ],
           "position" : {
             "scale" : 1.05,
             "translation-in-points" : [
@@ -138,7 +147,7 @@
         {
           "value" : {
             "kind" : "layer-color",
-            "opacity" : 1.2
+            "opacity" : 0.9
           }
         },
         {
@@ -154,7 +163,7 @@
         {
           "value" : {
             "enabled" : true,
-            "value" : 0.2
+            "value" : 0.05
           }
         },
         {

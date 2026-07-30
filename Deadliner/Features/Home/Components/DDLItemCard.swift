@@ -47,27 +47,24 @@ struct DDLItemCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 6) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    HStack(spacing: 8) {  // 默认 .center 对齐
                         if isStarred {
                             Image(systemName: "star.fill")
-                                .font(.caption)
+                                .font(.system(size: 20))
                                 .foregroundStyle(style.indicator)
-                                .alignmentGuide(.firstTextBaseline) { context in
-                                    context[VerticalAlignment.center]
-                                }
                         }
 
                         Text(title)
                             .font(.title3.weight(.bold))
                             .lineLimit(1)
+                        
+                        Text(" ").font(.title3.weight(.bold)).frame(width: 0).opacity(0)
 
                         Spacer(minLength: 8)
 
                         if let categoryBadge {
-                            CategoryBadgeView(badge: categoryBadge, backgroundColor: Color(UIColor.secondarySystemBackground))
-                                .alignmentGuide(.firstTextBaseline) { context in
-                                    context[VerticalAlignment.center]
-                                }
+                            CategoryBadgeView(badge: categoryBadge,
+                                              backgroundColor: Color(UIColor.secondarySystemBackground))
                         }
 
                         Text(remainingTimeAlt)
@@ -75,6 +72,8 @@ struct DDLItemCard: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(minHeight: 24)
 
                     // 备注行始终占位，保证有/无备注时标题的纵向位置不变
                     HStack {

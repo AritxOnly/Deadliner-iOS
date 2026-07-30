@@ -28,14 +28,8 @@ enum AIFeedbackService {
             items.append(reportURL)
         }
 
-        let aiLogURL = await AILog.exportURL()
-        if FileManager.default.fileExists(atPath: aiLogURL.path) {
-            items.append(aiLogURL)
-        }
-
-        let syncLogURL = await SyncDebugLog.exportURL()
-        if FileManager.default.fileExists(atPath: syncLogURL.path) {
-            items.append(syncLogURL)
+        for appLogURL in await AppLog.exportURLs() where FileManager.default.fileExists(atPath: appLogURL.path) {
+            items.append(appLogURL)
         }
 
         if items.isEmpty {
@@ -45,8 +39,8 @@ enum AIFeedbackService {
     }
 
     private static func writeReportFile(context: Context) async -> URL? {
-        let aiLogSnippet = await readAILogTail(maxChars: 12000)
-        let report = buildReport(context: context, aiLogSnippet: aiLogSnippet)
+        let logSnippet = await readAppLogTail(maxChars: 12000)
+        let report = buildReport(context: context, logSnippet: logSnippet)
         let fileName = "deadliner-ai-feedback-\(safeFileDate()).txt"
 
         let base = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
@@ -60,7 +54,7 @@ enum AIFeedbackService {
         }
     }
 
-    private static func buildReport(context: Context, aiLogSnippet: String) -> String {
+    private static func buildReport(context: Context, logSnippet: String) -> String {
         let memoryProfile = context.memoryProfile.trimmingCharacters(in: .whitespacesAndNewlines)
         let lines = context.transcriptLines.joined(separator: "\n")
         let finishJson = (context.coreLastFinishJson?.isEmpty == false) ? context.coreLastFinishJson! : "(empty)"
@@ -86,16 +80,16 @@ enum AIFeedbackService {
         CoreLastMemorySyncJson:
         \(memoryJson)
 
-        AILogTail:
-        \(aiLogSnippet.isEmpty ? "(empty)" : aiLogSnippet)
+        RecentAppLogTail:
+        \(logSnippet.isEmpty ? "(empty)" : logSnippet)
 
         RecentTranscript:
         \(lines.isEmpty ? "(empty)" : lines)
         """
     }
 
-    private static func readAILogTail(maxChars: Int) async -> String {
-        let url = await AILog.exportURL()
+    private static func readAppLogTail(maxChars: Int) async -> String {
+        let url = await AppLog.exportURL(format: .standard)
         guard let content = try? String(contentsOf: url, encoding: .utf8) else {
             return ""
         }

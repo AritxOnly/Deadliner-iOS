@@ -6,6 +6,9 @@
 //
 
 import Foundation
+#if canImport(Shared)
+import Shared
+#endif
 
 actor ToolCallExecutor {
     static let shared = ToolCallExecutor()
@@ -26,160 +29,177 @@ actor ToolCallExecutor {
     }
 
     nonisolated func normalizeToolName(_ toolName: String) -> String {
-        ToolAdapterRuleBook.shared
-            .canonicalName(for: toolName)
-            ?? toolName.trimmingCharacters(in: .whitespacesAndNewlines)
+        toolName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     nonisolated func supports(_ toolName: String) -> Bool {
-        ToolAdapterRuleBook.shared.rule(for: toolName) != nil
+        ["read_tasks", "create_task", "update_deadline", "read_habits", "create_habit"].contains(normalizeToolName(toolName))
     }
 
-    func execute(toolName: String, argsJson: String) async -> ToolExecutionResult {
-        guard let rule = ToolAdapterRuleBook.shared.rule(for: toolName) else {
-            let normalized = normalizeToolName(toolName)
-            return makeFailureResult(tool: normalized, code: "UNSUPPORTED_TOOL", message: "暂不支持工具 \(normalized)")
-        }
-
-        let normalized = rule.name
+    /// KMP LiFi sends a sealed `ToolCall`, so this entry point deliberately
+    /// dispatches on its concrete subtype instead of decoding tool arguments
+    /// from JSON. JSON remains only the result observation sent back to LLM.
+    #if canImport(Shared)
+    func execute(toolCall: ToolCall) async -> ToolExecutionResult {
         do {
-            switch rule.handler {
-            case "read_tasks":
-                let args = decodeArgs(ReadTasksArgs.self, from: argsJson)
-                    ?? ReadTasksArgs(timeRangeDays: 7, status: "OPEN", keywords: nil, limit: 20, sort: "DUE_ASC")
-                let ddlTasks = try await PersistenceStores.tasks.tasks(of: .task)
-                print("[ToolCallExecutor] read_tasks fetched \(ddlTasks.count) task items from KMP store")
-                let payload = makeReadTasksPayload(from: ddlTasks, args: args)
-                let resultJson = try encodeResult(payload)
-                let message = "已读取任务 \(payload.summary.count) 条（逾期 \(payload.summary.overdue)，24h 内 \(payload.summary.dueSoon24h)）"
-                return ToolExecutionResult(normalizedToolName: normalized, resultJson: resultJson, displayMessage: message)
+            switch toolCall {
+            case let tool as ToolCall.ReadTasks:
+                return try await executeReadTasks(ReadTasksArgs(
+                    timeRangeDays: tool.timeRangeDays.map { Int($0.intValue) },
+                    status: tool.status,
+                    keywords: tool.keywords,
+                    limit: Int(tool.limit),
+                    sort: tool.sort
+                ))
 
-            case "create_task":
-                guard let args = decodeArgs(CreateTaskArgs.self, from: argsJson) else {
-                    return makeFailureResult(tool: normalized, code: "INVALID_ARGS", message: "create_task 缺少必要参数")
-                }
-                let normalizedItems = args.normalizedItems
-                guard !normalizedItems.isEmpty else {
-                    return makeFailureResult(tool: normalized, code: "INVALID_ARGS", message: "create_task 需要 name/dueTime（旧格式）或非空 tasks 数组（新格式）")
-                }
+            case let tool as ToolCall.CreateTask:
+                return try executeCreateTask(CreateTaskArgs(
+                    name: tool.name,
+                    dueTime: tool.dueTime,
+                    note: tool.note
+                ))
 
-                let itemResults = normalizedItems.map(validateTaskCreateItem)
-                let createdItems = itemResults.compactMap(\.item)
-                let successCount = createdItems.count
-                let failureCount = itemResults.count - successCount
+            case let tool as ToolCall.UpdateDeadline:
+                return try await executeKMPDeadlineUpdate(taskUID: tool.taskId, newDueTime: tool.newDueTime)
 
-                let payload = CreateTaskResultPayload(
-                    ok: successCount > 0,
-                    task: createdItems.first,
-                    createdTasks: createdItems,
-                    items: itemResults,
-                    summary: BatchExecutionSummary(total: itemResults.count, success: successCount, failed: failureCount),
-                    pendingUserConfirmation: successCount > 0
-                )
-                let resultJson = try encodeResult(payload)
-                return ToolExecutionResult(
-                    normalizedToolName: normalized,
-                    resultJson: resultJson,
-                    displayMessage: "已生成任务草案 \(successCount) 条，失败 \(failureCount) 条，请确认是否创建"
-                )
+            case let tool as ToolCall.ReadHabits:
+                return try await executeReadHabits(ReadHabitsArgs(keywords: tool.keywords))
 
-            case "update_deadline":
-                guard let args = decodeArgs(UpdateDeadlineArgs.self, from: argsJson),
-                      let taskId = Int64(args.taskId) else {
-                    return makeFailureResult(tool: normalized, code: "INVALID_ARGS", message: "update_deadline 需要 taskId 与 newDueTime")
-                }
-                guard var task = try await PersistenceStores.tasks.task(id: taskId) else {
-                    return makeFailureResult(tool: normalized, code: "TASK_NOT_FOUND", message: "未找到任务 \(taskId)")
-                }
-                guard let parsed = DeadlineDateParser.parseAIGeneratedDate(args.newDueTime)
-                    ?? DeadlineDateParser.safeParseOptional(args.newDueTime) else {
-                    return makeFailureResult(tool: normalized, code: "INVALID_DATE", message: "newDueTime 无法解析")
-                }
-
-                task.endTime = parsed.toLocalISOString()
-                try await PersistenceStores.tasks.updateTask(task)
-
-                let payload = UpdateDeadlineResultPayload(
-                    ok: true,
-                    task: TaskWriteBackItem(id: task.id, name: task.name, due: task.endTime, note: task.note)
-                )
-                let resultJson = try encodeResult(payload)
-                return ToolExecutionResult(normalizedToolName: normalized, resultJson: resultJson, displayMessage: "已更新截止时间：\(task.name)")
-
-            case "read_habits":
-                let args = decodeArgs(ReadHabitsArgs.self, from: argsJson) ?? ReadHabitsArgs(keywords: nil)
-                let allHabits = try await PersistenceStores.habits.allHabits()
-                let keywords = (args.keywords ?? [])
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-                    .filter { !$0.isEmpty }
-                let filtered = allHabits.filter { habit in
-                    guard !keywords.isEmpty else { return true }
-                    let hay = "\(habit.name) \(habit.description ?? "")".lowercased()
-                    return keywords.allSatisfy { hay.contains($0) }
-                }
-                let payload = ReadHabitsResultPayload(
-                    habits: filtered.map {
-                        HabitDigestItem(
-                            id: $0.id,
-                            name: $0.name,
-                            period: $0.period.rawValue,
-                            timesPerPeriod: $0.timesPerPeriod,
-                            goalType: $0.goalType.rawValue,
-                            totalTarget: $0.totalTarget,
-                            status: $0.status.rawValue
-                        )
-                    },
-                    summary: HabitSummary(
-                        count: filtered.count,
-                        active: filtered.filter { $0.status == .active }.count,
-                        archived: filtered.filter { $0.status == .archived }.count
-                    )
-                )
-                let resultJson = try encodeResult(payload)
-                return ToolExecutionResult(
-                    normalizedToolName: normalized,
-                    resultJson: resultJson,
-                    displayMessage: "已读取习惯 \(payload.summary.count) 条"
-                )
-
-            case "create_habit":
-                guard let args = decodeArgs(CreateHabitArgs.self, from: argsJson) else {
-                    return makeFailureResult(tool: normalized, code: "INVALID_ARGS", message: "create_habit 缺少必要参数")
-                }
-                let normalizedItems = args.normalizedItems
-                guard !normalizedItems.isEmpty else {
-                    return makeFailureResult(tool: normalized, code: "INVALID_ARGS", message: "create_habit 需要 name/period 等旧格式字段，或非空 habits 数组（新格式）")
-                }
-
-                let itemResults = normalizedItems.map(validateHabitCreateItem)
-                let createdItems = itemResults.compactMap(\.item)
-                let successCount = createdItems.count
-                let failureCount = itemResults.count - successCount
-                let payload = CreateHabitResultPayload(
-                    ok: successCount > 0,
-                    habit: createdItems.first,
-                    createdHabits: createdItems,
-                    items: itemResults,
-                    summary: BatchExecutionSummary(total: itemResults.count, success: successCount, failed: failureCount),
-                    pendingUserConfirmation: successCount > 0
-                )
-                let resultJson = try encodeResult(payload)
-                return ToolExecutionResult(
-                    normalizedToolName: normalized,
-                    resultJson: resultJson,
-                    displayMessage: "已生成习惯草案 \(successCount) 条，失败 \(failureCount) 条，请确认是否创建"
-                )
+            case let tool as ToolCall.CreateHabit:
+                return try executeCreateHabit(CreateHabitArgs(
+                    name: tool.name,
+                    period: tool.period,
+                    timesPerPeriod: Int(tool.timesPerPeriod),
+                    goalType: tool.goalType,
+                    totalTarget: tool.totalTarget.map { Int($0.intValue) }
+                ))
 
             default:
-                return makeFailureResult(
-                    tool: normalized,
-                    code: "UNIMPLEMENTED_HANDLER",
-                    message: "工具规则已声明但未实现 handler=\(rule.handler)"
-                )
+                return makeFailureResult(tool: "unknown", code: "UNSUPPORTED_TOOL", message: "KMP LiFi 请求了未支持的工具")
             }
         } catch {
-            return makeFailureResult(tool: normalized, code: "TOOL_EXECUTION_FAILED", message: error.localizedDescription)
+            return makeFailureResult(tool: "kmp_tool", code: "TOOL_EXECUTION_FAILED", message: error.localizedDescription)
         }
+    }
+    #endif
+
+    func missingTypedToolCallResult(for toolName: String) -> ToolExecutionResult {
+        makeFailureResult(
+            tool: normalizeToolName(toolName),
+            code: "MISSING_TYPED_TOOL_CALL",
+            message: "工具确认已过期，无法安全执行；请重新发起请求。"
+        )
+    }
+
+    private func executeReadTasks(_ args: ReadTasksArgs) async throws -> ToolExecutionResult {
+        let ddlTasks = try await PersistenceStores.tasks.tasks(of: .task)
+        let payload = makeReadTasksPayload(from: ddlTasks, args: args)
+        return ToolExecutionResult(
+            normalizedToolName: "read_tasks",
+            resultJson: try encodeResult(payload),
+            displayMessage: "已读取任务 \(payload.summary.count) 条（逾期 \(payload.summary.overdue)，24h 内 \(payload.summary.dueSoon24h)）"
+        )
+    }
+
+    private func executeCreateTask(_ args: CreateTaskArgs) throws -> ToolExecutionResult {
+        let normalizedItems = args.normalizedItems
+        guard !normalizedItems.isEmpty else {
+            return makeFailureResult(tool: "create_task", code: "INVALID_ARGS", message: "create_task 需要非空任务名称")
+        }
+        let itemResults = normalizedItems.map(validateTaskCreateItem)
+        let createdItems = itemResults.compactMap(\.item)
+        let payload = CreateTaskResultPayload(
+            ok: !createdItems.isEmpty,
+            task: createdItems.first,
+            createdTasks: createdItems,
+            items: itemResults,
+            summary: BatchExecutionSummary(total: itemResults.count, success: createdItems.count, failed: itemResults.count - createdItems.count),
+            pendingUserConfirmation: !createdItems.isEmpty
+        )
+        return ToolExecutionResult(
+            normalizedToolName: "create_task",
+            resultJson: try encodeResult(payload),
+            displayMessage: "已生成任务草案 \(createdItems.count) 条，请确认是否创建"
+        )
+    }
+
+    #if canImport(Shared)
+    private func executeKMPDeadlineUpdate(taskUID: String, newDueTime: String) async throws -> ToolExecutionResult {
+        guard !taskUID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return makeFailureResult(tool: "update_deadline", code: "INVALID_ARGS", message: "update_deadline 需要 KMP task UID")
+        }
+        guard let parsed = DeadlineDateParser.parseAIGeneratedDate(newDueTime)
+            ?? DeadlineDateParser.safeParseOptional(newDueTime) else {
+            return makeFailureResult(tool: "update_deadline", code: "INVALID_DATE", message: "newDueTime 无法解析")
+        }
+        let store = await KMPPersistenceRuntime.shared.taskStore()
+        guard let task = await store.task(uid: taskUID), !task.isDeleted else {
+            return makeFailureResult(tool: "update_deadline", code: "TASK_NOT_FOUND", message: "未找到任务 \(taskUID)")
+        }
+        let dueTime = parsed.toLocalISOString()
+        await store.update(task.doCopy(
+            uid: task.uid,
+            title: task.title,
+            note: task.note,
+            startAt: task.startAt,
+            dueAt: dueTime,
+            state: task.state,
+            completedAt: task.completedAt,
+            categoryUid: task.categoryUid,
+            isStarred: task.isStarred,
+            calendarEventId: task.calendarEventId,
+            createdAt: task.createdAt,
+            updatedAt: Date().toLocalISOString(),
+            isDeleted: task.isDeleted,
+            subtasks: task.subtasks
+        ))
+        let payload = UpdateDeadlineResultPayload(
+            ok: true,
+            task: TaskWriteBackItem(id: task.uid, name: task.title, due: dueTime, note: task.note)
+        )
+        return ToolExecutionResult(
+            normalizedToolName: "update_deadline",
+            resultJson: try encodeResult(payload),
+            displayMessage: "已更新截止时间：\(task.title)"
+        )
+    }
+    #endif
+
+    private func executeReadHabits(_ args: ReadHabitsArgs) async throws -> ToolExecutionResult {
+        let allHabits = try await PersistenceStores.habits.allHabits()
+        let keywords = (args.keywords ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+        let filtered = allHabits.filter { habit in
+            guard !keywords.isEmpty else { return true }
+            let hay = "\(habit.name) \(habit.description ?? "")".lowercased()
+            return keywords.allSatisfy { hay.contains($0) }
+        }
+        let payload = ReadHabitsResultPayload(
+            habits: filtered.map {
+                HabitDigestItem(id: $0.id, name: $0.name, period: $0.period.rawValue, timesPerPeriod: $0.timesPerPeriod, goalType: $0.goalType.rawValue, totalTarget: $0.totalTarget, status: $0.status.rawValue)
+            },
+            summary: HabitSummary(count: filtered.count, active: filtered.filter { $0.status == .active }.count, archived: filtered.filter { $0.status == .archived }.count)
+        )
+        return ToolExecutionResult(normalizedToolName: "read_habits", resultJson: try encodeResult(payload), displayMessage: "已读取习惯 \(payload.summary.count) 条")
+    }
+
+    private func executeCreateHabit(_ args: CreateHabitArgs) throws -> ToolExecutionResult {
+        let normalizedItems = args.normalizedItems
+        guard !normalizedItems.isEmpty else {
+            return makeFailureResult(tool: "create_habit", code: "INVALID_ARGS", message: "create_habit 需要非空习惯名称")
+        }
+        let itemResults = normalizedItems.map(validateHabitCreateItem)
+        let createdItems = itemResults.compactMap(\.item)
+        let payload = CreateHabitResultPayload(
+            ok: !createdItems.isEmpty,
+            habit: createdItems.first,
+            createdHabits: createdItems,
+            items: itemResults,
+            summary: BatchExecutionSummary(total: itemResults.count, success: createdItems.count, failed: itemResults.count - createdItems.count),
+            pendingUserConfirmation: !createdItems.isEmpty
+        )
+        return ToolExecutionResult(normalizedToolName: "create_habit", resultJson: try encodeResult(payload), displayMessage: "已生成习惯草案 \(createdItems.count) 条，请确认是否创建")
     }
 
     private func makeReadTasksPayload(from items: [DDLItem], args: ReadTasksArgs) -> ReadTasksResultPayload {
@@ -360,11 +380,6 @@ actor ToolCallExecutor {
         )
     }
 
-    private func decodeArgs<T: Decodable>(_ type: T.Type, from argsJson: String) -> T? {
-        guard let data = argsJson.data(using: .utf8) else { return nil }
-        return try? JSONDecoder().decode(type, from: data)
-    }
-
     private func encodeResult<T: Encodable>(_ payload: T) throws -> String {
         let data = try JSONEncoder().encode(payload)
         guard let json = String(data: data, encoding: .utf8) else {
@@ -391,7 +406,7 @@ private struct ToolFailurePayload: Codable {
 }
 
 private struct TaskWriteBackItem: Codable {
-    let id: Int64?
+    let id: String?
     let name: String
     let due: String
     let note: String
@@ -417,7 +432,7 @@ private struct ReadHabitsResultPayload: Codable {
 }
 
 private struct HabitDigestItem: Codable {
-    let id: Int64
+    let id: String
     let name: String
     let period: String
     let timesPerPeriod: Int
@@ -433,7 +448,7 @@ private struct HabitSummary: Codable {
 }
 
 private struct HabitWriteBackItem: Codable {
-    let id: Int64?
+    let id: String?
     let name: String
     let period: String
     let timesPerPeriod: Int
@@ -466,80 +481,4 @@ private struct CreateHabitResultItem: Codable {
     let ok: Bool
     let item: HabitWriteBackItem?
     let message: String?
-}
-
-private struct ToolAdapterRule: Codable {
-    let name: String
-    let aliases: [String]
-    let handler: String
-}
-
-private struct ToolAdapterRuleFile: Codable {
-    let version: Int
-    let rules: [ToolAdapterRule]
-}
-
-private final class ToolAdapterRuleBook {
-    static let shared = ToolAdapterRuleBook()
-
-    private let rules: [ToolAdapterRule]
-    private let aliasToName: [String: String]
-
-    private init() {
-        let resolved = Self.loadRules()
-        rules = resolved
-
-        var map: [String: String] = [:]
-        for rule in resolved {
-            map[rule.name] = rule.name
-            for alias in rule.aliases {
-                map[alias] = rule.name
-            }
-        }
-        aliasToName = map
-    }
-
-    func canonicalName(for input: String) -> String? {
-        let key = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        return aliasToName[key]
-    }
-
-    func rule(for input: String) -> ToolAdapterRule? {
-        guard let name = canonicalName(for: input) else { return nil }
-        return rules.first { $0.name == name }
-    }
-
-    private static func loadRules() -> [ToolAdapterRule] {
-        do {
-            let url = try ensureRulesFile()
-            let data = try Data(contentsOf: url)
-            let decoded = try JSONDecoder().decode(ToolAdapterRuleFile.self, from: data)
-            guard !decoded.rules.isEmpty else { return defaultRules }
-            return decoded.rules
-        } catch {
-            return defaultRules
-        }
-    }
-
-    private static func ensureRulesFile() throws -> URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let dir = base.appendingPathComponent("DeadlinerAI", isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-
-        let fileURL = dir.appendingPathComponent("tool_adapter_rules.json", isDirectory: false)
-        if !FileManager.default.fileExists(atPath: fileURL.path) {
-            let data = try JSONEncoder().encode(ToolAdapterRuleFile(version: 1, rules: defaultRules))
-            try data.write(to: fileURL, options: .atomic)
-        }
-        return fileURL
-    }
-
-    private static let defaultRules: [ToolAdapterRule] = [
-        .init(name: "read_tasks", aliases: ["readTasks", "ReadTaskContext"], handler: "read_tasks"),
-        .init(name: "create_task", aliases: ["createTask"], handler: "create_task"),
-        .init(name: "update_deadline", aliases: ["updateDeadline"], handler: "update_deadline"),
-        .init(name: "read_habits", aliases: ["readHabits", "ReadHabitContext"], handler: "read_habits"),
-        .init(name: "create_habit", aliases: ["createHabit"], handler: "create_habit")
-    ]
 }

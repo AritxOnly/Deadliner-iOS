@@ -9,17 +9,27 @@ import SwiftUI
 
 struct CategoryContentDetailView: View {
     let category: TaskCategory
-    let activeTasks: [DDLItem]
-    let activeHabits: [Habit]
-    let archivedTasks: [DDLItem]
-    let archivedHabits: [Habit]
+    let sourceActiveTasks: [DDLItem]
+    let sourceActiveHabits: [Habit]
+    let sourceArchivedTasks: [DDLItem]
+    let sourceArchivedHabits: [Habit]
     let habitStatusMap: [String: HabitWithDailyStatus]
     let categoryMap: [String: TaskCategory]
     let taskActions: SearchTaskActions
     let habitActions: SearchHabitActions
-    @Binding var usesLocalAtmosphere: Bool
 
     @State private var overlayProgress: CGFloat = 0
+    @State private var isContentReady = false
+    @State private var activeTasks: [DDLItem] = []
+    @State private var activeHabits: [Habit] = []
+    @State private var archivedTasks: [DDLItem] = []
+    @State private var archivedHabits: [Habit] = []
+    @State private var visibleActiveTaskCount = 12
+    @State private var visibleActiveHabitCount = 12
+    @State private var visibleArchivedTaskCount = 12
+    @State private var visibleArchivedHabitCount = 12
+
+    private let pageSize = 12
 
     private var badge: CategoryBadgeModel {
         CategoryBadgeModel(category: category)
@@ -29,33 +39,103 @@ struct CategoryContentDetailView: View {
         !activeTasks.isEmpty || !activeHabits.isEmpty || !archivedTasks.isEmpty || !archivedHabits.isEmpty
     }
 
+    private var visibleActiveTasks: ArraySlice<DDLItem> {
+        activeTasks.prefix(visibleActiveTaskCount)
+    }
+
+    private var visibleActiveHabits: ArraySlice<Habit> {
+        activeHabits.prefix(visibleActiveHabitCount)
+    }
+
+    private var visibleArchivedTasks: ArraySlice<DDLItem> {
+        archivedTasks.prefix(visibleArchivedTaskCount)
+    }
+
+    private var visibleArchivedHabits: ArraySlice<Habit> {
+        archivedHabits.prefix(visibleArchivedHabitCount)
+    }
+
+    @ViewBuilder
     var body: some View {
+        if isContentReady {
+            contentList
+        } else {
+            categoryShell
+        }
+    }
+
+    private var categoryShell: some View {
+        VStack(spacing: 14) {
+            ProgressView()
+                .controlSize(.large)
+            Text("正在打开分类…")
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+        .navigationTitle(category.name)
+        .navigationBarTitleDisplayMode(.large)
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .onAppear {
+            beginContentLoad()
+        }
+    }
+
+    private var contentList: some View {
         List {
             if !activeTasks.isEmpty {
                 sectionTitleRow("任务", systemImage: "checklist", topPadding: 16)
-                ForEach(activeTasks) { task in
+                ForEach(visibleActiveTasks) { task in
                     activeTaskRow(task)
+                }
+                loadMoreRow(
+                    visibleCount: visibleActiveTaskCount,
+                    totalCount: activeTasks.count,
+                    title: "显示更多任务"
+                ) {
+                    visibleActiveTaskCount += pageSize
                 }
             }
 
             if !activeHabits.isEmpty {
                 sectionTitleRow("习惯", systemImage: "leaf", topPadding: 16)
-                ForEach(activeHabits) { habit in
+                ForEach(visibleActiveHabits) { habit in
                     activeHabitRow(habit)
+                }
+                loadMoreRow(
+                    visibleCount: visibleActiveHabitCount,
+                    totalCount: activeHabits.count,
+                    title: "显示更多习惯"
+                ) {
+                    visibleActiveHabitCount += pageSize
                 }
             }
 
             if !archivedTasks.isEmpty {
                 sectionTitleRow("归档任务", systemImage: "archivebox", topPadding: 16)
-                ForEach(archivedTasks) { task in
+                ForEach(visibleArchivedTasks) { task in
                     archivedTaskRow(task)
+                }
+                loadMoreRow(
+                    visibleCount: visibleArchivedTaskCount,
+                    totalCount: archivedTasks.count,
+                    title: "显示更多归档任务"
+                ) {
+                    visibleArchivedTaskCount += pageSize
                 }
             }
 
             if !archivedHabits.isEmpty {
                 sectionTitleRow("归档习惯", systemImage: "archivebox.fill", topPadding: 16)
-                ForEach(archivedHabits) { habit in
+                ForEach(visibleArchivedHabits) { habit in
                     archivedHabitRow(habit)
+                }
+                loadMoreRow(
+                    visibleCount: visibleArchivedHabitCount,
+                    totalCount: archivedHabits.count,
+                    title: "显示更多归档习惯"
+                ) {
+                    visibleArchivedHabitCount += pageSize
                 }
             }
 
@@ -83,16 +163,42 @@ struct CategoryContentDetailView: View {
         .navigationTitle(category.name)
         .navigationBarTitleDisplayMode(.large)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .onAppear {
-            usesLocalAtmosphere = true
-        }
-        .onDisappear {
-            usesLocalAtmosphere = false
-        }
         .onScrollGeometryChange(for: CGFloat.self) { geo in
             max(0, geo.contentOffset.y + geo.contentInsets.top)
         } action: { _, newValue in
             overlayProgress = min(max(newValue / 120, 0), 1)
+        }
+    }
+
+    private func beginContentLoad() {
+        AppLog.event(
+            "browse.category.shell.appeared",
+            domain: .ui,
+            context: ["uid": category.uid]
+        )
+        Task { @MainActor in
+            // Deliberately leave one visible shell frame between route
+            // resolution and content construction to isolate navigation from
+            // the category's complex list rendering.
+            try? await Task.sleep(for: .milliseconds(750))
+            guard !Task.isCancelled else { return }
+
+            activeTasks = sourceActiveTasks.filter { $0.categoryUID == category.uid }
+            activeHabits = sourceActiveHabits.filter { $0.categoryUID == category.uid }
+            archivedTasks = sourceArchivedTasks.filter { $0.categoryUID == category.uid }
+            archivedHabits = sourceArchivedHabits.filter { $0.categoryUID == category.uid }
+            AppLog.event(
+                "browse.category.content.begin",
+                domain: .ui,
+                context: [
+                    "uid": category.uid,
+                    "activeTasks": "\(activeTasks.count)",
+                    "activeHabits": "\(activeHabits.count)",
+                    "archivedTasks": "\(archivedTasks.count)",
+                    "archivedHabits": "\(archivedHabits.count)"
+                ]
+            )
+            isContentReady = true
         }
     }
 
@@ -111,6 +217,26 @@ struct CategoryContentDetailView: View {
         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
+    }
+
+    @ViewBuilder
+    private func loadMoreRow(
+        visibleCount: Int,
+        totalCount: Int,
+        title: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        if visibleCount < totalCount {
+            Button(action: action) {
+                Text("\(title)（剩余 \(totalCount - visibleCount) 项）")
+                    .font(.subheadline.weight(.medium))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+        }
     }
 
     private func activeTaskRow(_ item: DDLItem) -> some View {

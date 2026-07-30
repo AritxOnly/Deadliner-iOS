@@ -151,10 +151,13 @@ enum AIToolPresentation {
 
     static func shouldAutoApproveToolRequest(_ req: AIToolRequest) -> Bool {
         let mode = (req.executionMode ?? "").uppercased()
+        let normalized = ToolCallExecutor.shared.normalizeToolName(req.tool)
         if mode == "AUTO" {
             return true
         }
-        let normalized = ToolCallExecutor.shared.normalizeToolName(req.tool)
+        // Keep the established LiFi interaction: create tools are executed
+        // immediately, while `silent_task_add` decides whether the proposals
+        // are persisted or merely shown as cards.
         return normalized == "create_task" || normalized == "create_habit"
     }
 }

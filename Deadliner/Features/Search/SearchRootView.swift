@@ -436,15 +436,14 @@ struct RichSearchTabView: View {
         if let category = categoryMap[uid] {
             CategoryContentDetailView(
                 category: category,
-                activeTasks: activeTasks.filter { $0.categoryUID == uid },
-                activeHabits: activeHabits.filter { $0.categoryUID == uid },
-                archivedTasks: archivedTasks.filter { $0.categoryUID == uid },
-                archivedHabits: archivedHabits.filter { $0.categoryUID == uid },
+                sourceActiveTasks: activeTasks,
+                sourceActiveHabits: activeHabits,
+                sourceArchivedTasks: archivedTasks,
+                sourceArchivedHabits: archivedHabits,
                 habitStatusMap: habitStatusMap,
                 categoryMap: categoryMap,
                 taskActions: taskActions,
-                habitActions: habitActions,
-                usesLocalAtmosphere: $usesLocalAtmosphere
+                habitActions: habitActions
             )
         } else {
             ContentUnavailableView("分类不存在", systemImage: "tag.slash", description: Text("这个分类可能已被删除。"))

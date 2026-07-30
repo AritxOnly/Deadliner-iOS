@@ -203,31 +203,7 @@ struct OverviewView: View {
         .background(Color(UIColor.systemBackground))
     }
 
-    private var segmentedControl: some View {
-//        HStack {
-//            Picker("", selection: $selectedTabIndex) {
-//                Text("总览").tag(0)
-//                Text("趋势").tag(1)
-//                Text("上月").tag(2)
-//            }
-//            .pickerStyle(.segmented)
-//            .textCase(nil)
-//            .padding(EdgeInsets(top: 0, leading: 0, bottom: 1, trailing: 0))
-//        }
-//        .glassEffect()
-//        .clipShape(Capsule())
-//        .padding(
-//            EdgeInsets(
-//                top: RichCompactLayout.headerTopPadding(
-//                    enabled: compactLayoutEnabled,
-//                    progress: effectiveCompactProgress
-//                ),
-//                leading: 12,
-//                bottom: 4,
-//                trailing: 12
-//            )
-//        )
-        
+    private var segmentedPicker: some View {
         Picker("", selection: $selectedTabIndex) {
             Text("总览").tag(0)
             Text("趋势").tag(1)
@@ -235,6 +211,10 @@ struct OverviewView: View {
         }
         .pickerStyle(.segmented)
         .textCase(nil)
+    }
+
+    private var segmentedControl: some View {
+        segmentedPicker
         .glassEffect()
         .padding(
             EdgeInsets(

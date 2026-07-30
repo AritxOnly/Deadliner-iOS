@@ -15,8 +15,12 @@ final class CaptureStore: ObservableObject {
     @Published private(set) var items: [CaptureInboxItem] = []
 
     private let storageKey = "capture.inbox.items"
-    private let migrationKey = "persistence.kmp.capture-import-v1"
+    // v3 replays the idempotent merge for upgrades previously marked complete
+    // before the legacy defaults reader was repaired. Existing KMP captures
+    // are preserved because the importer only creates missing UIDs.
+    private let migrationKey = "persistence.kmp.capture-import-v3"
     private let decoder = JSONDecoder()
+    private var bootstrapTask: _Concurrency.Task<Void, Never>?
 
     init() {
         let shouldImportLegacy = !UserDefaults.standard.bool(forKey: migrationKey)
@@ -26,10 +30,16 @@ final class CaptureStore: ObservableObject {
             "[KMP][Capture] bootstrap marker=\(shouldImportLegacy ? "missing" : "present") "
                 + "legacyItems=\(legacySnapshot.count) importItems=\(legacyItems.count)"
         )
-        Task { [weak self] in
+        bootstrapTask = _Concurrency.Task { [weak self] in
             guard let self else { return }
             do {
+                let beforeImport = try await PersistenceStores.captures.unconsumedItems().count
                 try await PersistenceStores.captures.importLegacyCaptures(legacyItems)
+                let afterImport = try await PersistenceStores.captures.unconsumedItems().count
+                SyncDebugLog.log(
+                    "[KMP][Capture] legacy import source=\(legacyItems.count) "
+                        + "before=\(beforeImport) after=\(afterImport)"
+                )
                 if shouldImportLegacy {
                     UserDefaults.standard.set(true, forKey: migrationKey)
                 }
@@ -42,6 +52,12 @@ final class CaptureStore: ObservableObject {
                 print("CaptureStore KMP bootstrap failed: \(error)")
             }
         }
+    }
+
+    /// Used at launch so an upgraded installation repairs its capture data
+    /// before a Watch or a lazily-created inspiration tab reads an empty list.
+    func ensureKMPMigration() async {
+        await bootstrapTask?.value
     }
 
     func addItem(text: String) {
@@ -129,16 +145,26 @@ final class CaptureStore: ObservableObject {
 
     private static func loadLegacyItems(storageKey: String, decoder: JSONDecoder) -> [CaptureInboxItem] {
         let stores = [
-            UserDefaults(suiteName: SharedModelContainer.appGroupId),
+            UserDefaults(suiteName: KMPSharedDatabaseLocation.appGroupID),
             UserDefaults.standard,
         ]
+
+        var itemsByUID: [String: CaptureInboxItem] = [:]
         for defaults in stores {
             guard let data = defaults?.data(forKey: storageKey),
                   let items = try? decoder.decode([CaptureInboxItem].self, from: data) else {
                 continue
             }
-            return items
+            for item in items {
+                guard let existing = itemsByUID[item.uid] else {
+                    itemsByUID[item.uid] = item
+                    continue
+                }
+                if item.updatedAt > existing.updatedAt {
+                    itemsByUID[item.uid] = item
+                }
+            }
         }
-        return []
+        return itemsByUID.values.sorted { $0.updatedAt > $1.updatedAt }
     }
 }

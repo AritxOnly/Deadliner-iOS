@@ -110,7 +110,7 @@ enum KMPWidgetSnapshotReader {
 
     private static func taskProjection(_ task: Task_) -> DDLItem {
         DDLItem(
-            id: stableLegacyProjectionID(for: task.uid),
+            id: task.uid,
             name: task.title,
             startTime: task.startAt ?? "",
             endTime: task.dueAt ?? "",
@@ -232,10 +232,4 @@ enum KMPWidgetSnapshotReader {
         return formatter.string(from: date)
     }
 
-    private static func stableLegacyProjectionID(for uid: String) -> Int64 {
-        let hash = uid.utf8.reduce(UInt64(1_469_598_103_934_665_603)) { partial, byte in
-            (partial ^ UInt64(byte)) &* 1_099_511_628_211
-        }
-        return Int64(hash & 0x7FFF_FFFF_FFFF_FFFF)
-    }
 }

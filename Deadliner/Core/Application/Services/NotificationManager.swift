@@ -66,11 +66,11 @@ class NotificationManager {
         }
     }
     
-    func cancelTaskNotification(for itemId: Int64) {
+    func cancelTaskNotification(for itemId: String) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [taskIdentifier(for: itemId)])
     }
     
-    private func taskIdentifier(for id: Int64) -> String {
+    private func taskIdentifier(for id: String) -> String {
         return "TASK_\(id)"
     }
 

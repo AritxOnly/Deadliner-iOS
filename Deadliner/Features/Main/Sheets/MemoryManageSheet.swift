@@ -25,14 +25,6 @@ struct MemoryManageSheet: View {
 
     @State private var showClearAllConfirm = false
 
-    @MainActor
-    private func syncMemoryBankToCore() {
-        let snapshotJson = memoryBank.exportSnapshotJson()
-        Task {
-            await DeadlinerCoreBridge.shared.replaceMemorySnapshot(snapshotJson)
-        }
-    }
-
     var body: some View {
         NavigationStack {
             List {
@@ -63,7 +55,6 @@ struct MemoryManageSheet: View {
             ) {
                 Button("清空全部", role: .destructive) {
                     memoryBank.clearAllMemories()
-                    syncMemoryBankToCore()
                 }
                 Button("取消", role: .cancel) {}
             } message: {
@@ -113,7 +104,6 @@ extension MemoryManageSheet {
                         // 允许清空
                         memoryBank.setUserProfileAllowEmpty(draftProfile)
                         isEditingProfile = false
-                        syncMemoryBankToCore()
                     }
                     .fontWeight(.semibold)
                     .buttonStyle(.glassProminent)
@@ -179,7 +169,6 @@ extension MemoryManageSheet {
 
                             Button("删除") {
                                 memoryBank.deleteFragment(id: frag.id)
-                                syncMemoryBankToCore()
                             }
                             .font(.footnote.weight(.semibold))
                             .foregroundColor(.red)
@@ -196,7 +185,6 @@ extension MemoryManageSheet {
                     for id in ids {
                         memoryBank.deleteFragment(id: id)
                     }
-                    syncMemoryBankToCore()
                 }
             }
         } header: {
@@ -273,7 +261,6 @@ extension MemoryManageSheet {
         if content.isEmpty {
             // 空内容视为删除
             memoryBank.deleteFragment(id: original.id)
-            syncMemoryBankToCore()
             return
         }
 
@@ -286,7 +273,6 @@ extension MemoryManageSheet {
             importance: fragDraftImportance
         )
         memoryBank.upsertFragment(updated)
-        syncMemoryBankToCore()
     }
 
     private func handleFragmentEditorDismiss() {
@@ -300,7 +286,6 @@ extension MemoryManageSheet {
         guard !stillExists else { return }
 
         memoryBank.upsertFragment(original)
-        syncMemoryBankToCore()
     }
 
     private func formatDate(_ d: Date) -> String {

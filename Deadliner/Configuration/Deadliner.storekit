@@ -1,4 +1,14 @@
 {
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
   "identifier" : "E0F37D7E",
   "nonRenewingSubscriptions" : [
 
@@ -12,7 +22,7 @@
         {
           "description" : "解锁所有极客版专属高级功能",
           "displayName" : "极客版永久解锁",
-          "locale" : "zh_CN"
+          "locale" : "zh_Hans"
         },
         {
           "description" : "Unlock all premium Geek features forever",
@@ -27,62 +37,64 @@
   ],
   "settings" : {
     "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_disableDialogs" : false,
     "_failTransactionsEnabled" : false,
-    "_locale" : "zh_CN",
+    "_locale" : "zh_Hans",
+    "_renewalBillingIssuesEnabled" : false,
     "_storefront" : "CHN",
     "_storeKitErrors" : [
       {
-        "current" : null,
         "enabled" : false,
         "name" : "Load Products"
       },
       {
-        "current" : null,
         "enabled" : false,
         "name" : "Purchase"
       },
       {
-        "current" : null,
         "enabled" : false,
         "name" : "Verification"
       },
       {
-        "current" : null,
         "enabled" : false,
         "name" : "App Store Sync"
       },
       {
-        "current" : null,
         "enabled" : false,
         "name" : "Subscription Status"
       },
       {
-        "current" : null,
         "enabled" : false,
         "name" : "App Transaction"
       },
       {
-        "current" : null,
         "enabled" : false,
         "name" : "Manage Subscriptions Sheet"
       },
       {
-        "current" : null,
         "enabled" : false,
         "name" : "Refund Request Sheet"
       },
       {
-        "current" : null,
         "enabled" : false,
         "name" : "Offer Code Redeem Sheet"
       }
-    ]
+    ],
+    "_timeRate" : 0
   },
+  "subscriptionBundleGroups" : [
+
+  ],
   "subscriptionGroups" : [
 
   ],
+  "subscriptionSuiteGroups" : [
+
+  ],
   "version" : {
-    "major" : 3,
-    "minor" : 0
+    "major" : 6,
+    "minor" : 3
   }
 }

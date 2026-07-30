@@ -101,7 +101,8 @@ struct RichHomeTabView: View {
             .scaledToFill()
             .frame(width: 42, height: 42)
             .clipShape(Circle())
-            .overlay(Circle().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5))
+            .glassEffect(.regular.interactive(), in: Circle())
+//            .overlay(Circle().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5))
             .contentShape(Circle())
         }
         .accessibilityLabel("用户与设置")

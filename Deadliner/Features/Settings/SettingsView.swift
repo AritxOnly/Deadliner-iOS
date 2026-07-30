@@ -23,6 +23,9 @@ struct SettingsView: View {
     @State private var animateRows = false
     @State private var versionTapCount = 0
     @State private var showGuideUnlockedAlert = false
+    @State private var showLogShare = false
+    @State private var logURL: URL?
+    @State private var showLogClearedAlert = false
 
     var body: some View {
         List {
@@ -135,14 +138,6 @@ struct SettingsView: View {
                 .settingsRowEntrance(isVisible: animateRows, index: 3)
             }
 
-            Section("数据迁移") {
-                Label("数据源：KMP", systemImage: "externaldrive.fill.badge.checkmark")
-                    .foregroundStyle(.green)
-                Text("旧版 SwiftData 数据仅会在首次启动时读取并迁移；迁移完成后不会再作为运行时数据源。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
             // MARK: - 4. 效率引擎
             Section("效率引擎") {
                 NavigationLink(destination: AISettingsView()) {
@@ -218,6 +213,33 @@ struct SettingsView: View {
                 .settingsRowEntrance(isVisible: animateRows, index: 8)
             }
 
+            Section {
+                Button("导出标准应用日志") {
+                    Task {
+                        logURL = await AppLog.exportURL(format: .standard)
+                        showLogShare = true
+                    }
+                }
+
+                Button("导出 JSON 应用日志") {
+                    Task {
+                        logURL = await AppLog.exportURL(format: .json)
+                        showLogShare = true
+                    }
+                }
+
+                Button("清空应用日志", role: .destructive) {
+                    Task {
+                        try? await AppLog.clear()
+                        showLogClearedAlert = true
+                    }
+                }
+            } header: {
+                Text("日志与诊断")
+            } footer: {
+                Text("标准日志格式为 [时间][KMP/Native][模块] 内容；也可导出 JSON。日志跨重启保留最多 14 天或 8 MiB。")
+            }
+
             // MARK: - 6. 其他
             Section("关于") {
                 Button {
@@ -263,6 +285,14 @@ struct SettingsView: View {
         .sheet(isPresented: $showProPaywall) {
             ProPaywallView()
                 .presentationDetents([.large])
+        }
+        .sheet(isPresented: $showLogShare) {
+            if let logURL {
+                ActivityView(activityItems: [logURL])
+            }
+        }
+        .alert("应用日志已清空", isPresented: $showLogClearedAlert) {
+            Button("好的", role: .cancel) {}
         }
         .task {
             guard !animateRows else { return }

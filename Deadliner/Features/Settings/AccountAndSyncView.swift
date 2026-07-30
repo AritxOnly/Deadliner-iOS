@@ -26,8 +26,6 @@ struct AccountAndSyncView: View {
     @State private var showMessage = false
     
     @State private var showPaywall = false
-    @State private var showLogShare = false
-    @State private var logURL: URL?
 
     private var iCloudAvailable: Bool {
         userTier != .free
@@ -64,7 +62,7 @@ struct AccountAndSyncView: View {
                 Text("同步方式")
             } footer: {
                 Text(iCloudAvailable
-                     ? "iCloud 与 WebDAV 不能同时开启。切换同步方式后，需要重启 App 才会完全生效。"
+                     ? "iCloud 与 WebDAV 是单选同步提供方；两者都使用当前选择的 KMP 同步协议。"
                      : "当前可使用 WebDAV。升级 Geek 后可切换到 iCloud 无缝同步。")
             }
 
@@ -100,11 +98,9 @@ struct AccountAndSyncView: View {
                 Text("KMP 同步协议")
             } footer: {
                 Text(webDAVSyncProtocol == .v2Compatibility
-                     ? "本地数据始终来自 KMP；继续与 Android、HarmonyOS 的 V2 快照文件同步。"
+                     ? "本地数据始终来自 KMP；WebDAV 和 iCloud 都使用兼容的 V2 快照文件。"
                      : "实验性原生 KMP 变更日志。切换后只与同样启用该协议的设备同步。")
             }
-            .disabled(syncProvider != .webDAV)
-            .opacity(syncProvider == .webDAV ? 1 : 0.45)
 
             Section {
                 HStack {
@@ -123,8 +119,8 @@ struct AccountAndSyncView: View {
             } footer: {
                 Text(iCloudAvailable
                      ? (syncProvider == .iCloud
-                        ? "当前已使用 iCloud 作为唯一云同步方式，WebDAV 不会同时运行。"
-                        : "切换到 iCloud 后，将停用 WebDAV 同步引擎并改用系统原生云同步。")
+                        ? "当前通过 iCloud Drive 同步 KMP 数据；WebDAV 不会同时运行。"
+                        : "切换到 iCloud 后，将使用系统 iCloud Drive provider 和当前 KMP 同步协议。")
                      : "Geek 可解锁 iCloud 无缝同步。")
             }
             
@@ -135,42 +131,13 @@ struct AccountAndSyncView: View {
                     if isSaving {
                         ProgressView().frame(maxWidth: .infinity)
                     } else {
-                        Text("保存 WebDAV 配置")
+                        Text("保存云同步设置")
                             .frame(maxWidth: .infinity)
                     }
                 }
                 .disabled(isSaving || isLoading)
             }
 
-            Section {
-                Button("导出同步日志") {
-                    Task {
-                        logURL = await SyncDebugLog.exportURL()
-                        showLogShare = true
-                    }
-                }
-
-                Button("清空同步日志", role: .destructive) {
-                    Task {
-                        try? await SyncDebugLog.clear()
-                        message = "同步日志已清空"
-                        showMessage = true
-                    }
-                }
-
-                if let logURL {
-                    HStack {
-                        Text("日志文件")
-                        Spacer()
-                        Text(logURL.lastPathComponent)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            } header: {
-                Text("同步日志")
-            } footer: {
-                Text("问题出现后，导出 `deadliner-sync.log` 并反馈。")
-            }
         }
         .deadlinerScrollEdgeEffect(forceImmersive: false)
         .deadlinerContainerSystemBackground()
@@ -200,11 +167,6 @@ struct AccountAndSyncView: View {
         }
         .sheet(isPresented: $showPaywall) {
             ProPaywallView().presentationDetents([.large])
-        }
-        .sheet(isPresented: $showLogShare) {
-            if let logURL {
-                ActivityView(activityItems: [logURL])
-            }
         }
         .alert("提示", isPresented: $showMessage) {
             Button("确定", role: .cancel) {}
@@ -254,7 +216,7 @@ struct AccountAndSyncView: View {
         await LocalValues.shared.setWebDAVURL(trimmedURL.isEmpty ? nil : trimmedURL)
         await LocalValues.shared.setWebDAVAuth(user: webdavUser, pass: webdavPass)
 
-        message = "WebDAV 配置已保存"
+        message = syncProvider == .iCloud ? "iCloud 同步已启用" : "WebDAV 配置已保存"
         showMessage = true
     }
 

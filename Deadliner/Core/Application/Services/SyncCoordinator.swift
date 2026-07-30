@@ -38,16 +38,32 @@ actor SyncCoordinator {
     }
 
     private func makeSyncService() async -> (any SyncService)? {
-        guard await syncProvider() == .webDAV else { return nil }
-        guard let cfg = await webDAVConfig() else { return nil }
-        let web = WebDAVClient(baseURL: cfg.url, username: cfg.user, password: cfg.pass)
         #if canImport(Shared)
         let database = await KMPPersistenceRuntime.shared.coreDatabase()
-        switch await LocalValues.shared.getWebDAVSyncProtocol() {
-        case .v2Compatibility:
-            return KMPV2WebDAVSyncService(database: database, web: web)
-        case .kmpChangeLog:
-            return KMPWebDAVSyncService(database: database, web: web)
+        let provider = await syncProvider()
+        let protocolVersion = await LocalValues.shared.getWebDAVSyncProtocol()
+        switch provider {
+        case .webDAV:
+            guard let cfg = await webDAVConfig() else { return nil }
+            return KMPCloudSyncService(
+                database: database,
+                protocolVersion: protocolVersion,
+                provider: .webDAV(
+                    url: cfg.url,
+                    username: cfg.user,
+                    password: cfg.pass
+                )
+            )
+        case .iCloud:
+            #if canImport(CryptoKit)
+            return KMPCloudSyncService(
+                database: database,
+                protocolVersion: protocolVersion,
+                provider: .iCloud
+            )
+            #else
+            return nil
+            #endif
         }
         #else
         return nil
@@ -64,8 +80,11 @@ actor SyncCoordinator {
         syncDebounceTask?.cancel()
         syncDebounceTask = nil
 
-        guard await cloudSyncEnabled() else { return }
-        guard await syncProvider() == .webDAV else { return }
+        guard await cloudSyncEnabled() else {
+            AppLog.event("sync.schedule.skipped", domain: .sync, level: .debug, context: ["reason": "disabled"])
+            return
+        }
+        AppLog.event("sync.scheduled", domain: .sync)
 
         syncDebounceTask = Task { [weak self] in
             guard let self else { return }
@@ -82,10 +101,12 @@ actor SyncCoordinator {
         syncDebounceTask?.cancel()
         syncDebounceTask = nil
 
-        guard await cloudSyncEnabled() else { return false }
-        guard await syncProvider() == .webDAV else { return true }
-
+        guard await cloudSyncEnabled() else {
+            AppLog.event("sync.manual.skipped", domain: .sync, level: .warning, context: ["reason": "disabled"])
+            return false
+        }
         if isSyncing {
+            AppLog.event("sync.manual.skipped", domain: .sync, level: .warning, context: ["reason": "already-running"])
             return false
         }
 
@@ -94,8 +115,24 @@ actor SyncCoordinator {
             isSyncing = false
         }
 
-        guard let syncService = await makeSyncService() else { return false }
+        guard let syncService = await makeSyncService() else {
+            AppLog.event("sync.manual.skipped", domain: .sync, level: .error, context: ["reason": "service-unavailable"])
+            return false
+        }
+        let startedAt = Date()
+        AppLog.event("sync.started", domain: .sync, context: ["trigger": "manual"])
         let result = await syncService.syncOnce()
+        AppLog.event(
+            "sync.finished",
+            domain: .sync,
+            level: result.success ? .info : .error,
+            context: [
+                "trigger": "manual",
+                "success": "\(result.success)",
+                "localChanges": "\(result.hasLocalChanges)",
+                "durationMs": "\(Int(Date().timeIntervalSince(startedAt) * 1_000))"
+            ]
+        )
 
         if result.hasLocalChanges {
             await handleLocalChanges()
@@ -108,13 +145,20 @@ actor SyncCoordinator {
         return result.success
     }
 
+    /// iCloud Drive changes are materialized as coordinated files, not as a
+    /// SwiftData/CloudKit callback. Pull once when the app becomes active so a
+    /// remote device's uploaded KMP snapshot is merged without user action.
+    func syncICloudOnForegroundIfNeeded() async {
+        guard await cloudSyncEnabled(), await syncProvider() == .iCloud else { return }
+        _ = await syncNow()
+    }
+
     private func performSync() async {
         if await inBasicMode() { return }
         guard await cloudSyncEnabled() else { return }
-        guard await syncProvider() == .webDAV else { return }
-
         if isSyncing {
             hasPendingSync = true
+            AppLog.event("sync.deferred", domain: .sync, level: .debug, context: ["reason": "already-running"])
             return
         }
 
@@ -125,8 +169,24 @@ actor SyncCoordinator {
             isSyncing = false
         }
 
-        guard let syncService = await makeSyncService() else { return }
+        guard let syncService = await makeSyncService() else {
+            AppLog.event("sync.skipped", domain: .sync, level: .error, context: ["reason": "service-unavailable"])
+            return
+        }
+        let startedAt = Date()
+        AppLog.event("sync.started", domain: .sync, context: ["trigger": "scheduled"])
         let result = await syncService.syncOnce()
+        AppLog.event(
+            "sync.finished",
+            domain: .sync,
+            level: result.success ? .info : .error,
+            context: [
+                "trigger": "scheduled",
+                "success": "\(result.success)",
+                "localChanges": "\(result.hasLocalChanges)",
+                "durationMs": "\(Int(Date().timeIntervalSince(startedAt) * 1_000))"
+            ]
+        )
 
         if result.hasLocalChanges {
             await handleLocalChanges()
@@ -138,6 +198,7 @@ actor SyncCoordinator {
     }
 
     private func handleLocalChanges() async {
+        AppLog.event("sync.apply-local-changes", domain: .sync)
         await publishDataChanged()
         WidgetCenter.shared.reloadAllTimelines()
         ControlCenter.shared.reloadControls(ofKind: Self.taskStatusControlKind)

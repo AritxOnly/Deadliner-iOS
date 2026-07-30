@@ -7,7 +7,7 @@ extension DDLItem {
         let fmt = DateFormatter()
         fmt.dateFormat = "yyyy-MM-dd HH:mm:ss"
         return DDLItem(
-            id: -1,
+            id: "widget-mock-task",
             name: "完成项目演示文档",
             startTime: "",
             endTime: fmt.string(from: end),

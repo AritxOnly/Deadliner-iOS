@@ -8,12 +8,6 @@ import Foundation
 
 public enum SharedModelContainer {
     public static let appGroupId = "group.top.aritxonly.deadliner.group"
-    public static let iCloudContainerId = "iCloud.top.aritxonly.deadliner"
-
-    private static let cloudSyncEnabledKey = "settings.cloud_sync_enabled"
-    private static let syncProviderKey = "settings.sync_provider"
-    private static let iCloudSyncProviderRawValue = "icloud"
-
     // Production must surface a persistent-store failure. Otherwise users see
     // an empty, disposable database and assume their data was deleted.
     private static var allowsEphemeralFallback: Bool {
@@ -23,31 +17,21 @@ public enum SharedModelContainer {
             || environment["DEADLINER_ALLOW_INMEMORY_FALLBACK"] == "1"
     }
 
-    private static var shouldUseICloudSync: Bool {
-        let defaults = UserDefaults.standard
-        let cloudSyncEnabled = defaults.object(forKey: cloudSyncEnabledKey) as? Bool ?? true
-        let rawProvider = defaults.string(forKey: syncProviderKey) ?? "webdav"
-        guard cloudSyncEnabled && rawProvider == iCloudSyncProviderRawValue else {
-            return false
-        }
-
-        // Avoid triggering a system Apple ID sign-in prompt on launch when iCloud is not signed in.
-        // Only initialize CloudKit-backed store when an iCloud identity is already available.
-        return FileManager.default.ubiquityIdentityToken != nil
+    /// This source is compiled by the App, Widget, and Watch targets.
+    /// `print` is captured by the main app's unified stdout logger, while
+    /// remaining valid for extension targets that do not link that logger.
+    private static func log(_ message: String, isError: Bool) {
+        print("[SharedModelContainer] \(isError ? "ERROR" : "WARNING"): \(message)")
     }
 
-    private static func makeConfiguration(
-        schema: Schema,
-        cloudKitDatabase: ModelConfiguration.CloudKitDatabase,
-        isStoredInMemoryOnly: Bool = false
-    ) -> ModelConfiguration {
+    private static func makeConfiguration(schema: Schema, isStoredInMemoryOnly: Bool = false) -> ModelConfiguration {
         if let groupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) {
             let sqliteURL = groupURL.appendingPathComponent("default.store")
             return ModelConfiguration(
                 "DeadlinerModel",
                 schema: schema,
                 url: sqliteURL,
-                cloudKitDatabase: cloudKitDatabase
+                cloudKitDatabase: .none
             )
         }
 
@@ -56,7 +40,7 @@ public enum SharedModelContainer {
             schema: schema,
             isStoredInMemoryOnly: isStoredInMemoryOnly,
             groupContainer: .none,
-            cloudKitDatabase: cloudKitDatabase
+            cloudKitDatabase: .none
         )
     }
 
@@ -70,42 +54,25 @@ public enum SharedModelContainer {
             SyncStateEntity.self
         ])
 
-        let useICloudSync = shouldUseICloudSync
-        let cloudKitDatabase: ModelConfiguration.CloudKitDatabase = useICloudSync
-            ? .private(iCloudContainerId)
-            : .none
-
         do {
-            let config = makeConfiguration(schema: schema, cloudKitDatabase: cloudKitDatabase)
+            let config = makeConfiguration(schema: schema)
             return try ModelContainer(for: schema, configurations: [config])
         } catch let firstError {
-            NSLog("[SharedModelContainer] Primary container init failed. useICloudSync=%{public}@, error=%{public}@",
-                  useICloudSync ? "true" : "false",
-                  String(describing: firstError))
-
-            if useICloudSync {
-                do {
-                    let fallbackConfig = makeConfiguration(schema: schema, cloudKitDatabase: .none)
-                    let fallback = try ModelContainer(for: schema, configurations: [fallbackConfig])
-                    NSLog("[SharedModelContainer] Fallback to local store succeeded; keeping user iCloud sync preference.")
-                    return fallback
-                } catch let fallbackError {
-                    NSLog("[SharedModelContainer] Local fallback init failed. error=%{public}@",
-                          String(describing: fallbackError))
-                }
-            }
+            log(
+                "Legacy migration container init failed. error=\(firstError)",
+                isError: true
+            )
 
             guard allowsEphemeralFallback else {
                 fatalError("Could not create persistent ModelContainer. firstError=\(firstError)")
             }
 
             do {
-                let memoryConfig = makeConfiguration(
-                    schema: schema,
-                    cloudKitDatabase: .none,
-                    isStoredInMemoryOnly: true
+                let memoryConfig = makeConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                log(
+                    "Using in-memory store for test or preview only.",
+                    isError: false
                 )
-                NSLog("[SharedModelContainer] Using in-memory store for test or preview only.")
                 return try ModelContainer(for: schema, configurations: [memoryConfig])
             } catch let memoryError {
                 fatalError("Could not create any ModelContainer. firstError=\(firstError), memoryError=\(memoryError)")

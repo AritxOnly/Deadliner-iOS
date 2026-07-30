@@ -154,6 +154,15 @@
         {
           "image-name" : "Base1_winter 2.png",
           "name" : "Base1_winter 2",
+          "opacity-specializations" : [
+            {
+              "value" : 0.65
+            },
+            {
+              "appearance" : "dark",
+              "value" : 0.95
+            }
+          ],
           "position" : {
             "scale" : 1.05,
             "translation-in-points" : [
@@ -173,7 +182,7 @@
         {
           "value" : {
             "kind" : "layer-color",
-            "opacity" : 1.2
+            "opacity" : 0.8
           }
         },
         {
@@ -185,10 +194,21 @@
         }
       ],
       "specular" : true,
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.2
-      }
+      "translucency-specializations" : [
+        {
+          "value" : {
+            "enabled" : true,
+            "value" : 0.05
+          }
+        },
+        {
+          "appearance" : "dark",
+          "value" : {
+            "enabled" : true,
+            "value" : 0.2
+          }
+        }
+      ]
     }
   ],
   "supported-platforms" : {

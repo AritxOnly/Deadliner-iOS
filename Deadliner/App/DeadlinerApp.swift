@@ -19,15 +19,13 @@ struct DeadlinerApp: App {
     @StateObject private var themeStore = ThemeStore()
     
     init() {
-        // Keep only logs for current app launch session.
-        AILog.clearForNewLaunchSession()
-        SyncDebugLog.clearForNewLaunchSession()
-        IconDebugLog.clearForNewLaunchSession()
+        // Persist structured diagnostic records across launches in the shared
+        // App Group, with bounded 14-day / 8 MiB retention.
+        AppLog.beginSession()
 
-        // Capture process stdout/stderr and mirror to AI log file without changing Rust side.
-        AIStdStreamCapture.shared.startIfNeeded()
-        AILog.log("[Session] New launch session started")
-        SyncDebugLog.log("[Session] New launch session started")
+        // Capture process stdout/stderr and mirror it to the unified log file.
+        AppStdStreamCapture.shared.startIfNeeded()
+        AppLog.event("app.launch", domain: .lifecycle)
         do {
             try KMPSharedDatabaseBootstrap.prepareIfNeeded()
         } catch {
@@ -47,7 +45,8 @@ struct DeadlinerApp: App {
                     _ = await KMPTaskHabitMigrationExperiment.adoptExistingStoreIfPresent()
 
                     do {
-                        try await DeadlinerCoreBridge.shared.initializeIfNeeded()
+                        try await KMPLifiCoreBridge.shared.initializeIfNeeded()
+                        await CaptureStore.shared.ensureKMPMigration()
                     } catch {
                         AILog.log("Core init failed on launch task: \(error.localizedDescription)")
                         SyncDebugLog.log("Core init failed on launch task: \(error.localizedDescription)")
@@ -94,13 +93,14 @@ struct DeadlinerApp: App {
                     await KMPTaskReminderScheduler.shared.scheduleRefresh()
                     await KMPHabitReminderScheduler.shared.scheduleRefresh()
                     await PhoneWatchSyncBridge.shared.pushLatestSnapshot(reason: "launchTask")
+                    await SyncCoordinator.shared.syncICloudOnForegroundIfNeeded()
                 }
                 .onAppear {
                     // 启动时也跑一次（有时不会立刻触发 scenePhase 变化）
                     applyAutoSeasonIconIfNeeded()
                     Task {
                         do {
-                            try await DeadlinerCoreBridge.shared.initializeIfNeeded()
+                            try await KMPLifiCoreBridge.shared.initializeIfNeeded()
                             await KMPTaskReminderScheduler.shared.scheduleRefresh()
                             await KMPHabitReminderScheduler.shared.scheduleRefresh()
                             await PhoneWatchSyncBridge.shared.pushLatestSnapshot(reason: "onAppear")
@@ -118,10 +118,11 @@ struct DeadlinerApp: App {
                     Task { await StoreManager.shared.refreshEntitlementsOnLaunch() }
                     Task {
                         do {
-                            try await DeadlinerCoreBridge.shared.initializeIfNeeded()
+                            try await KMPLifiCoreBridge.shared.initializeIfNeeded()
                             await KMPTaskReminderScheduler.shared.scheduleRefresh()
                             await KMPHabitReminderScheduler.shared.scheduleRefresh()
                             await PhoneWatchSyncBridge.shared.pushLatestSnapshot(reason: "sceneActive")
+                            await SyncCoordinator.shared.syncICloudOnForegroundIfNeeded()
                         } catch {
                             AILog.log("Core init failed on active: \(error.localizedDescription)")
                             SyncDebugLog.log("Core init failed on active: \(error.localizedDescription)")

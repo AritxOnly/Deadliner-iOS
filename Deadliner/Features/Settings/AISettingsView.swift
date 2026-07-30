@@ -120,10 +120,10 @@ struct AISettingsView: View {
         errorMessage = nil
         
         do {
-            try await AIService.shared.validateConfig(
+            try await KMPLifiCoreBridge.shared.validateConfiguration(
                 apiKey: apiKey,
-                baseUrl: baseUrl,
-                modelId: model
+                baseURL: baseUrl,
+                model: model
             )
             
             await LocalValues.shared.setAIApiKey(apiKey)
