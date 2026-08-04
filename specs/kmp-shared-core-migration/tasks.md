@@ -41,7 +41,7 @@
 - [x] 以 KMP Habit/Record store 驱动 Apple 习惯提醒，使用 UID notification identifiers，移除 App 生命周期与 SyncCoordinator 对 `HabitRepository` 的提醒读取；KMP Habit/Record 写入后会去抖刷新未来七天通知。
 - [ ] 实现只读 SwiftData -> KMP 全量 importer、私有 UID mapping、全字段校验和 bootstrap changelog 策略。
 - [ ] 将 SwiftUI、Watch bridge、AI、Widget/通知和 SyncCoordinator 改为 UID-first KMP ports。
-- [ ] 删除各 aggregate 的 SwiftData runtime adapter；观测期结束后删除 `PersistenceRuntime` legacy bootstrap。
+- [x] 删除各 aggregate 的 SwiftData runtime adapter；观测期结束后删除 `PersistenceRuntime` legacy bootstrap。
 - [ ] 替换 App `.modelContainer`、Home 查询、Watch board、App Intent 与同步服务，确认主 App target 零 `SwiftData` import。
 
 ## SwiftData 退役 TODO（按执行顺序）
@@ -61,7 +61,7 @@
 - [x] 5c. 防止 Watch 异步 transport 回写旧列表：只应用 `generatedAt` 单调递增的 snapshot，归档后的最新过滤结果不会被缓存或旧 reply 覆盖。
   - [ ] 4c-profile. Profile schema：定义独立 agent-context contract 后再迁移；不复用 `UserProfile.nickname`。
   - [ ] 4d. 对真实升级数据执行计数/字段校验、重启与 V2/KMP 原生同步回归。
-- [ ] 5. 退役：删除 feature-flag fallback、TaskRepository、HabitRepository、SharedModelContainer、SwiftData entities 与 `.modelContainer`；Importer 移至隔离迁移模块。
+- [x] 5. 退役：删除 feature-flag fallback、TaskRepository、HabitRepository、SharedModelContainer、SwiftData entities 与 `.modelContainer`；升级真机验证完成后移除 importer 与 migration report。
 
 ## 阶段 4：验证与回写
 
@@ -85,7 +85,7 @@
 
 ## 阶段 6：回写与退役
 
-- [ ] 观测期结束后清理旧 SwiftData Repository 和迁移开关。
+- [x] 观测期结束后清理旧 SwiftData Repository 和迁移开关。
 - [ ] 回写 docs、兼容矩阵、发布说明与残余风险。
 
 ## 验证记录

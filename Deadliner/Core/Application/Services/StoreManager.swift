@@ -11,7 +11,6 @@ import Combine
 import os
 
 private enum StoreReleaseGate {
-    // TODO: Turn this off before shipping the post-Rust public build.
     static let disableInAppPurchaseForCurrentRelease = false
 }
 

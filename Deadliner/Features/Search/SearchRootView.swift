@@ -464,10 +464,7 @@ struct RichSearchTabView: View {
 
         SyncDebugLog.log("[KMP][Browse] reload-start seq=\(sequence) showLoading=\(showLoading)")
 
-        _Concurrency.Task(priority: .utility) {
-            await KMPTaskHabitMigrationExperiment.ensureReadyForRuntime()
-        }
-        SyncDebugLog.log("[KMP][Browse] runtime-ready seq=\(sequence) kmpEnabled=\(KMPPersistenceFeatureFlags.canUseTaskHabitStore)")
+        SyncDebugLog.log("[KMP][Browse] runtime-ready seq=\(sequence)")
 
         do {
             // Task/Habit repositories are distinct actors but share one

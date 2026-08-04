@@ -24,5 +24,4 @@
 - [x] 回写规格与任务状态；Core 仓库未提供规格校验或大文件扫描脚本。
 # 待办：Overview 打开即崩溃
 
-- [ ] 使用 `unified-log-buffer` 导出的最近 30 分钟统一日志，定位 KMP bridge、SQLite 读取、
-  KMP 聚合或 SwiftUI projection 的首个失败阶段；拿到崩溃栈与日志后再提交定向修复。
+- [x] 使用 `unified-log-buffer` 与崩溃栈定位 Overview 首屏崩溃；修复后已在真机确认可以打开。

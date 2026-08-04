@@ -154,9 +154,7 @@
 				Core/Domain/Models/DDLItem.swift,
 				Core/Domain/Models/DDLState.swift,
 				Core/Domain/Models/InnerTodo.swift,
-				Core/Persistence/SharedModelContainer.swift,
 				Core/Shared/DateParsing/DeadlineDateParser.swift,
-				Data/Persistence/Entities.swift,
 				Shared/UI/Components/LinearProgressView.swift,
 			);
 			target = E53876152F5A5AC200E5D81A /* DeadlinerWidgetExtension */;
@@ -166,11 +164,9 @@
 			membershipExceptions = (
 				Core/Domain/Enums/DeadlineEnums.swift,
 				Core/Domain/Models/DDLState.swift,
-				Core/Persistence/SharedModelContainer.swift,
 				Core/Shared/DateParsing/DateExtension.swift,
 				Core/Shared/DateParsing/DeadlineDateParser.swift,
 				Core/Shared/WatchSync/WatchBoardSyncModels.swift,
-				Data/Persistence/Entities.swift,
 				Shared/UI/AppNotifications.swift,
 			);
 			target = E5D56E352FD579A000859548 /* DeadlinerWatch Watch App */;
@@ -549,7 +545,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2650;
-				LastUpgradeCheck = 2620;
+				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					E52762E12F3F6189002162DF = {
 						CreatedOnToolsVersion = 26.2;
@@ -762,6 +758,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -815,6 +812,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -825,6 +823,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -871,6 +870,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};

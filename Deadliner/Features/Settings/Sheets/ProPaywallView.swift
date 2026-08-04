@@ -194,8 +194,8 @@ struct ProPaywallView: View {
             FeatureRow(
                 icon: "lifi.logo.v1",
                 color: .indigo,
-                title: "Lifi AI（Rust 跨平台 Agent）",
-                description: "Deadliner+ 的核心能力：基于 Rust 的跨平台通用 Agent，围绕任务流提供智能理解、拆解与建议。",
+                title: "Lifi AI（跨平台 Agent）",
+                description: "Deadliner+ 的核心能力：基于 KMP 的跨平台通用 Agent，围绕任务流提供智能理解、拆解与建议。",
                 systemIcon: false
             )
             FeatureRow(

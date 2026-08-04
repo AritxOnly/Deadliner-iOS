@@ -19,17 +19,31 @@ struct CategoryContentDetailView: View {
     let habitActions: SearchHabitActions
 
     @State private var overlayProgress: CGFloat = 0
-    @State private var isContentReady = false
-    @State private var activeTasks: [DDLItem] = []
-    @State private var activeHabits: [Habit] = []
-    @State private var archivedTasks: [DDLItem] = []
-    @State private var archivedHabits: [Habit] = []
     @State private var visibleActiveTaskCount = 12
     @State private var visibleActiveHabitCount = 12
     @State private var visibleArchivedTaskCount = 12
     @State private var visibleArchivedHabitCount = 12
 
     private let pageSize = 12
+
+    // Keep category results derived from the parent KMP-backed snapshots.
+    // Capturing them after a delayed navigation task caused transient empty
+    // lists and made a category detail stale while source data refreshed.
+    private var activeTasks: [DDLItem] {
+        sourceActiveTasks.filter { $0.categoryUID == category.uid }
+    }
+
+    private var activeHabits: [Habit] {
+        sourceActiveHabits.filter { $0.categoryUID == category.uid }
+    }
+
+    private var archivedTasks: [DDLItem] {
+        sourceArchivedTasks.filter { $0.categoryUID == category.uid }
+    }
+
+    private var archivedHabits: [Habit] {
+        sourceArchivedHabits.filter { $0.categoryUID == category.uid }
+    }
 
     private var badge: CategoryBadgeModel {
         CategoryBadgeModel(category: category)
@@ -57,28 +71,7 @@ struct CategoryContentDetailView: View {
 
     @ViewBuilder
     var body: some View {
-        if isContentReady {
-            contentList
-        } else {
-            categoryShell
-        }
-    }
-
-    private var categoryShell: some View {
-        VStack(spacing: 14) {
-            ProgressView()
-                .controlSize(.large)
-            Text("正在打开分类…")
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
-        .navigationTitle(category.name)
-        .navigationBarTitleDisplayMode(.large)
-        .toolbarBackground(.hidden, for: .navigationBar)
-        .onAppear {
-            beginContentLoad()
-        }
+        contentList
     }
 
     private var contentList: some View {
@@ -167,38 +160,6 @@ struct CategoryContentDetailView: View {
             max(0, geo.contentOffset.y + geo.contentInsets.top)
         } action: { _, newValue in
             overlayProgress = min(max(newValue / 120, 0), 1)
-        }
-    }
-
-    private func beginContentLoad() {
-        AppLog.event(
-            "browse.category.shell.appeared",
-            domain: .ui,
-            context: ["uid": category.uid]
-        )
-        Task { @MainActor in
-            // Deliberately leave one visible shell frame between route
-            // resolution and content construction to isolate navigation from
-            // the category's complex list rendering.
-            try? await Task.sleep(for: .milliseconds(750))
-            guard !Task.isCancelled else { return }
-
-            activeTasks = sourceActiveTasks.filter { $0.categoryUID == category.uid }
-            activeHabits = sourceActiveHabits.filter { $0.categoryUID == category.uid }
-            archivedTasks = sourceArchivedTasks.filter { $0.categoryUID == category.uid }
-            archivedHabits = sourceArchivedHabits.filter { $0.categoryUID == category.uid }
-            AppLog.event(
-                "browse.category.content.begin",
-                domain: .ui,
-                context: [
-                    "uid": category.uid,
-                    "activeTasks": "\(activeTasks.count)",
-                    "activeHabits": "\(activeHabits.count)",
-                    "archivedTasks": "\(archivedTasks.count)",
-                    "archivedHabits": "\(archivedHabits.count)"
-                ]
-            )
-            isContentReady = true
         }
     }
 

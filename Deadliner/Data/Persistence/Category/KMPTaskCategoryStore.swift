@@ -63,54 +63,6 @@ actor KMPTaskCategoryStore: CategoryPersistenceStore {
         await SyncCoordinator.shared.scheduleSync()
     }
 
-    func importLegacySnapshots(_ snapshots: [CategoryMigrationSnapshot]) async -> (imported: Int, updated: Int, unchanged: Int) {
-        var imported = 0
-        var updated = 0
-        var unchanged = 0
-
-        for (index, snapshot) in snapshots.enumerated() {
-            guard let existing = database.categories.find(uid: snapshot.uid) else {
-                database.categories.create(category: snapshot.kmpValue)
-                imported += 1
-                continue
-            }
-
-            if CategoryMigrationSnapshot(existing) == snapshot {
-                unchanged += 1
-            } else {
-                database.categories.update(category: snapshot.kmpValue)
-                updated += 1
-            }
-
-            if index.isMultiple(of: 50) {
-                await _Concurrency.Task.yield()
-            }
-        }
-
-        AppLog.event(
-            "persistence.category.import",
-            domain: .persistence,
-            context: [
-                "imported": "\(imported)",
-                "updated": "\(updated)",
-                "unchanged": "\(unchanged)"
-            ]
-        )
-        return (imported, updated, unchanged)
-    }
-
-    func migrationSnapshot(uid: String) -> CategoryMigrationSnapshot? {
-        database.categories.find(uid: uid).map(CategoryMigrationSnapshot.init)
-    }
-
-    func liveMigrationSnapshots() -> [CategoryMigrationSnapshot] {
-        database.categories.list().map(CategoryMigrationSnapshot.init)
-    }
-
-    func hasPersistedContent() -> Bool {
-        !database.categories.list().isEmpty
-    }
-
     private func nextSortOrder() -> Int {
         let highestSortOrder = database.categories.list()
             .filter { !$0.isDeleted }
@@ -173,36 +125,6 @@ private extension TaskCategory {
             createdAt: createdAt,
             updatedAt: updatedAt,
             isDeleted: false
-        )
-    }
-}
-
-private extension CategoryMigrationSnapshot {
-    init(_ category: Category_) {
-        self.init(
-            uid: category.uid,
-            name: category.name,
-            iconKey: category.iconKey,
-            colorHex: category.colorHex,
-            isPreset: category.isPreset,
-            sortOrder: Int(category.sortOrder),
-            createdAt: category.createdAt,
-            updatedAt: category.updatedAt,
-            isDeleted: category.isDeleted
-        )
-    }
-
-    var kmpValue: Category_ {
-        Category_(
-            uid: uid,
-            name: name,
-            iconKey: iconKey,
-            colorHex: colorHex,
-            isPreset: isPreset,
-            sortOrder: Int32(sortOrder),
-            createdAt: createdAt,
-            updatedAt: updatedAt,
-            isDeleted: isDeleted
         )
     }
 }

@@ -22,7 +22,7 @@ Deadliner 的 iOS 持久化、Repository、同步和状态刷新边界长期交�
 - 不把 JVM/JAR 产物当作 ArkTS 可直接加载的生产依赖。
 - 第一阶段不把 CloudKit、Watch、Widget、通知调度、WebDAV HTTP 客户端迁入 KMP。
 - 不在未完成导入、校验和回退路径前替换现有 SwiftData store。
-- 不在本轮删除 Rust/UniFFI AI core；它与持久化共享 core 是独立边界。
+- Rust/UniFFI AI runtime 已在 LiFi 迁移中删除；仅保留旧 Rust memory snapshot 的一次性导入读取。
 - 不保留 SwiftData、legacy `Int64` ID 或 Habit carrier 作为长期运行时兼容层；它们只能存在于一次性导入程序中。
 
 ## 用户场景
@@ -72,7 +72,7 @@ Deadliner 的 iOS 持久化、Repository、同步和状态刷新边界长期交�
 - 本批将既有 KMP Core 的 Capture 与 Memory repository façade接入 iOS；主 App 的这两类业务读写不再直接访问文件快照或 `UserDefaults`。
 - 旧存储仅作为一次性、只读 importer 数据源。迁移必须使用稳定 UID、幂等 upsert 和逐资源校验；导入失败时不得把空 KMP 集合当作成功切换。
 - iOS 侧按 `Core/Application/Ports` 定义 contract，`Data/Persistence/KMP` 实现 Shared bridge，`Features` 仅依赖 contract。不得将两种 aggregate 重新合并到 `DatabaseHelper.swift`。
-- AI 长期画像暂仍由 Rust LiFi AI 在运行时注入；KMP `UserProfile.nickname` 不承载该文本，以避免将 display name 与 agent context 混为同一字段。Profile schema 将在独立 contract 后迁移。
+- AI 长期画像由 KMP profile store 持久化；display name 与 agent context 使用独立字段，不混用用户展示信息。
 - 本批不删除旧代码或 runtime；删除须留待 importer 经 TestFlight 升级、重启与同步回归验证后，在 TODO #5 集中完成。
 
 ## Category 实验迁移策略

@@ -96,12 +96,12 @@ final class ICloudSyncBlobTransport: NSObject, SyncBlobTransport, @unchecked Sen
 
     private func validate(condition: any SyncWriteCondition, currentData: Data?) throws {
         if condition is SyncWriteConditionCreateOnly {
-            guard currentData == nil else { throw SyncTransportPreconditionFailedException() }
+            guard currentData == nil else { throw ICloudSyncBlobTransportError.preconditionFailed }
             return
         }
         if let match = condition as? SyncWriteConditionMatchVersion {
             guard let currentData, Self.version(for: currentData) == match.value else {
-                throw SyncTransportPreconditionFailedException()
+                throw ICloudSyncBlobTransportError.preconditionFailed
             }
         }
     }
@@ -171,6 +171,7 @@ final class ICloudSyncBlobTransport: NSObject, SyncBlobTransport, @unchecked Sen
 private enum ICloudSyncBlobTransportError: LocalizedError {
     case containerUnavailable
     case invalidPath
+    case preconditionFailed
 
     var errorDescription: String? {
         switch self {
@@ -178,6 +179,8 @@ private enum ICloudSyncBlobTransportError: LocalizedError {
             return "iCloud Drive is unavailable. Sign in to iCloud and enable iCloud Drive before syncing."
         case .invalidPath:
             return "The KMP sync provider requested an invalid iCloud path."
+        case .preconditionFailed:
+            return "The iCloud sync file changed before this update could be written."
         }
     }
 }

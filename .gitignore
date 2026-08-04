@@ -65,3 +65,5 @@ fastlane/test_output
 .derived_data
 .DerivedData
 .deadliner-core/
+.DS_Store
+__pycache__/

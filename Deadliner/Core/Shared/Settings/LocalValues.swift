@@ -21,20 +21,6 @@ enum SyncProvider: String, CaseIterable, Sendable {
     }
 }
 
-enum WebDAVSyncProtocol: String, CaseIterable, Sendable {
-    case v2Compatibility = "v2_compatibility"
-    case kmpChangeLog = "kmp_changelog"
-
-    var displayName: String {
-        switch self {
-        case .v2Compatibility:
-            return "V2 兼容"
-        case .kmpChangeLog:
-            return "KMP 原生（实验性）"
-        }
-    }
-}
-
 actor LocalValues {
     static let shared = LocalValues()
 
@@ -49,7 +35,7 @@ actor LocalValues {
     private enum Key {
         static let cloudSyncEnabled = "settings.cloud_sync_enabled"
         static let syncProvider = "settings.sync_provider"
-        static let webDAVSyncProtocol = "settings.webdav.sync_protocol"
+        static let legacyV2UpgradePrefix = "migration.sync.legacy_v2_upgrade."
         static let basicMode = "settings.basic_mode"
         static let autoArchiveDays = "settings.auto_archive_days"
         static let tombstoneRetentionDays = "settings.tombstone_retention_days"
@@ -96,7 +82,6 @@ actor LocalValues {
         defaults.register(defaults: [
             Key.cloudSyncEnabled: true,
             Key.syncProvider: SyncProvider.webDAV.rawValue,
-            Key.webDAVSyncProtocol: WebDAVSyncProtocol.v2Compatibility.rawValue,
             Key.basicMode: false,
             Key.autoArchiveDays: 7,
             Key.tombstoneRetentionDays: 30,
@@ -134,16 +119,12 @@ actor LocalValues {
         defaults.set(provider.rawValue, forKey: Key.syncProvider)
     }
 
-    func getWebDAVSyncProtocol() -> WebDAVSyncProtocol {
-        guard let raw = defaults.string(forKey: Key.webDAVSyncProtocol),
-              let protocolVersion = WebDAVSyncProtocol(rawValue: raw) else {
-            return .v2Compatibility
-        }
-        return protocolVersion
+    func hasCompletedLegacyV2Upgrade(providerMarker: String) -> Bool {
+        defaults.bool(forKey: Key.legacyV2UpgradePrefix + providerMarker)
     }
 
-    func setWebDAVSyncProtocol(_ protocolVersion: WebDAVSyncProtocol) {
-        defaults.set(protocolVersion.rawValue, forKey: Key.webDAVSyncProtocol)
+    func markLegacyV2UpgradeCompleted(providerMarker: String) {
+        defaults.set(true, forKey: Key.legacyV2UpgradePrefix + providerMarker)
     }
 
     // MARK: - Basic Mode

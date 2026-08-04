@@ -2,8 +2,7 @@
 //  KMPMemoryStore.swift
 //  Deadliner
 //
-//  KMP-backed memory fragment persistence. Rust LiFi continues to receive the
-//  runtime snapshot assembled by `MemoryBank`.
+//  KMP-backed memory fragment persistence.
 //
 
 #if canImport(Shared)

@@ -39,11 +39,6 @@ struct DeadlinerApp: App {
             AppRootView()
                 .environmentObject(themeStore)
                 .task {
-                    // Adopt an already-migrated KMP database before deciding
-                    // whether a one-time legacy import is still needed.
-                    _ = await KMPPersistenceExperiment.adoptExistingStoreIfPresent()
-                    _ = await KMPTaskHabitMigrationExperiment.adoptExistingStoreIfPresent()
-
                     do {
                         try await KMPLifiCoreBridge.shared.initializeIfNeeded()
                         await CaptureStore.shared.ensureKMPMigration()
@@ -52,31 +47,6 @@ struct DeadlinerApp: App {
                         SyncDebugLog.log("Core init failed on launch task: \(error.localizedDescription)")
                         assertionFailure("DB init failed: \(error)")
                     }
-
-                    do {
-                        if let report = try await KMPPersistenceExperiment.prepareOnLaunchIfEnabled() {
-                            let message =
-                                "[KMP] Category migration valid=\(report.isValid) source=\(report.sourceCount) "
-                                    + "imported=\(report.importedCount) updated=\(report.updatedCount)"
-                            SyncDebugLog.log(message)
-                            print(message)
-                        }
-                    } catch {
-                        SyncDebugLog.log("[KMP] Category migration failed: \(error.localizedDescription)")
-                    }
-
-                    // Keep the first frame responsive on upgraded devices.
-                    // Feature stores are KMP-only and receive a change event
-                    // after the background import completes.
-                    _Concurrency.Task(priority: .utility) {
-                        await KMPTaskHabitMigrationExperiment.ensureReadyForRuntime()
-                    }
-
-                    #if DEBUG
-                    // This scans both SwiftData and KMP stores in full. Keep it
-                    // out of release startup, especially on upgraded devices.
-                    await KMPTaskHabitMigrationDiagnostics.logLegacyComparison()
-                    #endif
 
                     if AppReleaseGate.unlockGeekForCurrentRelease {
                         userTier = .geek

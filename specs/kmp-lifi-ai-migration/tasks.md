@@ -37,4 +37,4 @@
 - [ ] 在一轮真机升级验证后，移除所有仅用于 SwiftData 一次性迁移的 reader、entity 与 migration report 代码。
 - [x] 修复旧 KMP SQLite 缺少 `conversation_turn` 的 schema v2 → v3 migration；重新发布 Shared XCFramework 后真机验证首轮聊天。
 - [x] 修复旧灵感与 LiFi memory 的 recovery import：合并 App Group/standard defaults，并导入 Rust `DeadlinerAI/memories.json` snapshot；只补缺失 UID，不覆盖 KMP 数据。
-- [ ] 在一台已有灵感、UserDefaults memory 与 Rust LiFi memory 的升级真机上，核对迁移后的灵感数、记忆数与画像内容。
+- [x] 在一台已有灵感、UserDefaults memory 与 Rust LiFi memory 的升级真机上，核对迁移后的灵感数、记忆数与画像内容。

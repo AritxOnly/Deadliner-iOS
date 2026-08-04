@@ -57,7 +57,7 @@
 - `Data/Persistence/KMP`：以 Core 已有 façade实现 UID-first store、一次性 importer 与结构化变更事件。
 - `Features/Capture`、`Features/Main`：只使用上述 contract；页面状态和导航仍保留在 SwiftUI。
 - importer、projection 与 feature store 分文件维护，避免向 `DatabaseHelper.swift`、单一 KMP bridge 或大型 ViewModel 继续堆叠。
-- AI Profile 暂维持 Rust LiFi runtime injection，不映射到 KMP `UserProfile`；后续以独立 profile-context contract 处理。
+- AI Profile 已迁入 KMP profile store；旧 Rust snapshot 只作为一次性 recovery import。
 
 ### 6. `android-core-adapter`
 

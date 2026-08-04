@@ -14,7 +14,6 @@ struct AccountAndSyncView: View {
     
     @State private var cloudSyncEnabled = true
     @State private var syncProvider: SyncProvider = .webDAV
-    @State private var webDAVSyncProtocol: WebDAVSyncProtocol = .v2Compatibility
     @State private var loadedSyncProvider: SyncProvider = .webDAV
     @State private var webdavURL = ""
     @State private var webdavUser = ""
@@ -62,7 +61,7 @@ struct AccountAndSyncView: View {
                 Text("同步方式")
             } footer: {
                 Text(iCloudAvailable
-                     ? "iCloud 与 WebDAV 是单选同步提供方；两者都使用当前选择的 KMP 同步协议。"
+                     ? "iCloud 与 WebDAV 是单选同步提供方；都使用统一的 KMP 同步协议。"
                      : "当前可使用 WebDAV。升级 Geek 后可切换到 iCloud 无缝同步。")
             }
 
@@ -88,21 +87,6 @@ struct AccountAndSyncView: View {
             .opacity(syncProvider == .webDAV ? 1 : 0.45)
 
             Section {
-                Picker("WebDAV 协议", selection: $webDAVSyncProtocol) {
-                    ForEach(WebDAVSyncProtocol.allCases, id: \.self) { protocolVersion in
-                        Text(protocolVersion.displayName).tag(protocolVersion)
-                    }
-                }
-                .pickerStyle(.inline)
-            } header: {
-                Text("KMP 同步协议")
-            } footer: {
-                Text(webDAVSyncProtocol == .v2Compatibility
-                     ? "本地数据始终来自 KMP；WebDAV 和 iCloud 都使用兼容的 V2 快照文件。"
-                     : "实验性原生 KMP 变更日志。切换后只与同样启用该协议的设备同步。")
-            }
-
-            Section {
                 HStack {
                     SettingsGradientSymbolIcon(systemName: "icloud.fill", palette: .ocean)
                     Text("iCloud 无缝同步")
@@ -120,7 +104,7 @@ struct AccountAndSyncView: View {
                 Text(iCloudAvailable
                      ? (syncProvider == .iCloud
                         ? "当前通过 iCloud Drive 同步 KMP 数据；WebDAV 不会同时运行。"
-                        : "切换到 iCloud 后，将使用系统 iCloud Drive provider 和当前 KMP 同步协议。")
+                        : "切换到 iCloud 后，将使用系统 iCloud Drive provider 和统一的 KMP 同步协议。")
                      : "Geek 可解锁 iCloud 无缝同步。")
             }
             
@@ -156,10 +140,6 @@ struct AccountAndSyncView: View {
             showPaywall = true
             return
         }
-        .onChange(of: webDAVSyncProtocol) { oldValue, newValue in
-            guard !isLoading, oldValue != newValue else { return }
-            Task { await LocalValues.shared.setWebDAVSyncProtocol(newValue) }
-        }
         .onChange(of: syncProvider) { oldValue, newValue in
             guard !isLoading, oldValue != newValue else { return }
             guard !(newValue == .iCloud && !iCloudAvailable) else { return }
@@ -183,7 +163,6 @@ struct AccountAndSyncView: View {
 
         cloudSyncEnabled = await LocalValues.shared.getCloudSyncEnabled()
         syncProvider = await LocalValues.shared.getSyncProvider()
-        webDAVSyncProtocol = await LocalValues.shared.getWebDAVSyncProtocol()
         if !iCloudAvailable && syncProvider == .iCloud {
             syncProvider = .webDAV
         }

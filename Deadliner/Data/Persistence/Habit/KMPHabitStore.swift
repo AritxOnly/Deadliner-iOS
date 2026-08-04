@@ -21,12 +21,6 @@ actor KMPHabitStore: KMPHabitPersistenceStore {
         database.habits.list().filter { !$0.isDeleted }
     }
 
-    /// Includes tombstones and records so existing KMP user data is never
-    /// mistaken for an empty fresh install and overwritten by SwiftData.
-    func hasPersistedContent() -> Bool {
-        !database.habits.list().isEmpty || !database.habits.allRecords().isEmpty
-    }
-
     func habit(uid: String) -> Habit_? {
         database.habits.find(uid: uid)
     }
@@ -117,74 +111,6 @@ actor KMPHabitStore: KMPHabitPersistenceStore {
         await SyncCoordinator.shared.scheduleSync()
     }
 
-    func importLegacySnapshots(_ snapshots: [LegacyHabitMigrationSnapshot]) async -> (imported: Int, updated: Int) {
-        var imported = 0
-        var updated = 0
-        let liveCategoryUIDs = Set(
-            database.categories.list().lazy.filter { !$0.isDeleted }.map(\.uid)
-        )
-
-        for (habitIndex, snapshot) in snapshots.enumerated() {
-            let categoryUID = snapshot.categoryUID.flatMap { liveCategoryUIDs.contains($0) ? $0 : nil }
-            let habit = snapshot.kmpValue(categoryUID: categoryUID)
-            if database.habits.find(uid: snapshot.uid) == nil {
-                database.habits.create(habit: habit)
-                imported += 1
-            } else {
-                database.habits.update(habit: habit)
-                updated += 1
-            }
-            for (recordIndex, record) in snapshot.records.enumerated() {
-                database.habits.saveRecord(record: record.kmpValue, operation: .update)
-                if recordIndex.isMultiple(of: 100) {
-                    await _Concurrency.Task.yield()
-                }
-            }
-            if habitIndex.isMultiple(of: 25) {
-                await _Concurrency.Task.yield()
-            }
-        }
-
-        return (imported, updated)
-    }
-
-    /// Used only before the one-time SwiftData-to-KMP migration validates.
-    /// It removes stale preview rows so components cannot count habits which
-    /// do not exist in the canonical migration snapshot.
-    func removeMigrationStaleHabits(keeping sourceUIDs: Set<String>) async -> Int {
-        let stale = database.habits.list().filter { !$0.isDeleted && !sourceUIDs.contains($0.uid) }
-        let now = Date().toLocalISOString()
-        for (index, habit) in stale.enumerated() {
-            database.habits.delete(uid: habit.uid, updatedAt: now)
-            if index.isMultiple(of: 25) {
-                await _Concurrency.Task.yield()
-            }
-        }
-        return stale.count
-    }
-
-    func removeMigrationStaleRecords(keeping sourceUIDs: Set<String>) async -> Int {
-        let stale = database.habits.allRecords().filter { !sourceUIDs.contains($0.uid) }
-        let now = Date().toLocalISOString()
-        for (index, record) in stale.enumerated() {
-            let tombstone = record.doCopy(
-                uid: record.uid,
-                habitUid: record.habitUid,
-                occurredOn: record.occurredOn,
-                count: record.count,
-                status: record.status,
-                createdAt: record.createdAt,
-                updatedAt: now,
-                isDeleted: true
-            )
-            database.habits.saveRecord(record: tombstone, operation: .update)
-            if index.isMultiple(of: 100) {
-                await _Concurrency.Task.yield()
-            }
-        }
-        return stale.count
-    }
-
     private func publishChange(resources: Set<PersistenceResourceKind>) async {
         await MainActor.run {
             PersistenceChangePublisher.publish(.init(resourceKinds: resources))
@@ -220,65 +146,6 @@ private enum KMPHabitStoreError: LocalizedError {
         case let .missingHabit(uid):
             "KMP habit \(uid) no longer exists."
         }
-    }
-}
-
-private extension LegacyHabitMigrationSnapshot {
-    func kmpValue(categoryUID: String?) -> Habit_ {
-        let kmpColor = color.map { KotlinInt(value: Int32($0)) }
-        let kmpTotalTarget = totalTarget.map { KotlinInt(value: Int32($0)) }
-        let kmpReminder = reminderTime.map { HabitReminder(localTime: $0, isEnabled: true) }
-        return Habit_(
-            uid: uid,
-            name: name,
-            description: description,
-            color: kmpColor,
-            iconKey: iconKey,
-            categoryUid: categoryUID,
-            period: period,
-            timesPerPeriod: Int32(timesPerPeriod),
-            goalType: goalType,
-            totalTarget: kmpTotalTarget,
-            status: status,
-            sortOrder: Int32(sortOrder),
-            reminder: kmpReminder,
-            createdAt: createdAt,
-            updatedAt: updatedAt,
-            isDeleted: false
-        )
-    }
-
-    private var period: Shared.HabitPeriod {
-        switch periodRaw {
-        case "WEEKLY": .weekly
-        case "MONTHLY": .monthly
-        case "ONCE": .once
-        case "EBBINGHAUS": .ebbinghaus
-        default: .daily
-        }
-    }
-
-    private var goalType: Shared.HabitGoalType {
-        goalTypeRaw == "TOTAL" ? .total : .perPeriod
-    }
-
-    private var status: Shared.HabitStatus {
-        statusRaw == "ARCHIVED" ? .archived : .active
-    }
-}
-
-private extension LegacyHabitRecordMigrationSnapshot {
-    var kmpValue: Shared.HabitRecord {
-        Shared.HabitRecord(
-            uid: uid,
-            habitUid: habitUID,
-            occurredOn: occurredOn,
-            count: Int32(count),
-            status: statusRaw == HabitRecordStatus.skipped.rawValue ? .skipped : statusRaw == HabitRecordStatus.failed.rawValue ? .failed : .completed,
-            createdAt: createdAt,
-            updatedAt: updatedAt,
-            isDeleted: false
-        )
     }
 }
 #endif

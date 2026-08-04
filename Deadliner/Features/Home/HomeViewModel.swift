@@ -93,9 +93,6 @@ final class HomeViewModel: ObservableObject {
 
     func initialLoad() async {
         self.progressDir = await LocalValues.shared.getProgressDir()
-        _Concurrency.Task(priority: .utility) {
-            await KMPTaskHabitMigrationExperiment.ensureReadyForRuntime()
-        }
         await startKMPTaskListBridgeIfNeeded()
         await startKMPHabitListBridgeIfNeeded()
         
@@ -167,8 +164,7 @@ final class HomeViewModel: ObservableObject {
 
         SyncDebugLog.log(
             "[KMP][Home] habits source=\(allRaw.count) active=\(activeHabits.count) "
-                + "renderable=\(statusList.count) recordReadFailures=\(statusReadFailures) "
-                + "kmpEnabled=\(KMPPersistenceFeatureFlags.canUseTaskHabitStore)"
+                + "renderable=\(statusList.count) recordReadFailures=\(statusReadFailures)"
         )
 
         allHabitsCache = statusList
@@ -468,12 +464,23 @@ final class HomeViewModel: ObservableObject {
 
     func toggleGiveUpItem(item: DDLItem) async {
         do {
-            _ = try await performTaskAction(
+            AppLog.event("task.give-up.started", domain: .kmp, context: ["uid": item.id])
+            let updated = try await performTaskAction(
                 item: item,
                 action: item.state.isAbandonedLike ? .restoreActive : .markGiveUp
             )
+            if let index = tasks.firstIndex(where: { $0.id == updated.id }) {
+                tasks[index] = updated
+                sortTasksInPlace()
+            }
+            AppLog.event(
+                "task.give-up.applied",
+                domain: .kmp,
+                context: ["uid": updated.id, "state": updated.state.rawValue]
+            )
             await reload()
         } catch {
+            AppLog.failure("task.give-up.failed", domain: .kmp, error: error, context: ["uid": item.id])
             errorText = "状态流转失败：\(error.localizedDescription)"
         }
     }
@@ -571,8 +578,7 @@ final class HomeViewModel: ObservableObject {
             let sortedList = sortedTasks(fetchedList)
             let mainListVisible = sortedList.filter(\.state.isMainListVisible)
             SyncDebugLog.log(
-                "[KMP][Home] tasks source=\(sortedList.count) mainListVisible=\(mainListVisible.count) "
-                    + "kmpEnabled=\(KMPPersistenceFeatureFlags.canUseTaskHabitStore)"
+                "[KMP][Home] tasks source=\(sortedList.count) mainListVisible=\(mainListVisible.count)"
             )
             if !force && sortedList == self.tasks {
                 // skip
@@ -592,8 +598,7 @@ final class HomeViewModel: ObservableObject {
     }
 
     private func startKMPTaskListBridgeIfNeeded() async {
-        guard KMPPersistenceFeatureFlags.canUseTaskHabitStore,
-              kmpTaskListBridge == nil else {
+        guard kmpTaskListBridge == nil else {
             return
         }
 
@@ -622,8 +627,7 @@ final class HomeViewModel: ObservableObject {
     }
 
     private func startKMPHabitListBridgeIfNeeded() async {
-        guard KMPPersistenceFeatureFlags.canUseTaskHabitStore,
-              kmpHabitListBridge == nil else {
+        guard kmpHabitListBridge == nil else {
             return
         }
 

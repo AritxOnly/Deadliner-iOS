@@ -41,13 +41,11 @@ actor SyncCoordinator {
         #if canImport(Shared)
         let database = await KMPPersistenceRuntime.shared.coreDatabase()
         let provider = await syncProvider()
-        let protocolVersion = await LocalValues.shared.getWebDAVSyncProtocol()
         switch provider {
         case .webDAV:
             guard let cfg = await webDAVConfig() else { return nil }
             return KMPCloudSyncService(
                 database: database,
-                protocolVersion: protocolVersion,
                 provider: .webDAV(
                     url: cfg.url,
                     username: cfg.user,
@@ -58,7 +56,6 @@ actor SyncCoordinator {
             #if canImport(CryptoKit)
             return KMPCloudSyncService(
                 database: database,
-                protocolVersion: protocolVersion,
                 provider: .iCloud
             )
             #else
